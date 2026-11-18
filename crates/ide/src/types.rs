@@ -2221,7 +2221,14 @@ impl<'a> Infer<'a> {
     fn token_type(&self, tok: &SyntaxToken) -> Option<T> {
         let parent = tok.parent()?;
         if tok.kind() == FUNCTION_KW {
-            return Some(if parent.kind() == FUNCTION_EXPR { self.expr_type(&parent) } else { name("function") });
+            if parent.kind() != FUNCTION_EXPR {
+                return Some(name("function"));
+            }
+            // The `fun(...)` the place it is given to expects (LuaLS).
+            if let Some(t @ T::Fun(_)) = self.expected_type(&parent).map(non_nil) {
+                return Some(t);
+            }
+            return Some(self.expr_type(&parent));
         }
         if tok.kind() != NAME {
             return None;
@@ -2471,7 +2478,18 @@ impl<'a> Infer<'a> {
                 Effect::Fill(v) => union(std::iter::once(non_nil(t)).chain(v).collect()),
                 Effect::Narrow(n) => {
                     // The members of the known type that the check keeps.
-                    let fits = |m: &T| *m == n || is(&n, "number") && numeric(m).is_some();
+                    let fits = |m: &T| {
+                        let kind = match m {
+                            T::Fun(_) => Some("function"),
+                            T::Str(_) => Some("string"),
+                            T::Bool(_) => Some("boolean"),
+                            T::Int(_) => Some("integer"),
+                            T::Table(_) | T::Array(_) | T::Tuple(_) => Some("table"),
+                            T::Generic(g, _) if g == "table" => Some("table"),
+                            _ => None,
+                        };
+                        *m == n || is(&n, "number") && numeric(m).is_some() || kind.is_some_and(|k| is(&n, k) || (k == "integer" && is(&n, "number")))
+                    };
                     let parts: Vec<T> = match non_nil(t.clone()) {
                         T::Union(ps) => ps,
                         m => vec![m],
@@ -2835,6 +2853,15 @@ impl<'a> Infer<'a> {
                     }
                     _ => {}
                 }
+                // `f(1, function(a) end)` with `---@overload fun(a: 1, c: fun(x: number))`.
+                if call.kind() == CALL_EXPR
+                    && e.kind() == FUNCTION_EXPR
+                    && let Some((kept, _)) = self.overloads_kept(&callee, &args)
+                    && let [only] = kept.as_slice()
+                    && let Some(t) = only.params.get(i).and_then(|p| p.ty.clone())
+                {
+                    return Some(t);
+                }
                 let info = if call.kind() == METHOD_CALL_EXPR {
                     let m = crate::api::method_name(&call)?;
                     // `function C.f(a, b)` called as `C:f(b)`: the object is `a`.
@@ -2897,6 +2924,49 @@ impl<'a> Infer<'a> {
     /// the first overload, then the function itself, that the arguments fit
     /// (count and types). None without overloads or when none fits.
     fn overload_returns(&self, callee: &SyntaxNode, args: &[SyntaxNode]) -> Option<Vec<T>> {
+        let (kept, gens) = self.overloads_kept(callee, args)?;
+        let all: Vec<Vec<T>> = kept
+            .iter()
+            .map(|f| self.apply(&Callee { params: f.params.iter().map(|p| p.ty.clone()).collect(), rets: fun_rets(f), generics: gens.clone(), self_param: None }, args))
+            .collect();
+        if let [one] = all.as_slice() {
+            return Some(one.clone());
+        }
+        let n = all.iter().map(Vec::len).max().unwrap_or(0);
+        Some((0..n).map(|i| union(all.iter().filter_map(|r| r.get(i).cloned()).collect())).collect())
+    }
+
+    /// `A()` on a `---@class A` local or global with `---@overload`s: the first
+    /// overload's returns, `self` as the class.
+    fn class_call_returns(&self, callee: &SyntaxNode) -> Option<Vec<T>> {
+        if callee.kind() != NAME_EXPR {
+            return None;
+        }
+        let stat = match self.ref_at(callee.first_token()?.text_range())?.target {
+            Target::Decl(d) => self.decl_stat(d)?,
+            Target::Global => {
+                let text = &self.text[callee.text_range()];
+                self.root.descendants().filter(|s| s.kind() == ASSIGN_STAT).find(|s| {
+                    s.children().find(|c| c.kind() == VAR_LIST).and_then(|l| l.first_child()).is_some_and(|v| &self.text[v.text_range()] == text)
+                        && class_tag(self.text, s).is_some()
+                })?
+            }
+        };
+        let tags = stat_tags(self.text, &stat);
+        let class = tags.iter().find_map(|t| match t {
+            Tag::Class { name, .. } => Some(name.clone()),
+            _ => None,
+        })?;
+        let f = tags.iter().find_map(|t| match t {
+            Tag::Overload(T::Fun(f)) => Some(f.clone()),
+            _ => None,
+        })?;
+        Some(fun_rets(&f).into_iter().map(|r| if is(&r, "self") { name(&class) } else { r }).collect())
+    }
+
+    /// The `fun`s of a function with `---@overload`s (itself included) that a
+    /// call with these arguments may reach, and the function's generics.
+    fn overloads_kept(&self, callee: &SyntaxNode, args: &[SyntaxNode]) -> Option<(Vec<FunType>, Vec<String>)> {
         let body = self.function_body(callee)?;
         let stat = self.doc_stat_of(&body)?;
         let tags = stat_tags(self.text, &stat);
@@ -3016,18 +3086,8 @@ impl<'a> Infer<'a> {
                 }
             }
         };
-        if kept.len() > 1 {
-            let all: Vec<Vec<T>> = kept
-                .iter()
-                .map(|f| self.apply(&Callee { params: f.params.iter().map(|p| p.ty.clone()).collect(), rets: fun_rets(f), generics: gens.clone(), self_param: None }, args))
-                .collect();
-            let n = all.iter().map(Vec::len).max().unwrap_or(0);
-            return Some((0..n).map(|i| union(all.iter().filter_map(|r| r.get(i).cloned()).collect())).collect());
-        }
-        let fits = |f: &FunType| kept.iter().any(|k| std::ptr::eq(*k, f));
-        let f = candidates.iter().find(|f| fits(f))?;
-        let chosen = Callee { params: f.params.iter().map(|p| p.ty.clone()).collect(), rets: fun_rets(f), generics: gens.clone(), self_param: None };
-        Some(self.apply(&chosen, args))
+        let kept: Vec<FunType> = kept.into_iter().cloned().collect();
+        Some((kept, gens))
     }
 
     /// Parameter `i` of the same method on the class of `function B:f()` or a
@@ -3945,6 +4005,10 @@ impl<'a> Infer<'a> {
             }
         }
         if let Some(rets) = self.overload_returns(&callee, &args) {
+            return rets;
+        }
+        // `---@class A` / `---@overload fun(): self` on the local `A`, called.
+        if let Some(rets) = self.class_call_returns(&callee) {
             return rets;
         }
         if let Some(info) = self.callee_info(&callee) {

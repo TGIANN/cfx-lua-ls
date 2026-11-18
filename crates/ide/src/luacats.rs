@@ -494,6 +494,8 @@ impl<'a> P<'a> {
             if self.eat("}") {
                 break;
             }
+            // `(f: fun(): number)`: a field in parentheses (its type may hold `,`).
+            let paren = self.eat("(");
             let key = if self.eat("[") {
                 let k = self.ty()?;
                 self.eat("]");
@@ -506,6 +508,9 @@ impl<'a> P<'a> {
                 return None;
             }
             let ty = self.ty()?;
+            if paren && !self.eat(")") {
+                return None;
+            }
             fields.push(TableField { key, ty, optional });
             if !(self.eat(",") || self.eat(";")) {
                 self.eat("}");
