@@ -599,7 +599,7 @@ impl<'a> FileTypes<'a> {
     pub(crate) fn undefined_fields(&self, root: &SyntaxNode) -> Vec<(TextRange, Vec<String>)> {
         let inf = &self.inf;
         let mut out = Vec::new();
-        let enums = self.enum_fields();
+        let enums = if inf.text.contains("@enum") { self.enum_fields() } else { Vec::new() };
         if inf.classes.is_empty() && enums.is_empty() && !inf.text.contains("@type") {
             return out;
         }
@@ -1314,6 +1314,11 @@ impl<'a> FileTypes<'a> {
     /// A value that surely does not fit a declared type: (its type, the
     /// declared one).
     pub(crate) fn value_mismatch(&self, e: &SyntaxNode, want: &T) -> Option<(String, String)> {
+        self.value_mismatch_in(e, want, false)
+    }
+
+    /// `drop_nil`: the slot takes nil whatever its type (`{ a, nil }`, `t[1] = v`).
+    fn value_mismatch_in(&self, e: &SyntaxNode, want: &T, drop_nil: bool) -> Option<(String, String)> {
         let inf = &self.inf;
         if inf.exhausted.get() {
             return None;
@@ -1328,6 +1333,16 @@ impl<'a> FileTypes<'a> {
         }
         if inf.exhausted.get() {
             return None;
+        }
+        // A field read is not narrowed: its falsy members are left out (LuaLS).
+        if matches!(e.kind(), INDEX_EXPR) {
+            got = truthy(got);
+        }
+        if drop_nil {
+            if is(&got, "nil") {
+                return None;
+            }
+            got = non_nil(got);
         }
         // `1.5` where only `integer` fits (LuaLS: a float is not an integer).
         if fractional_literal(e) && float_misfits(want) && !inf.number_to_integer.get() {
@@ -1382,6 +1397,10 @@ impl<'a> FileTypes<'a> {
             if inf.exhausted.get() {
                 return out;
             }
+            let nil_value = value.kind() == LITERAL_EXPR && value.first_token().is_some_and(|t| t.kind() == NIL_KW);
+            if nil_value && (var.kind() == INDEX_EXPR || !stat_types.is_empty()) {
+                continue;
+            }
             match var.kind() {
                 NAME_EXPR => {
                     let Some(Target::Decl(d)) = var.first_token().and_then(|t| inf.ref_at(t.text_range())).map(|r| r.target) else { continue };
@@ -1400,7 +1419,7 @@ impl<'a> FileTypes<'a> {
                             // LuaLS: the type of its first value, widened (`0` is `integer`).
                             let Some(init) = first_value_of(inf, d) else { continue };
                             let want = widen_deep(&inf.expr_type(&init));
-                            if has_unknown(&want) || mentions_any(&want) || is(&want, "nil") {
+                            if has_unknown(&want) || mentions_any(&want) || is(&want, "nil") || (nil_value && init.kind() == TABLE_EXPR) {
                                 continue;
                             }
                             if let Some((got, want)) = self.value_mismatch(value, &want) {
@@ -1427,7 +1446,9 @@ impl<'a> FileTypes<'a> {
                     if has_unknown(&want) || mentions_any(&want) {
                         continue;
                     }
-                    if let Some((got, want)) = self.value_mismatch(value, &want) {
+                    // `t[k] = v`: the slot takes nil.
+                    let bracket = var.children_with_tokens().any(|e| e.kind() == L_BRACK);
+                    if let Some((got, want)) = self.value_mismatch_in(value, &want, bracket) {
                         out.push((var.text_range(), "assign-type-mismatch", format!("Cannot assign `{got}` to `{want}`.")));
                     }
                 }
@@ -1640,7 +1661,7 @@ impl<'a> FileTypes<'a> {
             if is(&want, "nil") || has_unknown(&want) || mentions_any(&want) {
                 continue;
             }
-            if let Some((got, want)) = self.value_mismatch(&value, &want) {
+            if let Some((got, want)) = self.value_mismatch_in(&value, &want, field.kind() == FIELD_POS) {
                 out.push((at, got, want));
             }
         }
