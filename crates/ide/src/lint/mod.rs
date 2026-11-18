@@ -208,6 +208,28 @@ pub struct LintConfig {
     pub protected_names: Vec<String>,
     /// `doc.regengine` is `lua`: the names are Lua patterns (`string.find`).
     pub lua_name_patterns: bool,
+    /// `cfx.lualsCompat`: LuaLS's own behaviour where this server is
+    /// deliberately narrower (nil checked, a local typed by its first value,
+    /// `unpack` deprecated, an empty function body not a declaration, every
+    /// unknown `---@diagnostic` code).
+    pub luals_compat: bool,
+    /// `type.weakNilCheck`, when set; unset: on, unless `luals_compat`.
+    pub weak_nil_check: Option<bool>,
+    /// `type.weakUnionCheck`: a union fits when one of its members does.
+    pub weak_union_check: bool,
+    /// `type.castNumberToInteger`: a `number` fits `integer`.
+    pub cast_number_to_integer: bool,
+    /// `type.checkTableShape`: a table fits a class only with its fields.
+    pub check_table_shape: bool,
+    /// `diagnostics.unusedLocalExclude`: globs of locals never unused.
+    pub unused_local_exclude: Vec<String>,
+}
+
+impl LintConfig {
+    /// Whether nil is checked against a declared type.
+    pub fn strict_nil(&self) -> bool {
+        !self.weak_nil_check.unwrap_or(!self.luals_compat)
+    }
 }
 
 impl LintConfig {
@@ -323,7 +345,9 @@ impl<'a> Linter<'a> {
     }
 
     pub(crate) fn types(&self) -> &crate::types::FileTypes<'a> {
-        self.types.get_or_init(|| crate::types::FileTypes::from_root(self.root.clone(), self.names, self.text))
+        self.types.get_or_init(|| {
+            crate::types::FileTypes::from_root(self.root.clone(), self.names, self.text).with_config(self.ctx.config)
+        })
     }
 
     /// The text of a node or token.

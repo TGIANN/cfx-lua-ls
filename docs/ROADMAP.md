@@ -257,8 +257,11 @@ error ("invalid UTF-8 code").
     `duplicate-doc-alias`. Each is narrower than LuaLS where the inference
     would guess (RULES.md lists every deviation): types from the same file
     only, values the flow may have narrowed (names, `a or b`) left alone,
-    upvalues not followed. LuaLS's `test/diagnostics` (507 cases run with
-    LuaLS's default switches, `crates/ide/tests/luals_diags.rs`): 497 pass. Over the five corpora the
+    upvalues not followed. LuaLS's `test/diagnostics` (537 cases, each run
+    with the LuaLS switches its test sets, `crates/ide/tests/luals_diags.rs`):
+    all 537 pass, 8 of them only with `cfx.lualsCompat` (the deliberate
+    deviations below, LuaLS's behaviour behind one switch); the Lua 5.5
+    `global` case is not scored (CfxLua is 5.4). Over the five corpora the
     new rules give 440 hits (194 `redundant-parameter`, 86
     `missing-parameter`, 52 `missing-return-value`, 32 `duplicate-set-field`,
     31 `need-check-nil`, the rest under 20 each), read in buckets by cause,

@@ -38,6 +38,10 @@ pub(super) fn names(l: &mut Linter) {
         if decl.name == "_" || decl.name == "_ENV" || decl.attrib == Some(crate::names::Attrib::Close) {
             continue;
         }
+        // `diagnostics.unusedLocalExclude`: `ll_*`.
+        if l.ctx.config.unused_local_exclude.iter().any(|g| crate::manifest::glob_exact(g, &decl.name)) {
+            continue;
+        }
         let (strong, weak) = reads[d];
         if strong || (weak && decl.value != Value::Table) || has_class_doc(l, decl.owner) {
             continue;

@@ -7,7 +7,11 @@
 //! case that fails, or a passing case not listed, fails the test.
 //! `LUALS_DIAGS_WRITE=1` rewrites the list, `LUALS_DIAGS_SHOW=1` prints every
 //! failing case of the rules this server has, `LUALS_DIAGS_RULE=code` only that
-//! rule's. Cases run with a non-default LuaLS switch (`config`) are not scored.
+//! rule's. A case run with LuaLS switches (`settings`) runs with the same
+//! settings here. A case that fails is run again with `cfx.lualsCompat` (LuaLS's
+//! own behaviour where this server is deliberately narrower by default) and
+//! listed as `code n compat` when it passes that way. A setting this server
+//! does not read keeps the case unscored.
 //!
 //! Rules with an `extra` count report something LuaLS does not: those are the
 //! false alarms that matter, unlike missed markers.
@@ -67,6 +71,27 @@ fn run(ws: &Workspace, path: &std::path::Path, config: &LintConfig, code: &str, 
     (outcome, detail)
 }
 
+/// The case's LuaLS settings on top of `base`; None for a setting not read here.
+fn with_settings(base: &LintConfig, settings: &serde_json::Map<String, Value>) -> Option<LintConfig> {
+    let mut c = base.clone();
+    let strings = |v: &Value| -> Vec<String> { v.as_array().map(|a| a.iter().filter_map(|s| s.as_str().map(str::to_string)).collect()).unwrap_or_default() };
+    for (k, v) in settings {
+        match k.as_str() {
+            "Lua.diagnostics.globals" => c.globals.extend(strings(v)),
+            "Lua.diagnostics.unusedLocalExclude" => c.unused_local_exclude.extend(strings(v)),
+            "Lua.doc.privateName" => c.private_names = strings(v),
+            "Lua.doc.protectedName" => c.protected_names = strings(v),
+            "Lua.doc.regengine" => c.lua_name_patterns = v.as_str() == Some("lua"),
+            "Lua.type.weakNilCheck" => c.weak_nil_check = v.as_bool(),
+            "Lua.type.weakUnionCheck" => c.weak_union_check = v.as_bool() == Some(true),
+            "Lua.type.castNumberToInteger" => c.cast_number_to_integer = v.as_bool() == Some(true),
+            "Lua.type.checkTableShape" => c.check_table_shape = v.as_bool() == Some(true),
+            _ => return None,
+        }
+    }
+    Some(c)
+}
+
 #[test]
 fn luals_diagnostics() {
     let data: Vec<Value> = serde_json::from_str(include_str!("data/luals_diags.json")).unwrap();
@@ -83,19 +108,31 @@ fn luals_diagnostics() {
         config.severity.insert(code.to_string(), Some(Severity::Warning));
     }
     let ours: BTreeSet<&str> = RULES.iter().map(|(c, _)| *c).collect();
+    let mut compat = config.clone();
+    compat.luals_compat = true;
     let mut passing = BTreeSet::new();
+    let mut unscored = Vec::new();
     let mut lost = Vec::new();
     // Rule -> (cases, passed, extra).
     let mut per_rule: BTreeMap<&str, (usize, usize, usize)> = BTreeMap::new();
     for c in &data {
-        if !c["config"].as_array().unwrap().is_empty() {
-            continue;
-        }
         let code = c["code"].as_str().unwrap();
         let id = format!("{code} {}", c["n"]);
         let script = c["script"].as_str().unwrap();
-        let (outcome, detail) = std::panic::catch_unwind(|| run(&ws, &path, &config, code, script))
-            .unwrap_or_else(|_| (Outcome::Extra, "<panic>".to_string()));
+        let settings = c["settings"].as_object().unwrap();
+        let (Some(config), Some(compat)) = (with_settings(&config, settings), with_settings(&compat, settings)) else {
+            unscored.push(id);
+            continue;
+        };
+        let attempt = |config: &LintConfig| {
+            std::panic::catch_unwind(|| run(&ws, &path, config, code, script)).unwrap_or_else(|_| (Outcome::Extra, "<panic>".to_string()))
+        };
+        let (mut outcome, detail) = attempt(&config);
+        let mut id = id;
+        if !matches!(outcome, Outcome::Pass) && matches!(attempt(&compat).0, Outcome::Pass) {
+            outcome = Outcome::Pass;
+            id.push_str(" compat");
+        }
         let entry = per_rule.entry(code).or_default();
         entry.0 += 1;
         match outcome {
@@ -117,7 +154,14 @@ fn luals_diagnostics() {
         }
     }
     let _ = std::fs::remove_dir_all(&root);
-    println!("{} of {} LuaLS diagnostic cases pass", passing.len(), per_rule.values().map(|r| r.0).sum::<usize>());
+    let with_compat = passing.iter().filter(|p| p.ends_with(" compat")).count();
+    println!(
+        "{} of {} LuaLS diagnostic cases pass ({} of them with cfx.lualsCompat); not scored: {:?}",
+        passing.len(),
+        per_rule.values().map(|r| r.0).sum::<usize>(),
+        with_compat,
+        unscored
+    );
     for (code, (cases, passed, extra)) in &per_rule {
         if ours.contains(code) {
             println!("  {code}: {passed}/{cases}{}", if *extra > 0 { format!(", {extra} extra") } else { String::new() });

@@ -1411,6 +1411,16 @@ impl Workspace {
                 }
                 NAME_EXPR => {
                     let Some(t) = n.first_token() else { continue };
+                    // `cfx.lualsCompat`: a library global of another Lua version
+                    // (`unpack` is 5.1; CfxLua keeps it).
+                    if config.luals_compat
+                        && let Some(v) = crate::library::other_version(t.text())
+                        && n.parent().is_none_or(|p| p.kind() != VAR_LIST)
+                        && matches!(crate::assist::chain(text, names, &n), Some((Ref::Global(_), f)) if f.is_empty())
+                    {
+                        push("deprecated", t.text_range(), format!("Deprecated (defined in Lua {v})."), Some(crate::lint::Tag::Deprecated));
+                        continue;
+                    }
                     if !(self.deprecated.contains_key(t.text()) || own_deprecated.contains(t.text())) || n.parent().is_some_and(|p| p.kind() == VAR_LIST) {
                         continue;
                     }
@@ -1462,7 +1472,7 @@ impl Workspace {
         }
         if text.contains("@class") || text.contains("---@type") || text.contains("@enum") {
             // undefined-field and inject-field: only for classes no other file declares.
-            let types = crate::types::FileTypes::from_root(parse.syntax(), names, text);
+            let types = crate::types::FileTypes::from_root(parse.syntax(), names, text).with_config(config);
             let found = types.undefined_fields(&parse.syntax());
             let injected = types.inject_fields();
             // Field names other files of the resource write (`AdminPanel.schema = x`).

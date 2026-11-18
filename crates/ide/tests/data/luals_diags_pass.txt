@@ -6,6 +6,7 @@ ambiguity-1 4
 ambiguity-1 5
 assign-type-mismatch 0
 assign-type-mismatch 1
+assign-type-mismatch 10 compat
 assign-type-mismatch 11
 assign-type-mismatch 12
 assign-type-mismatch 13
@@ -14,17 +15,26 @@ assign-type-mismatch 15
 assign-type-mismatch 16
 assign-type-mismatch 17
 assign-type-mismatch 18
+assign-type-mismatch 19
 assign-type-mismatch 2
 assign-type-mismatch 20
+assign-type-mismatch 21
 assign-type-mismatch 22
+assign-type-mismatch 23
+assign-type-mismatch 24
+assign-type-mismatch 25
+assign-type-mismatch 26
 assign-type-mismatch 27
 assign-type-mismatch 28
 assign-type-mismatch 29
 assign-type-mismatch 3
 assign-type-mismatch 30
+assign-type-mismatch 31
 assign-type-mismatch 32
 assign-type-mismatch 33
 assign-type-mismatch 34
+assign-type-mismatch 35
+assign-type-mismatch 36
 assign-type-mismatch 37
 assign-type-mismatch 38
 assign-type-mismatch 39
@@ -58,6 +68,7 @@ await-in-sync 6
 await-in-sync 7
 await-in-sync 8
 await-in-sync 9
+cast-local-type 0 compat
 cast-local-type 1
 cast-local-type 10
 cast-local-type 11
@@ -86,11 +97,18 @@ cast-local-type 31
 cast-local-type 32
 cast-local-type 33
 cast-local-type 34
+cast-local-type 35 compat
+cast-local-type 36 compat
 cast-local-type 37
+cast-local-type 38
+cast-local-type 39
 cast-local-type 4
+cast-local-type 40
+cast-local-type 41
 cast-local-type 5
 cast-local-type 6
 cast-local-type 7
+cast-local-type 8 compat
 cast-local-type 9
 cast-type-mismatch 0
 cast-type-mismatch 1
@@ -106,6 +124,7 @@ count-down-loop 1
 count-down-loop 2
 count-down-loop 3
 count-down-loop 4
+deprecated 0 compat
 deprecated 1
 deprecated 2
 discard-returns 0
@@ -164,6 +183,9 @@ empty-block 5
 global-element 0
 global-element 1
 global-element 2
+global-element 3
+global-element 4
+global-element 5
 global-in-nil-env 0
 global-in-nil-env 1
 global-in-nil-env 2
@@ -194,6 +216,7 @@ inject-field 6
 inject-field 7
 invisible 0
 invisible 1
+invisible 10
 invisible 11
 invisible 12
 invisible 13
@@ -201,6 +224,10 @@ invisible 2
 invisible 3
 invisible 4
 invisible 5
+invisible 6
+invisible 7
+invisible 8
+invisible 9
 lowercase-global 0
 lowercase-global 1
 lowercase-global 2
@@ -275,6 +302,7 @@ missing-parameter 6
 missing-parameter 7
 missing-parameter 8
 missing-parameter 9
+missing-return 0 compat
 missing-return 1
 missing-return 10
 missing-return 11
@@ -343,7 +371,16 @@ param-type-mismatch 19
 param-type-mismatch 2
 param-type-mismatch 20
 param-type-mismatch 21
+param-type-mismatch 22
+param-type-mismatch 23
+param-type-mismatch 24
+param-type-mismatch 25
+param-type-mismatch 26
+param-type-mismatch 27
+param-type-mismatch 28
+param-type-mismatch 29
 param-type-mismatch 3
+param-type-mismatch 30
 param-type-mismatch 4
 param-type-mismatch 5
 param-type-mismatch 6
@@ -451,6 +488,7 @@ undefined-field 3
 undefined-field 4
 undefined-field 5
 undefined-field 6
+undefined-field 7
 undefined-field 8
 undefined-field 9
 undefined-global 0
@@ -459,6 +497,7 @@ undefined-global 2
 undefined-global 3
 unknown-cast-variable 0
 unknown-cast-variable 1
+unknown-diag-code 0 compat
 unknown-operator 0
 unnecessary-assert 0
 unreachable-code 0
@@ -485,6 +524,7 @@ unused-local 11
 unused-local 12
 unused-local 13
 unused-local 14
+unused-local 15
 unused-local 2
 unused-local 3
 unused-local 4
