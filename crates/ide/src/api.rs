@@ -97,6 +97,8 @@ pub struct FuncDef {
 pub struct ClassDef {
     pub name: String,
     pub parents: Vec<String>,
+    /// The parents as written (`Foo<integer>`): their generic arguments.
+    pub parent_types: Vec<DocType>,
     pub fields: Vec<DocField>,
     /// `---@operator add(vector3|number): vector3`: (operator, operand, result).
     pub operators: Vec<(String, Option<DocType>, DocType)>,
@@ -286,15 +288,15 @@ pub fn doc_classes(text: &str) -> Vec<ClassDef> {
             for t in tags {
                 let offset = u32::from(t.name.map_or(t.range.start(), |r| r.start()));
                 match t.tag {
-                    Tag::Class { name, parents, generics, exact } => {
-                        let parents = parents
+                    Tag::Class { name, parents: parent_types, generics, exact } => {
+                        let parents = parent_types
                             .iter()
                             .filter_map(|p| match p {
                                 DocType::Name(n) | DocType::Generic(n, _) => Some(n.clone()),
                                 _ => None,
                             })
                             .collect();
-                        out.push(ClassDef { name, parents, fields: Vec::new(), operators: Vec::new(), indexes: Vec::new(), generics, exact, offset });
+                        out.push(ClassDef { name, parents, parent_types, fields: Vec::new(), operators: Vec::new(), indexes: Vec::new(), generics, exact, offset });
                         cur = Some(out.len() - 1);
                     }
                     Tag::Operator { op, param, ret: Some(ret) } => {
