@@ -46,6 +46,8 @@ pub enum CompletionKind {
     Value,
     /// A `---@operator` name.
     Operator,
+    /// A word of the file.
+    Text,
 }
 
 #[derive(Debug, Clone)]
@@ -58,6 +60,33 @@ pub struct Completion {
     /// The text the label replaces when it is not just the word before the
     /// cursor (`AAA.BBB` after `AAA.`).
     pub replace: Option<TextRange>,
+    /// What to insert when it is not the label.
+    pub insert: Option<String>,
+    /// More changes made with it (`goto continue` adds `::continue::`).
+    pub edits: Vec<(TextRange, String)>,
+}
+
+/// LuaLS's `completion.showWord`: the file's other words as plain text items.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ShowWord {
+    Enable,
+    /// Only when nothing else matched (LuaLS's default).
+    Fallback,
+    Disable,
+}
+
+/// How completion was asked for.
+#[derive(Debug, Clone, Copy)]
+pub struct CompleteOptions {
+    /// The character the client typed to ask (`.`, `(`, a space), if any.
+    pub trigger: Option<char>,
+    pub show_word: ShowWord,
+}
+
+impl Default for CompleteOptions {
+    fn default() -> Self {
+        CompleteOptions { trigger: None, show_word: ShowWord::Fallback }
+    }
 }
 
 /// What a feature knows about the file beyond its text.
@@ -193,8 +222,57 @@ fn api_completion(item: &ApiItem) -> Completion {
             _ => item.signature(),
         }),
         deprecated: item.deprecated().is_some(),
-        replace: None,
+        replace: None, insert: None, edits: Vec::new(),
     }
+}
+
+/// LuaLS's kind for a global: Enum when the file first gives it a literal,
+/// Function for a function, else Field.
+fn global_kind(root: &SyntaxNode, text: &str, g: &str) -> CompletionKind {
+    for st in root.descendants().filter(|s| matches!(s.kind(), ASSIGN_STAT | FUNCTION_STAT)) {
+        if st.kind() == FUNCTION_STAT {
+            if st.children().find(|c| c.kind() == FUNC_NAME).is_some_and(|n| n.text() == g) {
+                return CompletionKind::Function;
+            }
+            continue;
+        }
+        let Some(vars) = st.children().find(|c| c.kind() == VAR_LIST) else { continue };
+        let Some(i) = vars.children().position(|v| v.kind() == NAME_EXPR && &text[v.text_range()] == g) else { continue };
+        let value = st.children().find(|c| c.kind() == EXPR_LIST).and_then(|l| l.children().nth(i));
+        return match value.as_ref().map(|v| (v.kind(), v)) {
+            Some((LITERAL_EXPR, v)) if v.first_token().is_some_and(|t| t.kind() != NIL_KW) => CompletionKind::Enum,
+            Some((FUNCTION_EXPR, _)) => CompletionKind::Function,
+            _ => CompletionKind::Global,
+        };
+    }
+    // Only read here: a word.
+    CompletionKind::Text
+}
+
+/// `continue` inside a loop: the keyword, and a snippet that writes `goto
+/// continue` and adds `::continue::` before the loop's `end` when it has none.
+fn continue_items(parse: &Parse, text: &str, offset: TextSize, start: usize) -> Vec<Completion> {
+    let Some(tok) = token_at(&parse.syntax(), offset).left_biased() else { return Vec::new() };
+    let Some(lp) = tok.parent_ancestors().find(|a| matches!(a.kind(), WHILE_STAT | NUMERIC_FOR_STAT | GENERIC_FOR_STAT | REPEAT_STAT)) else { return Vec::new() };
+    let close = if lp.kind() == REPEAT_STAT { UNTIL_KW } else { END_KW };
+    let Some(end_kw) = lp.children_with_tokens().filter_map(|e| e.into_token()).find(|t| t.kind() == close) else { return Vec::new() };
+    let mut edits = Vec::new();
+    let before = text[..start].trim_end();
+    if !before.ends_with("goto") {
+        edits.push((TextRange::empty(TextSize::from(start as u32)), "goto ".to_string()));
+    }
+    let has_label = lp.descendants().any(|n| n.kind() == LABEL_STAT && n.text().to_string().contains("continue"));
+    if !has_label {
+        let at = end_kw.text_range().start();
+        let line_start = text[..usize::from(at)].rfind('\n').map_or(0, |i| i + 1);
+        let indent = &text[line_start..usize::from(at)];
+        let label = if indent.chars().all(|c| c == ' ' || c == '\t') { format!("    ::continue::\n{indent}") } else { "::continue::".to_string() };
+        edits.push((TextRange::empty(at), label));
+    }
+    vec![
+        Completion { label: "continue".into(), kind: CompletionKind::Keyword, detail: None, deprecated: false, replace: None, insert: None, edits: Vec::new() },
+        Completion { label: "goto continue ..".into(), kind: CompletionKind::Snippet, detail: None, deprecated: false, replace: None, insert: Some("continue".into()), edits },
+    ]
 }
 
 /// The event-name string under the cursor (`TriggerServerEvent('a:b')`).
@@ -585,7 +663,7 @@ fn library_completion(label: &str, items: &[LibItem]) -> Completion {
         kind: if first.function { CompletionKind::Function } else { CompletionKind::Global },
         detail: Some(lib.declaration(first)),
         deprecated: false,
-        replace: None,
+        replace: None, insert: None, edits: Vec::new(),
     }
 }
 
@@ -610,13 +688,65 @@ fn exports_before(text: &str, end: usize) -> Option<String> {
 }
 
 pub fn complete(parse: &Parse, names: &Names, text: &str, offset: TextSize, cx: FileCtx) -> Option<Completions> {
-    complete_triggered(parse, names, text, offset, cx, None)
+    complete_with(parse, names, text, offset, cx, CompleteOptions::default())
+}
+
+/// Completion with the client's trigger and the word setting: the items, then
+/// the file's other words (LuaLS `checkCommon`) where `show_word` allows.
+pub fn complete_with(parse: &Parse, names: &Names, text: &str, offset: TextSize, cx: FileCtx, opts: CompleteOptions) -> Option<Completions> {
+    let got = complete_triggered(parse, names, text, offset, cx, opts.trigger);
+    let end = usize::from(offset).min(text.len());
+    let typed = text[..end].bytes().rev().take_while(|b| is_ident(*b)).count();
+    let word = &text[end - typed..end];
+    let tok = token_at(&parse.syntax(), offset).left_biased();
+    let in_comment = tok.as_ref().is_some_and(|t| matches!(t.kind(), COMMENT | BLOCK_COMMENT) && t.text_range().start() < offset);
+    let in_string = tok.as_ref().is_some_and(|t| matches!(t.kind(), STRING | LONG_STRING) && t.text_range().start() < offset && t.text_range().end() > offset);
+    let has_space = opts.trigger.is_some() && word.is_empty() && text[..end].ends_with([' ', '\t']);
+    let empty = got.as_ref().is_none_or(|c| c.items.is_empty());
+    let words = match opts.show_word {
+        ShowWord::Disable => false,
+        ShowWord::Fallback => empty,
+        ShowWord::Enable => empty || (!word.is_empty() && !in_string),
+    };
+    // After `(`, `,`, `{`, `#` LuaLS looks for no words.
+    if !words || in_comment || has_space || matches!(opts.trigger, Some('(' | ',' | '{' | '#')) {
+        return got;
+    }
+    let had = got.is_some();
+    let mut out = got.unwrap_or(Completions { items: Vec::new(), incomplete: false });
+    let mut used: HashSet<String> = out.items.iter().map(|i| i.label.split('(').next().unwrap_or("").to_string()).collect();
+    used.extend(KEYWORDS.iter().map(|k| k.to_string()));
+    let bytes = text.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() {
+        if !(bytes[i].is_ascii_alphabetic() || bytes[i] == b'_') || (i > 0 && is_ident(bytes[i - 1])) {
+            i += 1;
+            continue;
+        }
+        let s = i;
+        while i < bytes.len() && is_ident(bytes[i]) {
+            i += 1;
+        }
+        if out.items.len() >= 100 {
+            out.incomplete = true;
+            break;
+        }
+        let w = &text[s..i];
+        // Not the word being typed.
+        if w.len() >= 3 && i != end && !used.contains(w) {
+            used.insert(w.to_string());
+            if crate::doc_complete::matchkey(word, w) {
+                out.items.push(Completion { label: w.to_string(), kind: CompletionKind::Text, detail: None, deprecated: false, replace: None, insert: None, edits: Vec::new() });
+            }
+        }
+    }
+    (had || !out.items.is_empty()).then_some(out)
 }
 
 /// Completion the client asked for after typing `trigger` (LuaLS
 /// `tryWord`): after `(`, `,`, `{`, `#` or a space only the literal values and
 /// table keys the position takes, and fields after `t.`, no names.
-pub fn complete_triggered(parse: &Parse, names: &Names, text: &str, offset: TextSize, cx: FileCtx, trigger: Option<char>) -> Option<Completions> {
+fn complete_triggered(parse: &Parse, names: &Names, text: &str, offset: TextSize, cx: FileCtx, trigger: Option<char>) -> Option<Completions> {
     let (game, side) = (cx.game, cx.side);
     let end = usize::from(offset).min(text.len());
     let bytes = text.as_bytes();
@@ -727,7 +857,7 @@ pub fn complete_triggered(parse: &Parse, names: &Names, text: &str, offset: Text
                 };
                 // A name that is not an identifier: `'a.b.c'`.
                 let label = if crate::names::is_name(&name) || name.parse::<i64>().is_ok() { name } else { format!("'{name}'") };
-                push(&mut items, Completion { label, kind, detail: None, deprecated: false, replace: None });
+                push(&mut items, Completion { label, kind, detail: None, deprecated: false, replace: None, insert: None, edits: Vec::new() });
             }
         }
         // Any expression: `GetEntityCoords(ped).`, `ESX.GetPlayerFromId(src).job.`.
@@ -761,7 +891,7 @@ pub fn complete_triggered(parse: &Parse, names: &Names, text: &str, offset: Text
             if object == "exports" && bytes[sep - 1] == b'.' {
                 // Resources with exports (names that are Lua identifiers).
                 for r in ws.export_resources().into_iter().filter(|r| crate::names::is_name(r) && matches(r)) {
-                    push(&mut items, Completion { label: r, kind: CompletionKind::Field, detail: Some("resource".into()), deprecated: false, replace: None });
+                    push(&mut items, Completion { label: r, kind: CompletionKind::Field, detail: Some("resource".into()), deprecated: false, replace: None, insert: None, edits: Vec::new() });
                 }
             } else if expr.is_none() {
                 // Fields another file or resource defines (`QBCore.Functions.`, `lib.`)
@@ -793,18 +923,56 @@ pub fn complete_triggered(parse: &Parse, names: &Names, text: &str, offset: Text
             let before_ok = s == 0 || !(is_ident(bytes[s - 1]) || bytes[s - 1] == b'.');
             let field: String = text[at..].bytes().take_while(|&b| is_ident(b)).map(char::from).collect();
             if before_ok && !field.is_empty() && at != start && matches(&field) && !field.as_bytes()[0].is_ascii_digit() {
-                push(&mut items, Completion { label: field, kind: CompletionKind::Field, detail: None, deprecated: false, replace: None });
+                // Written here (`x.f = v`): a field, its value's kind; only read: a word.
+                let rest = text[at + field.len()..].trim_start_matches([' ', '\t']);
+                let value = rest.strip_prefix('=').filter(|r| !r.starts_with('=')).map(str::trim_start);
+                let kind = match value {
+                    Some(v) if v.starts_with("function") => CompletionKind::Function,
+                    Some(v) if v.starts_with(|c: char| c.is_ascii_digit() || c == '"' || c == '\'') || v.starts_with("true") || v.starts_with("false") => {
+                        CompletionKind::Enum
+                    }
+                    Some(_) => CompletionKind::Field,
+                    None => CompletionKind::Text,
+                };
+                // After `:` only functions.
+                if colon && kind != CompletionKind::Function {
+                    continue;
+                }
+                push(&mut items, Completion { label: field, kind, detail: None, deprecated: false, replace: None, insert: None, edits: Vec::new() });
             }
         }
         items.retain(|i| !hidden.contains(&i.label));
+        // A field named `'a.b'` is not also offered bare.
+        let quoted: Vec<String> = items.iter().filter_map(|i| i.label.strip_prefix('\'').and_then(|l| l.strip_suffix('\'')).map(str::to_string)).collect();
+        items.retain(|i| !quoted.contains(&i.label));
         let incomplete = items.len() > MAX_ITEMS;
         items.truncate(MAX_ITEMS);
         return Some(Completions { items, incomplete });
     }
 
-    // A parameter not started yet: only the documented names.
-    if let Some(list) = param_list.as_ref().filter(|_| prefix.is_empty()) {
-        let items = crate::doc_complete::documented_params(text, list, prefix);
+    // Naming a parameter or a new local (LuaLS `checkProvideLocal`): the names
+    // the function reads further on, and the documented parameter names.
+    let after_local = text[..start].trim_end().strip_suffix("local").is_some_and(|b| b.is_empty() || !is_ident(*b.as_bytes().last().unwrap_or(&b' ')));
+    if param_list.is_some() || after_local {
+        let block = token_at(&parse.syntax(), offset)
+            .left_biased()
+            .and_then(|t| t.parent_ancestors().find(|a| matches!(a.kind(), FUNC_BODY | SOURCE_FILE)))
+            .unwrap_or_else(|| parse.syntax());
+        let reach = block.text_range();
+        for r in names.refs.iter().filter(|r| r.range.start() > offset && reach.contains_range(r.range) && r.access != crate::names::Access::Write) {
+            let n = &text[r.range];
+            if matches(n) && n != prefix {
+                push(&mut items, Completion { label: n.to_string(), kind: CompletionKind::Local, detail: None, deprecated: false, replace: None, insert: None, edits: Vec::new() });
+            }
+        }
+        if let Some(list) = &param_list {
+            for c in crate::doc_complete::documented_params(text, list, prefix) {
+                push(&mut items, c);
+            }
+        }
+        if after_local && matches("function") {
+            push(&mut items, Completion { label: "function".into(), kind: CompletionKind::Keyword, detail: None, deprecated: false, replace: None, insert: None, edits: Vec::new() });
+        }
         return (!items.is_empty()).then_some(Completions { items, incomplete: false });
     }
     // Locals in scope, innermost first.
@@ -821,7 +989,7 @@ pub fn complete_triggered(parse: &Parse, names: &Names, text: &str, offset: Text
         } else {
             CompletionKind::Local
         };
-        push(&mut items, Completion { label: d.name.clone(), kind, detail: None, deprecated: false, replace: None });
+        push(&mut items, Completion { label: d.name.clone(), kind, detail: None, deprecated: false, replace: None, insert: None, edits: Vec::new() });
     }
     // Globals the file uses (its own and the resource's: `Config`, `QBCore`).
     let mut globals: Vec<&str> = names
@@ -833,17 +1001,34 @@ pub fn complete_triggered(parse: &Parse, names: &Names, text: &str, offset: Text
         .collect();
     globals.sort_unstable();
     globals.dedup();
+    let root = parse.syntax();
     for g in globals {
-        push(&mut items, Completion { label: g.to_string(), kind: CompletionKind::Global, detail: None, deprecated: false, replace: None });
+        push(&mut items, Completion { label: g.to_string(), kind: global_kind(&root, text, g), detail: None, deprecated: false, replace: None, insert: None, edits: Vec::new() });
     }
-    if let Some(list) = &param_list {
-        for c in crate::doc_complete::documented_params(text, list, prefix) {
-            push(&mut items, c);
+    // `_G['a.b'] = x`: a global no name can reach, written quoted.
+    if text.contains("_G[") {
+        for e in root.descendants().filter(|e| e.kind() == INDEX_EXPR) {
+            if e.first_child().is_some_and(|o| o.kind() == NAME_EXPR && o.text() == "_G")
+                && let Some(t) = e.children().nth(1).filter(|k| k.kind() == LITERAL_EXPR).and_then(|k| k.first_token()).filter(|t| t.kind() == STRING)
+                && !t.text_range().contains_inclusive(offset)
+            {
+                let name = crate::util::lua_string(t.text());
+                let label = if crate::names::is_name(&name) { name.clone() } else { format!("'{name}'") };
+                if matches(&name) {
+                    push(&mut items, Completion { label, kind: CompletionKind::Global, detail: None, deprecated: false, replace: None, insert: None, edits: Vec::new() });
+                }
+            }
         }
-        return Some(Completions { items, incomplete: false });
     }
     for k in KEYWORDS.iter().filter(|k| matches(k)) {
-        push(&mut items, Completion { label: k.to_string(), kind: CompletionKind::Keyword, detail: None, deprecated: false, replace: None });
+        push(&mut items, Completion { label: k.to_string(), kind: CompletionKind::Keyword, detail: None, deprecated: false, replace: None, insert: None, edits: Vec::new() });
+    }
+    // `continue` in a loop: `goto continue` and a `::continue::` label before
+    // its `end` (LuaLS).
+    if !prefix.is_empty() && matches("continue") {
+        for c in continue_items(parse, text, offset, start) {
+            push(&mut items, c);
+        }
     }
     // The library: thousands of natives, so only once a letter is typed.
     let mut incomplete = prefix.is_empty();
@@ -985,8 +1170,12 @@ mod tests {
         assert!(!l.contains(&"playerName".to_string()) || l.iter().position(|x| x == "param") < l.iter().position(|x| x == "pairs"));
         assert!(!incomplete);
         // Out of scope: a local of another function.
-        let (l, _) = labels("local function a() local inner = 1 end\nlocal function b() print(inn$) end\n", FileSide::Unknown);
-        assert!(!l.contains(&"inner".to_string()), "{l:?}");
+        // (LuaLS still offers it as a word of the file.)
+        let (t, o) = at("local function a() local inner = 1 end\nlocal function b() print(inn$) end\n");
+        let p = parse(&t);
+        let n = names(&p, &t);
+        let c = complete(&p, &n, &t, o, FileCtx::plain(Game::Gta5, FileSide::Unknown)).unwrap();
+        assert!(c.items.iter().all(|i| i.label != "inner" || i.kind == CompletionKind::Text), "{:?}", c.items);
         // A string's methods; nothing while naming a parameter.
         let (l, _) = labels("local s = ('%d'):for$\n", FileSide::Unknown);
         assert_eq!(l, ["format"]);

@@ -22,7 +22,7 @@
 use cfx_lua_ide::library::{Game, Origin, library};
 use cfx_lua_ide::manifest::FileSide;
 use cfx_lua_ide::workspace::Workspace;
-use cfx_lua_ide::{CompletionKind, FileCtx, TextSize, complete_triggered, hover, names, parse};
+use cfx_lua_ide::{CompleteOptions, CompletionKind, FileCtx, ShowWord, TextSize, complete_with, hover, names, parse};
 use serde_json::Value;
 use std::collections::BTreeSet;
 
@@ -55,7 +55,8 @@ fn marked(script: &str) -> (String, Option<(usize, usize)>) {
 fn kind_name(k: CompletionKind) -> &'static str {
     match k {
         CompletionKind::Keyword => "Keyword",
-        CompletionKind::Local | CompletionKind::Global => "Variable",
+        CompletionKind::Local => "Variable",
+        CompletionKind::Global => "Field",
         CompletionKind::Function => "Function",
         CompletionKind::Field => "Field",
         CompletionKind::Class => "Class",
@@ -67,6 +68,7 @@ fn kind_name(k: CompletionKind) -> &'static str {
         CompletionKind::Snippet => "Snippet",
         CompletionKind::Value => "Value",
         CompletionKind::Operator => "Operator",
+        CompletionKind::Text => "Text",
     }
 }
 
@@ -166,7 +168,9 @@ fn completion_cases(ws: &Workspace, path: &std::path::Path, show: bool, s: &mut 
             };
             // LuaLS's test passes the character before the cursor as the trigger.
             let trigger = text[..at].chars().last().filter(|c| *c != '\n' && !c.is_alphanumeric() && *c != '_');
-            complete_triggered(&p, &names, &text, TextSize::from(at as u32), cx, trigger)
+            // LuaLS's completion tests run with `showWord = "Enable"`.
+            let opts = CompleteOptions { trigger, show_word: ShowWord::Enable };
+            complete_with(&p, &names, &text, TextSize::from(at as u32), cx, opts)
                 .map(|r| r.items.into_iter().filter(|i| !cfx(&i.label)).map(|i| (i.label, kind_name(i.kind).to_string())).collect())
         })
         .unwrap_or_default();

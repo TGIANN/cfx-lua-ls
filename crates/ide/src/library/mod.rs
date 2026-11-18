@@ -170,6 +170,16 @@ pub fn doc_names() -> &'static std::collections::HashSet<String> {
     })
 }
 
+/// The `---@class` a table global of the library is declared as (`utf8lib`).
+pub fn global_class(global: &str) -> Option<String> {
+    let item = library().get(global).iter().find(|i| !i.function && i.doc.is_some())?;
+    let (tags, _) = crate::luacats::parse_block(&file_text(item.file)[item.doc?], TextSize::from(0));
+    tags.into_iter().find_map(|t| match t.tag {
+        crate::luacats::Tag::Class { name, .. } => Some(name),
+        _ => None,
+    })
+}
+
 /// Every `---@alias` of the library by name.
 pub fn aliases() -> &'static std::collections::HashMap<String, crate::luacats::DocType> {
     static ALIASES: OnceLock<std::collections::HashMap<String, crate::luacats::DocType>> = OnceLock::new();

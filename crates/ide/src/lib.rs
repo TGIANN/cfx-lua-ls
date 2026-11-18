@@ -25,7 +25,8 @@ mod util;
 
 pub use cfx_lua_syntax::{Parse, TextRange, TextSize, parse};
 pub use assist::{
-    Completion, CompletionKind, Completions, EventAt, FileCtx, Hover, Signature, SignatureHelp, api_definition, complete, complete_triggered, event_at, hover,
+    CompleteOptions, Completion, CompletionKind, Completions, EventAt, FileCtx, Hover, ShowWord, Signature, SignatureHelp, api_definition, complete, complete_with, event_at,
+    hover,
     signature_help,
 };
 pub use diagnostics::{Diagnostic, MAX_DIAGNOSTICS, syntax_diagnostics};
