@@ -16,7 +16,7 @@ checksum = "bef38d45163c2f1dde094a7dfd33ccf595c92905c8f8f4fdc18d06fb1037718a"
 
 [[package]]
 name = "cfx-lua-fmt"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "cfx-lua-syntax",
  "serde_json",
@@ -24,7 +24,7 @@ dependencies = [
 
 [[package]]
 name = "cfx-lua-ide"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "cfx-lua-syntax",
  "rayon",
@@ -34,7 +34,7 @@ dependencies = [
 
 [[package]]
 name = "cfx-lua-ls"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "cfx-lua-fmt",
  "cfx-lua-ide",
@@ -48,7 +48,7 @@ dependencies = [
 
 [[package]]
 name = "cfx-lua-syntax"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "rowan",
  "rustc-hash",
