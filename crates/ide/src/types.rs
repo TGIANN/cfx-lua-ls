@@ -169,6 +169,9 @@ struct Infer<'a> {
     /// `function a.b()` / `function a:b()` / `function f()` of the file by
     /// name (`a.b`, `f`), first one kept: its body.
     functions: std::cell::OnceCell<HashMap<String, SyntaxNode>>,
+    /// Fields written on the variable a `---@class` sits on, by class: the
+    /// values (or the `FUNC_NAME` of `function V.f()`).
+    class_members: std::cell::OnceCell<HashMap<String, HashMap<String, Vec<SyntaxNode>>>>,
     /// Locals written after their declaration.
     written: std::cell::OnceCell<std::collections::HashSet<usize>>,
     /// Field writes with a `---@type` above them, by field name: (the object
@@ -1759,6 +1762,10 @@ impl<'a> FileTypes<'a> {
         if let Some(lit) = literal_type(arg).filter(|_| inf.wants_literal(&want, 0)) {
             got = lit;
         }
+        // A field read is not narrowed: its falsy members are left out (LuaLS).
+        if arg.kind() == INDEX_EXPR {
+            got = truthy(got);
+        }
         if inf.exhausted.get() || inf.cast(&got, &want, 0) != Some(false) {
             return None;
         }
@@ -2101,6 +2108,7 @@ impl<'a> Infer<'a> {
         Infer { text, names, root, classes, aliases, depth: Cell::new(0), flow_budget: Cell::new(FLOW_BUDGET),
             exhausted: Cell::new(false),
             functions: std::cell::OnceCell::new(),
+            class_members: std::cell::OnceCell::new(),
             written: std::cell::OnceCell::new(),
             typed_fields: std::cell::OnceCell::new(),
             decl_stats: RefCell::default(),
@@ -3662,6 +3670,7 @@ impl<'a> Infer<'a> {
                 _ => None,
             },
             T::Generic(n, args) if n == "table" && args.len() == 2 => Some(args[1].clone()),
+            T::Str(_) => self.member_of_type(&name("string"), key),
             T::Table(fields) => fields
                 .iter()
                 .find(|f| &f.key == key)
@@ -3693,11 +3702,17 @@ impl<'a> Infer<'a> {
                 };
                 let k = &k;
                 let mut todo = vec![n.clone()];
+                // A string's members: `---@class stringlib` of this file too.
+                if n == "string" {
+                    todo.push("stringlib".to_string());
+                }
                 let mut seen = std::collections::HashSet::new();
+                let mut chain = Vec::new();
                 while let Some(c) = todo.pop() {
                     if !seen.insert(c.clone()) || seen.len() > 32 {
                         continue;
                     }
+                    chain.push(c.clone());
                     let lib;
                     let def = match self.classes.get(&c) {
                         Some(d) => d,
@@ -3714,7 +3729,8 @@ impl<'a> Infer<'a> {
                     }
                     todo.extend(def.parents.iter().cloned());
                 }
-                None
+                // Written on the class's variable, seen through any value of it.
+                chain.iter().find_map(|c| self.written_member(c, k))
             }
             _ => None,
         }
@@ -3858,6 +3874,111 @@ impl<'a> Infer<'a> {
         self.names.decls[d].kind == DeclKind::Local
             && !written.contains(&d)
             && self.decl_stat(d).is_some_and(|st| stat_tags(self.text, &st).iter().any(|t| matches!(t, Tag::Type { .. } | Tag::Class { .. })))
+    }
+
+    fn class_members(&self) -> &HashMap<String, HashMap<String, Vec<SyntaxNode>>> {
+        self.class_members.get_or_init(|| {
+            let mut out: HashMap<String, HashMap<String, Vec<SyntaxNode>>> = HashMap::new();
+            if !self.text.contains("@class") {
+                return out;
+            }
+            // The variables: a local's declaration, or a global's name.
+            let mut locals: HashMap<usize, String> = HashMap::new();
+            let mut globals: HashMap<String, String> = HashMap::new();
+            for st in self.root.descendants().filter(|n| matches!(n.kind(), LOCAL_STAT | ASSIGN_STAT)) {
+                let Some(class) = class_tag(self.text, &st) else { continue };
+                match st.kind() {
+                    LOCAL_STAT => {
+                        let Some(t) = st.children().find(|c| c.kind() == LOCAL_NAME).and_then(|n| n.first_token()) else { continue };
+                        let Some(d) = self.decl_at(t.text_range()) else { continue };
+                        locals.insert(d, class.clone());
+                    }
+                    _ => {
+                        let Some(v) = st.children().find(|c| c.kind() == VAR_LIST).and_then(|l| l.first_child()).filter(|v| v.kind() == NAME_EXPR) else { continue };
+                        let Some(t) = v.first_token() else { continue };
+                        match self.ref_at(t.text_range()).map(|r| r.target) {
+                            Some(Target::Decl(d)) => {
+                                locals.insert(d, class.clone());
+                            }
+                            _ => {
+                                globals.insert(t.text().to_string(), class.clone());
+                            }
+                        }
+                    }
+                }
+                // `---@class A local m = { x = 1 }`.
+                if let Some(table) = st.children().find(|c| c.kind() == EXPR_LIST).and_then(|l| l.first_child()).filter(|t| t.kind() == TABLE_EXPR) {
+                    for f in table.children().filter(|f| f.kind() == FIELD_NAMED) {
+                        let (Some(k), Some(v)) = (f.children_with_tokens().filter_map(|x| x.into_token()).find(|t| t.kind() == NAME), f.first_child()) else { continue };
+                        out.entry(class.clone()).or_default().entry(k.text().to_string()).or_default().push(v);
+                    }
+                }
+            }
+            if locals.is_empty() && globals.is_empty() {
+                return out;
+            }
+            let class_of = |t: &SyntaxToken| -> Option<String> {
+                match self.ref_at(t.text_range()).map(|r| r.target) {
+                    Some(Target::Decl(d)) => locals.get(&d).cloned(),
+                    Some(Target::Global) => globals.get(t.text()).cloned(),
+                    _ => None,
+                }
+            };
+            for n in self.root.descendants() {
+                match n.kind() {
+                    ASSIGN_STAT => {
+                        let vars: Vec<SyntaxNode> = n.children().find(|c| c.kind() == VAR_LIST).map(|l| l.children().collect()).unwrap_or_default();
+                        let values: Vec<SyntaxNode> = n.children().find(|c| c.kind() == EXPR_LIST).map(|l| l.children().collect()).unwrap_or_default();
+                        for (i, var) in vars.iter().enumerate() {
+                            let (Some(object), Some(field)) = (var.first_child().filter(|o| o.kind() == NAME_EXPR), crate::lint::field_name(var)) else { continue };
+                            let Some(class) = object.first_token().and_then(|t| class_of(&t)) else { continue };
+                            let Some(v) = values.get(i) else { continue };
+                            out.entry(class).or_default().entry(field.text().to_string()).or_default().push(v.clone());
+                        }
+                    }
+                    FUNC_NAME => {
+                        let parts: Vec<SyntaxToken> = n.children_with_tokens().filter_map(|x| x.into_token()).filter(|t| t.kind() == NAME).collect();
+                        if let [object, field] = parts.as_slice()
+                            && let Some(class) = class_of(object)
+                        {
+                            out.entry(class).or_default().entry(field.text().to_string()).or_default().push(n.clone());
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            out
+        })
+    }
+
+    /// The type of a field written on a class's variable (`function A.f()`,
+    /// `A.x = 1`): the union of what is written.
+    fn written_member(&self, class: &str, field: &str) -> Option<T> {
+        let values = self.class_members().get(class)?.get(field)?;
+        // The constructor's value wins, then a write under `---@type`, then the rest.
+        let ctor: Vec<&SyntaxNode> = values.iter().filter(|v| v.parent().is_some_and(|p| p.kind() == FIELD_NAMED)).collect();
+        if !ctor.is_empty() {
+            return Some(union(ctor.iter().map(|v| self.expr_type(v)).collect()));
+        }
+        let typed: Vec<T> = values
+            .iter()
+            .filter_map(|v| {
+                let st = v.parent()?.parent().filter(|s| s.kind() == ASSIGN_STAT)?;
+                stat_tags(self.text, &st).into_iter().find_map(|t| match t {
+                    Tag::Type { tys } => tys.into_iter().next(),
+                    _ => None,
+                })
+            })
+            .collect();
+        if !typed.is_empty() {
+            return Some(union(typed));
+        }
+        let types: Vec<T> = values
+            .iter()
+            .map(|v| if v.kind() == FUNC_NAME { self.function_name_type(v) } else { self.expr_type(v) })
+            .filter(|t| !is(t, "nil"))
+            .collect();
+        (!types.is_empty()).then(|| union(types))
     }
 
     fn file_functions(&self) -> &HashMap<String, SyntaxNode> {

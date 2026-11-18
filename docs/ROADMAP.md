@@ -234,7 +234,7 @@ error ("invalid UTF-8 code").
     `--[[@as T]]`, aliases; memoized per expression, so `s = s:gsub():gsub()`
     chains stay linear. Checked by `crates/ide/tests/luals_types.rs` against
     LuaLS's `test/type_inference` (610 cases, extracted by
-    `tools/extract_luals_types.py`): 415 pass, the list of passing cases is kept
+    `tools/extract_luals_types.py`): 422 pass, the list of passing cases is kept
     so a regression fails the test.
   - Done: `undefined-doc-name`, silent when the resource or one it depends on
     or imports from has escrow files (corpus A's tgiann-core declares
