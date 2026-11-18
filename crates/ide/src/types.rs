@@ -1143,7 +1143,7 @@ impl<'a> FileTypes<'a> {
                     let (Some(object), Some(field)) = (var.first_child(), crate::lint::field_name(var)) else { continue };
                     let T::Name(class) = non_nil(inf.expr_type(&object)) else { continue };
                     let declared = inf.classes.get(&class).and_then(|c| c.fields.iter().find(|f| f.name == field.text())).map(|f| f.ty.clone());
-                    let Some(want) = declared.or_else(|| self.typed_field(&class, field.text())) else { continue };
+                    let Some(want) = declared.or_else(|| self.typed_field(&class, field.text())).or_else(|| self.written_field(&class, field.text(), &object)) else { continue };
                     if has_unknown(&want) || mentions_any(&want) {
                         continue;
                     }
@@ -1163,10 +1163,28 @@ impl<'a> FileTypes<'a> {
     pub(crate) fn local_mismatches(&self, stat: &SyntaxNode) -> Vec<(TextRange, String, String)> {
         let inf = &self.inf;
         let mut out = Vec::new();
-        let Some(tys) = stat_tags(inf.text, stat).into_iter().find_map(|t| match t {
+        let tags = stat_tags(inf.text, stat);
+        // `---@class B` above `local b = a`: `b` is a `B`.
+        let class = tags.iter().find_map(|t| match t {
+            Tag::Class { name, generics, .. } if generics.is_empty() => Some(name.clone()),
+            _ => None,
+        });
+        let Some(tys) = tags.into_iter().find_map(|t| match t {
             Tag::Type { tys } => Some(tys),
             _ => None,
         }) else {
+            let Some(class) = class else { return out };
+            let (Some(target), Some(value)) = (stat.children().find(|c| c.kind() == LOCAL_NAME), stat.children().find(|c| c.kind() == EXPR_LIST).and_then(|l| l.first_child())) else {
+                return out;
+            };
+            if !inf.fixed_doc_local(&value) {
+                return out;
+            }
+            let (want, got) = (name(&class), inf.expr_type(&value));
+            // Only classes unrelated either way (`---@class Child: Parent` on a parent's value is left alone).
+            if !inf.exhausted.get() && inf.cast(&got, &want, 0) == Some(false) && inf.cast(&want, &got, 0) == Some(false) {
+                out.push((target.text_range(), crate::luacats::view(&got), crate::luacats::view(&want)));
+            }
             return out;
         };
         let names: Vec<SyntaxNode> = stat.children().filter(|c| c.kind() == LOCAL_NAME).collect();
@@ -1197,6 +1215,59 @@ impl<'a> FileTypes<'a> {
         };
         let want = inf.decl_type(d);
         (tagged && !is(&want, "nil") && !has_unknown(&want) && !mentions_any(&want)).then_some(want)
+    }
+
+    /// The type of a field the class's own variable is given in this file
+    /// (`---@class A local m = { x = 1 }`, `m.x = 1`): the union of the
+    /// values, when each is a literal, constructor or function. A write on
+    /// the variable itself is checked against its constructor alone.
+    fn written_field(&self, class: &str, field: &str, object: &SyntaxNode) -> Option<T> {
+        let inf = &self.inf;
+        let globals = self.global_classes();
+        let own = |o: &SyntaxNode| o.kind() == NAME_EXPR && o.first_token().is_some_and(|t| self.token_class(&t, &globals).as_deref() == Some(class));
+        let constructor_only = own(object);
+        let mut found: Vec<T> = Vec::new();
+        let mut take = |v: &SyntaxNode| -> bool {
+            match v.kind() {
+                LITERAL_EXPR if v.first_token().is_some_and(|t| t.kind() == NIL_KW) => true,
+                LITERAL_EXPR | TABLE_EXPR | FUNCTION_EXPR => {
+                    found.push(inf.expr_type(v));
+                    true
+                }
+                _ => false,
+            }
+        };
+        for st in inf.root.descendants().filter(|s| matches!(s.kind(), LOCAL_STAT | ASSIGN_STAT)) {
+            let values: Vec<SyntaxNode> = st.children().find(|c| c.kind() == EXPR_LIST).map(|l| l.children().collect()).unwrap_or_default();
+            // The constructor under `---@class C`.
+            if class_tag(inf.text, &st).as_deref() == Some(class)
+                && let Some(table) = values.first().filter(|v| v.kind() == TABLE_EXPR)
+            {
+                for f in table.children().filter(|f| f.kind() == FIELD_NAMED) {
+                    let is_field = f.children_with_tokens().filter_map(|x| x.into_token()).find(|t| t.kind() == NAME).is_some_and(|t| t.text() == field);
+                    if is_field && let Some(v) = f.first_child() && !take(&v) {
+                        return None;
+                    }
+                }
+            }
+            if st.kind() != ASSIGN_STAT || constructor_only {
+                continue;
+            }
+            let vars: Vec<SyntaxNode> = st.children().find(|c| c.kind() == VAR_LIST).map(|l| l.children().collect()).unwrap_or_default();
+            for (i, var) in vars.iter().enumerate() {
+                if var.kind() != INDEX_EXPR || crate::lint::field_name(var).is_none_or(|f| f.text() != field) || !var.first_child().is_some_and(|o| own(&o)) {
+                    continue;
+                }
+                match values.get(i) {
+                    Some(v) if take(v) => {}
+                    _ => return None,
+                }
+            }
+        }
+        if found.is_empty() || found.iter().any(|t| has_unknown(t) || mentions_any(t)) {
+            return None;
+        }
+        Some(union(found.iter().map(widen).collect()))
     }
 
     /// The type a `---@type` comment gives a field of a class of this file where
@@ -2655,6 +2726,27 @@ impl<'a> Infer<'a> {
             let mut unsure = false;
             for (m, w) in x.iter().zip(y) {
                 match self.cast(m, w, depth + 1) {
+                    Some(false) => return Some(false),
+                    None => unsure = true,
+                    Some(true) => {}
+                }
+            }
+            return if unsure { None } else { Some(true) };
+        }
+        // `{ x: number }` where `{ x: number, y: number }` is declared: every
+        // field the declaration needs must be there and fit.
+        if let (T::Table(have), T::Table(want)) = (c, p) {
+            let mut unsure = false;
+            for w in want.iter().filter(|w| !w.optional && !maybe_nil(&w.ty)) {
+                // `[1]` is one of `[number]`; a name is one of `[string]`.
+                let same = |h: &crate::luacats::TableField| match (&h.key, &w.key) {
+                    (a, b) if a == b => true,
+                    (Key::Index(a), Key::Index(b)) => numeric(a).is_some() && numeric(b).is_some(),
+                    (Key::Name(_), Key::Index(b)) => is(b, "string"),
+                    _ => false,
+                };
+                let Some(h) = have.iter().find(|h| same(h)) else { return Some(false) };
+                match self.cast(&h.ty, &w.ty, depth + 1) {
                     Some(false) => return Some(false),
                     None => unsure = true,
                     Some(true) => {}
