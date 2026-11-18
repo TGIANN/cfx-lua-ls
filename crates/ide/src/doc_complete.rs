@@ -129,7 +129,7 @@ const PROBE: &str = "__cfx_lua_ls_probe";
 
 /// The literal values the position takes (`"a"` of `---@param x "a"|"b"`), and
 /// whether they stand alone: in a string (re-quoted with its quote) or before
-/// anything is typed.
+/// anything is typed. In a table constructor, the keys its type lacks, alone.
 pub(crate) fn values(parse: &Parse, text: &str, offset: TextSize) -> Option<(Vec<Completion>, bool)> {
     let root = parse.syntax();
     if let Some(tok) = token_at(&root, offset).left_biased().filter(|t| t.kind() == STRING && t.text_range().start() < offset) {
@@ -162,7 +162,22 @@ pub(crate) fn values(parse: &Parse, text: &str, offset: TextSize) -> Option<(Vec
     let tok = token_at(&parse.syntax(), offset).right_biased().filter(|t| t.kind() == NAME && t.text().ends_with(PROBE))?;
     let e = tok.parent().filter(|p| p.kind() == NAME_EXPR)?;
     let names = crate::names::names(&parse, &probe);
-    let items: Vec<Completion> = crate::types::FileTypes::new(&parse, &names, &probe)
+    let types = crate::types::FileTypes::new(&parse, &names, &probe);
+    // An entry of a table constructor: the keys its type still lacks
+    // (`y?` for an optional one).
+    if let Some(table) = e.parent().filter(|f| f.kind() == FIELD_POS).and_then(|f| f.parent()).filter(|t| t.kind() == TABLE_EXPR) {
+        let word = &text[end - typed..end];
+        let keys: Vec<Completion> = types
+            .table_keys(&table)
+            .into_iter()
+            .filter(|(k, _)| matchkey(word, k))
+            .map(|(k, optional)| item(if optional { format!("{k}?") } else { k }, CompletionKind::Property))
+            .collect();
+        if !keys.is_empty() {
+            return Some((keys, true));
+        }
+    }
+    let items: Vec<Completion> = types
         .value_choices(&e)
         .into_iter()
         .map(|c| match c {
