@@ -47,6 +47,22 @@ fn truthy(t: T) -> T {
     }
 }
 
+/// The members of a type (`A` of `A`, `A` and nil of `A?`, the parts of `A|B`).
+fn members_of(t: &T) -> Vec<T> {
+    match t {
+        T::Optional(i) => vec![(**i).clone(), name("nil")],
+        T::Union(ps) => ps.iter().flat_map(members_of).collect(),
+        t => vec![t.clone()],
+    }
+}
+
+/// A union where `boolean` takes in `true` and `false`.
+fn bool_union(parts: Vec<T>) -> T {
+    let has_bool = parts.iter().flat_map(members_of).any(|m| is(&m, "boolean"));
+    let parts = parts.iter().flat_map(members_of).filter(|m| !(has_bool && matches!(m, T::Bool(_)))).collect();
+    union(parts)
+}
+
 fn non_nil(t: T) -> T {
     match t {
         T::Optional(inner) => *inner,
@@ -1482,6 +1498,21 @@ fn stat_tags(text: &str, n: &SyntaxNode) -> Vec<Tag> {
             _ => break,
         }
     }
+    // `local x ---@type T`: a `---@type` after the statement on its line.
+    let mut at = n.next_sibling_or_token();
+    while let Some(rowan::NodeOrToken::Token(t)) = at {
+        match t.kind() {
+            WHITESPACE if !t.text().contains('\n') => at = t.next_sibling_or_token(),
+            COMMENT => {
+                let line = &text[t.text_range()];
+                if line.starts_with("---") && line.contains("@type") {
+                    lines.push((t.text_range().start() + TextSize::from(2), &line[2..]));
+                }
+                break;
+            }
+            _ => break,
+        }
+    }
     crate::luacats::parse_lines(lines).0.into_iter().map(|t| t.tag).collect()
 }
 
@@ -1717,7 +1748,7 @@ impl<'a> Infer<'a> {
             let Some(parent) = node.parent() else { break self.decl_type(d) };
             match parent.kind() {
                 BLOCK => {
-                    if let Some(c) = self.cast_of(&node, d) {
+                    for c in [self.cast_of(&node, d), self.detached_cast(&node, d)].into_iter().flatten() {
                         effects.push(c);
                     }
                     let mut prev = node.prev_sibling();
@@ -1733,7 +1764,7 @@ impl<'a> Infer<'a> {
                             Some(x) => effects.push(x),
                             None => {}
                         }
-                        if let Some(c) = self.cast_of(&s, d) {
+                        for c in [self.cast_of(&s, d), self.detached_cast(&s, d)].into_iter().flatten() {
                             effects.push(c);
                         }
                         prev = s.prev_sibling();
@@ -1885,9 +1916,37 @@ impl<'a> Infer<'a> {
 
     /// `---@cast` of local `d` in the comments `s` starts with.
     fn cast_of(&self, s: &SyntaxNode, d: usize) -> Option<Effect> {
+        self.cast_in(stat_tags(self.text, s), d)
+    }
+
+    /// `---@cast` lines standing alone (blank lines around them) right before
+    /// the statement `s`.
+    fn detached_cast(&self, s: &SyntaxNode, d: usize) -> Option<Effect> {
+        let mut lines = Vec::new();
+        let mut at = s.prev_sibling_or_token();
+        while let Some(rowan::NodeOrToken::Token(t)) = at {
+            match t.kind() {
+                COMMENT => {
+                    if let Some(rest) = self.text[t.text_range()].strip_prefix("--") {
+                        lines.push((t.text_range().start() + TextSize::from(2), rest));
+                    }
+                }
+                WHITESPACE => {}
+                _ => break,
+            }
+            at = t.prev_sibling_or_token();
+        }
+        if !lines.iter().any(|(_, l)| l.contains("@cast")) {
+            return None;
+        }
+        lines.reverse();
+        self.cast_in(crate::luacats::parse_lines(lines).0.into_iter().map(|t| t.tag).collect(), d)
+    }
+
+    fn cast_in(&self, tags: Vec<Tag>, d: usize) -> Option<Effect> {
         let decl = &self.names.decls[d];
         let n = &self.text[decl.range];
-        let ops: Vec<(char, T)> = stat_tags(self.text, s)
+        let ops: Vec<(char, T)> = tags
             .into_iter()
             .filter_map(|t| match t {
                 Tag::Cast { name, ops } if name == n => Some(ops),
@@ -2809,21 +2868,46 @@ impl<'a> Infer<'a> {
         }
         match op.kind() {
             EQ2 | NEQ | LT | GT | LTEQ | GTEQ => name("boolean"),
+            // `a and b`: `b`, or what of `a` is falsy (`nil`, `false`).
             AND_KW => {
-                let lt = self.expr_type(&l);
-                if is(&lt, "nil") { lt } else { self.expr_type(&r) }
-            }
-            OR_KW => {
-                let lt = self.expr_type(&l);
-                let rt = self.expr_type(&r);
-                match lt {
-                    T::Name(n) if n == "nil" || n == "boolean" && self.text[l.text_range()].trim() == "false" => rt,
-                    T::Union(parts) if parts.iter().any(|p| is(p, "nil")) => {
-                        union(parts.into_iter().filter(|p| !is(p, "nil")).chain(std::iter::once(rt)).collect())
-                    }
-                    T::Optional(inner) => union(vec![*inner, rt]),
-                    lt => lt,
+                let lt = self.bool_const(&l).map_or_else(|| self.expr_type(&l), T::Bool);
+                if lt == T::Bool(true) {
+                    return self.expr_type(&r);
                 }
+                if is(&lt, "nil") {
+                    return lt;
+                }
+                let rt = self.expr_type(&r);
+                if has_unknown(&lt) || mentions_any(&lt) {
+                    return rt;
+                }
+                let falsy: Vec<T> = members_of(&lt)
+                    .into_iter()
+                    .filter_map(|m| match m {
+                        T::Name(n) if n == "nil" => Some(name("nil")),
+                        T::Name(n) if n == "boolean" => Some(T::Bool(false)),
+                        T::Bool(false) => Some(T::Bool(false)),
+                        _ => None,
+                    })
+                    .collect();
+                bool_union(std::iter::once(rt).chain(falsy).collect())
+            }
+            // `a or b`: what of `a` is truthy, and `b` when `a` may be falsy.
+            OR_KW => {
+                let lt = self.bool_const(&l).map_or_else(|| self.expr_type(&l), T::Bool);
+                let rt = self.expr_type(&r);
+                if lt == T::Bool(false) {
+                    return rt;
+                }
+                if matches!(&lt, T::Name(n) if n == "nil" || n == "boolean" && self.text[l.text_range()].trim() == "false") {
+                    return rt;
+                }
+                let ms = members_of(&lt);
+                let falsy = |m: &T| is(m, "nil") || matches!(m, T::Bool(false));
+                if has_unknown(&lt) || !ms.iter().any(|m| falsy(m) || is(m, "boolean")) {
+                    return lt;
+                }
+                bool_union(ms.into_iter().filter(|m| !falsy(m)).chain(std::iter::once(rt)).collect())
             }
             DOT2 => {
                 let ok = |t: &T| is(t, "string") || numeric(t).is_some();
@@ -3101,6 +3185,30 @@ impl<'a> Infer<'a> {
     }
 
     /// The statement declaring a local.
+    /// `true` / `false`, or a local given one of them and never written again.
+    fn bool_const(&self, e: &SyntaxNode) -> Option<bool> {
+        let lit = |v: &SyntaxNode| match v.first_token().filter(|_| v.kind() == LITERAL_EXPR).map(|t| t.kind()) {
+            Some(TRUE_KW) => Some(true),
+            Some(FALSE_KW) => Some(false),
+            _ => None,
+        };
+        match e.kind() {
+            LITERAL_EXPR => lit(e),
+            PAREN_EXPR => self.bool_const(&e.first_child()?),
+            NAME_EXPR => {
+                let Target::Decl(d) = self.ref_at(e.first_token()?.text_range())?.target else { return None };
+                if self.names.refs.iter().any(|r| r.target == Target::Decl(d) && r.access == Access::Write) {
+                    return None;
+                }
+                let stat = self.decl_stat(d).filter(|s| s.kind() == LOCAL_STAT)?;
+                let range = self.names.decls[d].range;
+                let i = stat.children().filter(|c| c.kind() == LOCAL_NAME).position(|n| n.text_range().contains_range(range))?;
+                lit(&stat.children().find(|c| c.kind() == EXPR_LIST)?.children().nth(i)?)
+            }
+            _ => None,
+        }
+    }
+
     fn decl_stat(&self, d: usize) -> Option<SyntaxNode> {
         let decl = &self.names.decls[d];
         let tok = self.root.token_at_offset(decl.range.start()).right_biased()?;

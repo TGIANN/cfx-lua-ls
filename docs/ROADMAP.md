@@ -234,7 +234,7 @@ error ("invalid UTF-8 code").
     `--[[@as T]]`, aliases; memoized per expression, so `s = s:gsub():gsub()`
     chains stay linear. Checked by `crates/ide/tests/luals_types.rs` against
     LuaLS's `test/type_inference` (610 cases, extracted by
-    `tools/extract_luals_types.py`): 397 pass, the list of passing cases is kept
+    `tools/extract_luals_types.py`): 408 pass, the list of passing cases is kept
     so a regression fails the test.
   - Done: `undefined-doc-name`, silent when the resource or one it depends on
     or imports from has escrow files (corpus A's tgiann-core declares
@@ -305,9 +305,20 @@ error ("invalid UTF-8 code").
     `---@param self T`, a function returned under `---@return fun(...)`, a
     function in a `---@type {[integer]: fun}` constructor, `...` under
     `---@param ... T`. No change on the corpora.
-  - Not done: the 213 failing inference cases (mostly generics through a
-    returned `fun`, narrowing by fields, union order, literal values such as
-    `1 << 2`).
+  - Done: inference 397 -> 408: a `---@cast` standing alone between blank
+    lines, `local x ---@type T` on one line, `a and b` / `a or b` as LuaLS
+    types them (`b` plus what of `a` is falsy; what of `a` is truthy plus `b`),
+    `true` / `false` locals never written again read as their value. On the
+    corpora two new `param-type-mismatch` hits, both real (a `table<string, _>`
+    key passed as a `number`, a value that may be `false` passed on).
+  - Not done: 202 inference cases, sorted by cost: falsy-side narrowing
+    (`if not x`), values past a call's last `---@return`, operators of generic
+    classes (`Box<string>`), `stringlib` members on string values, overload
+    choice, generics bound through returned `fun`s and callbacks, members
+    written onto a class table seen through an instance, union print order,
+    alias expansion in the shown type (the harness has no settings, so it
+    would trade cases), and 16 cases that need non-default LuaLS settings or
+    are LuaLS-internal views.
   - Done: `Lua.doc.privateName` / `protectedName` globs for `invisible`, from
     `.luarc.json` or the client's settings, on `---@field`s and on the class's
     own table fields (LuaLS fixtures 6-9 give the same results through the
