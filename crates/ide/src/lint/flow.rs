@@ -30,6 +30,11 @@ pub(super) fn node(l: &mut Linter, n: &SyntaxNode) {
             }
         }
         ARG_LIST => {
+            if let Some(call) = n.parent().filter(|c| c.kind() == METHOD_CALL_EXPR)
+                && let Some((range, got, want)) = l.types().self_mismatch(&call)
+            {
+                l.push("param-type-mismatch", range, format!("Cannot assign `{got}` to parameter `{want}`."));
+            }
             for arg in n.children() {
                 if let Some((got, want)) = l.types().param_mismatch(&arg) {
                     l.push("param-type-mismatch", arg.text_range(), format!("Cannot assign `{got}` to parameter `{want}`."));
