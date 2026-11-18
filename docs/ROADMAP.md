@@ -140,9 +140,8 @@ error ("invalid UTF-8 code").
     and its assignments, as LuaLS), references, document highlight (names, keyword
     partners, literals) and rename (with prepare), in the server.
   - Check: LuaLS `test/definition` (local, label, arg, set, function),
-    `references`, `highlight` and `rename`: 115 of 136 cases pass; the 21
-    skipped are a generic or second return value followed by an index, a
-    function value through returns, a duplicate label, Lua 5.5 `global`,
+    `references`, `highlight` and `rename`: 118 of 136 cases pass; the 18
+    skipped are a function value through returns, a duplicate label, Lua 5.5 `global`,
     `_G.x`, a rename to a non-name or of a global's field, or commented out in
     LuaLS; each listed with the reason in
     `crates/ide/tests/luals_names.rs` (`tools/extract_luals_names.py`).
@@ -183,8 +182,9 @@ error ("invalid UTF-8 code").
     local or global table handed to a call, returned or stored elsewhere); LuaLS
     renames what it finds instead. Continued doc lines (`---@type {` over
     several lines) keep each name's own offset. On corpus D a field
-    search reads the server in 0.5 to 0.9 s. Not done: a `---@generic T`
-    return typed from its argument, the second value of a call.
+    search reads the server in 0.5 to 0.9 s. A call's later values
+    (`local a, b = f()`) and a `---@generic T` returned as `T` (the argument's
+    class) are followed too.
   - Done: lint (`crates/ide/src/lint`, one walk over the tree feeds every rule):
     15 LuaLS diagnostics that need no types (`undefined-global`, `lowercase-global`,
     `unused-local`, `redefined-local`, `duplicate-index`, `count-down-loop`, `deprecated`, ...)
