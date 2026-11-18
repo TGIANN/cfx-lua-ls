@@ -4001,14 +4001,15 @@ impl<'a> Infer<'a> {
                     }
                 };
                 let k = &k;
-                let mut todo = vec![n.clone()];
+                // Each class with what its generics stand for (`Bar: Foo<integer>`).
+                let mut todo: Vec<(String, HashMap<String, T>)> = vec![(n.clone(), HashMap::new())];
                 // A string's members: `---@class stringlib` of this file too.
                 if n == "string" {
-                    todo.push("stringlib".to_string());
+                    todo.push(("stringlib".to_string(), HashMap::new()));
                 }
                 let mut seen = std::collections::HashSet::new();
                 let mut chain = Vec::new();
-                while let Some(c) = todo.pop() {
+                while let Some((c, bound)) = todo.pop() {
                     if !seen.insert(c.clone()) || seen.len() > 32 {
                         continue;
                     }
@@ -4030,9 +4031,27 @@ impl<'a> Infer<'a> {
                             let map: HashMap<String, T> = def.generics.iter().map(|g| (g.clone(), name("any"))).collect();
                             return Some(subst(&f.ty, &map, &def.generics, true));
                         }
+                        if !bound.is_empty() {
+                            let gens: Vec<String> = bound.keys().cloned().collect();
+                            return Some(subst(&f.ty, &bound, &gens, true));
+                        }
                         return Some(f.ty.clone());
                     }
-                    todo.extend(def.parents.iter().cloned());
+                    for p in &def.parent_types {
+                        match p {
+                            T::Generic(pn, args) => {
+                                let pg = self.class_def(pn).map(|d| d.generics.clone()).unwrap_or_default();
+                                let outer: Vec<String> = bound.keys().cloned().collect();
+                                let map: HashMap<String, T> = pg.into_iter().zip(args.iter().map(|a| subst(a, &bound, &outer, false))).collect();
+                                todo.push((pn.clone(), map));
+                            }
+                            T::Name(pn) => todo.push((pn.clone(), HashMap::new())),
+                            _ => {}
+                        }
+                    }
+                    if def.parent_types.is_empty() {
+                        todo.extend(def.parents.iter().map(|p| (p.clone(), HashMap::new())));
+                    }
                 }
                 // Written on the class's variable, seen through any value of it.
                 chain.iter().find_map(|c| self.written_member(c, k))
@@ -4075,6 +4094,15 @@ impl<'a> Infer<'a> {
                     info.rets = info.rets.iter().map(|r| subst(r, &map, &only, true)).collect();
                     info.generics.retain(|x| *x != g);
                 }
+            }
+            // `b:getValue()` on a `Box<string>`: `---@return T` is `string`.
+            if let T::Generic(c, args) = non_nil(object.clone())
+                && let Some(def) = self.class_def(&c)
+                && !def.generics.is_empty()
+            {
+                let map: HashMap<String, T> = def.generics.iter().cloned().zip(args).collect();
+                let gens = def.generics.clone();
+                info.rets = info.rets.iter().map(|r| subst(r, &map, &gens, true)).collect();
             }
             // `function C:f()` with `---@generic T` / `---@param self T`.
             if let Some(Some(T::Name(g))) = info.self_param.take()
@@ -4168,11 +4196,41 @@ impl<'a> Infer<'a> {
 
     /// The body of `function O.m()` / `function O:m()` of this file, for `O:m()`.
     fn method_body(&self, object: &SyntaxNode, m: &str) -> Option<SyntaxNode> {
-        if object.kind() != NAME_EXPR {
-            return None;
+        if object.kind() == NAME_EXPR {
+            let obj = &self.text[object.text_range()];
+            if let Some(b) = self.file_functions().get(&format!("{obj}.{m}")) {
+                return Some(b.clone());
+            }
         }
-        let obj = &self.text[object.text_range()];
-        self.file_functions().get(&format!("{obj}.{m}")).cloned()
+        let class = match non_nil(self.expr_type(object)) {
+            T::Name(c) | T::Generic(c, _) => c,
+            _ => return None,
+        };
+        self.class_member_body(&class, m)
+    }
+
+    /// The function written on the variable of a class (or a parent) as `m`.
+    fn class_member_body(&self, class: &str, m: &str) -> Option<SyntaxNode> {
+        let mut todo = vec![class.to_string()];
+        let mut seen = std::collections::HashSet::new();
+        while let Some(c) = todo.pop() {
+            if !seen.insert(c.clone()) || seen.len() > 16 {
+                continue;
+            }
+            if let Some(vs) = self.class_members().get(&c).and_then(|f| f.get(m))
+                && let [v] = vs.as_slice()
+            {
+                return match v.kind() {
+                    FUNC_NAME => v.parent()?.children().find(|c| c.kind() == FUNC_BODY),
+                    FUNCTION_EXPR => v.children().find(|c| c.kind() == FUNC_BODY),
+                    _ => None,
+                };
+            }
+            if let Some(def) = self.classes.get(&c) {
+                todo.extend(def.parents.iter().cloned());
+            }
+        }
+        None
     }
 
     /// `function C.f()` (not `function C:f()`).
