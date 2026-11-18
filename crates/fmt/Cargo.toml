@@ -1,0 +1,12 @@
+[package]
+name = "cfx-lua-fmt"
+description = "CfxLua formatter with EmmyLuaCodeStyle's behaviour and options"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+cfx-lua-syntax.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true

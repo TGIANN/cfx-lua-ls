@@ -1,0 +1,82 @@
+{
+  "name": "cfx-lua-ls",
+  "displayName": "CfxLua Language Server",
+  "description": "Fast language server for FiveM Lua (CfxLua), written in Rust.",
+  "version": "0.1.0",
+  "publisher": "tgiann",
+  "license": "MIT",
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/TGIANN/cfx-lua-ls"
+  },
+  "engines": {
+    "vscode": "^1.82.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Linters"
+  ],
+  "keywords": [
+    "lua",
+    "fivem",
+    "cfxlua"
+  ],
+  "activationEvents": [
+    "onLanguage:lua"
+  ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "restrictedConfigurations": [
+        "cfxLuaLs.server.path"
+      ],
+      "description": "The server path comes only from user settings."
+    }
+  },
+  "main": "./dist/extension.js",
+  "contributes": {
+    "configuration": {
+      "title": "CfxLua Language Server",
+      "properties": {
+        "cfxLuaLs.server.path": {
+          "type": "string",
+          "default": "",
+          "scope": "machine",
+          "markdownDescription": "Absolute path to the `cfx-lua-ls` executable. Empty: the one shipped with the extension, else `cfx-lua-ls` from an absolute `PATH` folder. Only user settings count: a workspace cannot choose the program that runs."
+        },
+        "cfxLuaLs.trace.server": {
+          "type": "string",
+          "enum": [
+            "off",
+            "messages",
+            "verbose"
+          ],
+          "default": "off",
+          "description": "Log the messages between VS Code and the server to the output channel."
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "cfxLuaLs.restartServer",
+        "title": "Restart Language Server",
+        "category": "CfxLua"
+      }
+    ]
+  },
+  "scripts": {
+    "build": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --target=node18 --sourcemap",
+    "typecheck": "tsc --noEmit",
+    "vscode:prepublish": "npm run typecheck && esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --target=node18 --minify"
+  },
+  "dependencies": {
+    "vscode-languageclient": "9.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "18.19.64",
+    "@types/vscode": "1.82.0",
+    "esbuild": "0.24.0",
+    "typescript": "5.6.3"
+  }
+}

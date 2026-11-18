@@ -1,0 +1,2680 @@
+[
+ {
+  "name": "FormatByStyleOption.indent_style",
+  "input": "\nlocal t = function()\n    local a = 131\n    local b = function()\n        local c = {\n        }\n    end\nend\n",
+  "expected": "\nlocal t = function()\n    local a = 131\n    local b = function()\n        local c = {\n        }\n    end\nend\n",
+  "style": [
+   [
+    "indent_style",
+    "IndentStyle::Space"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.indent_style",
+  "input": "\nlocal t = function()\n    local a = 131\n    local b = function()\n        local c = {\n        }\n    end\nend\n",
+  "expected": "\nlocal t = function()\n\tlocal a = 131\n\tlocal b = function()\n\t\tlocal c = {\n\t\t}\n\tend\nend\n",
+  "style": [
+   [
+    "indent_style",
+    "IndentStyle::Space"
+   ],
+   [
+    "indent_style",
+    "IndentStyle::Tab"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.indent_size",
+  "input": "\nlocal t = function()\n    local a = 131\n    local b = function()\n        local c = {\n        }\n    end\nend\n",
+  "expected": "\nlocal t = function()\n  local a = 131\n  local b = function()\n    local c = {\n    }\n  end\nend\n",
+  "style": [
+   [
+    "indent_size",
+    "2"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.indent_size",
+  "input": "\nlocal t = function()\n    local a = 131\n    local b = function()\n        local c = {\n        }\n    end\nend\n",
+  "expected": "\nlocal t = function()\n   local a = 131\n   local b = function()\n      local c = {\n      }\n   end\nend\n",
+  "style": [
+   [
+    "indent_size",
+    "2"
+   ],
+   [
+    "indent_size",
+    "3"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.indent_size",
+  "input": "\nlocal t = function()\n    local a = 131\n    local b = function()\n        local c = {\n        }\n    end\nend\n",
+  "expected": "\nlocal t = function()\n    local a = 131\n    local b = function()\n        local c = {\n        }\n    end\nend\n",
+  "style": [
+   [
+    "indent_size",
+    "2"
+   ],
+   [
+    "indent_size",
+    "3"
+   ],
+   [
+    "indent_size",
+    "4"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.quote_style",
+  "input": "\nlocal t = \"aaa\" .. 'bbb' .. '\\\"\\\"' .. [[123]]\n",
+  "expected": "\nlocal t = \"aaa\" .. 'bbb' .. '\\\"\\\"' .. [[123]]\n",
+  "style": [
+   [
+    "quote_style",
+    "QuoteStyle::None"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.quote_style",
+  "input": "\nlocal t = \"aaa\" .. 'bbb' .. [[123]] .. '\"\"'\n",
+  "expected": "\nlocal t = \"aaa\" .. \"bbb\" .. [[123]] .. '\"\"'\n",
+  "style": [
+   [
+    "quote_style",
+    "QuoteStyle::None"
+   ],
+   [
+    "quote_style",
+    "QuoteStyle::Double"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.quote_style",
+  "input": "\nlocal t = \"aaa\" .. 'bbb' .. '\\\"\\\"' .. [[123]] .. '\"\"'\n",
+  "expected": "\nlocal t = 'aaa' .. 'bbb' .. '\\\"\\\"' .. [[123]] .. '\"\"'\n",
+  "style": [
+   [
+    "quote_style",
+    "QuoteStyle::None"
+   ],
+   [
+    "quote_style",
+    "QuoteStyle::Double"
+   ],
+   [
+    "quote_style",
+    "QuoteStyle::Single"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.continuation_indent",
+  "input": "\nif a\n    or c then\n\nend\ntable.insert(t, {\n    aaa = 123\n})\n",
+  "expected": "\nif a\n    or c then\n\nend\ntable.insert(t, {\n    aaa = 123\n})\n",
+  "style": [
+   [
+    "continuation_indent.SetAll",
+    "4"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.continuation_indent",
+  "input": "\nif a\n    or c then\n\nend\n",
+  "expected": "\nif a\n        or c then\n\nend\n",
+  "style": [
+   [
+    "continuation_indent.SetAll",
+    "4"
+   ],
+   [
+    "continuation_indent.SetAll",
+    "8"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.continuation_indent",
+  "input": "\nif a\n    or c then\n\nend\nlocal t = a\n    + c\n",
+  "expected": "\nif a\n        or c then\n\nend\nlocal t = a\n    + c\n",
+  "style": [
+   [
+    "continuation_indent.SetAll",
+    "4"
+   ],
+   [
+    "continuation_indent.SetAll",
+    "8"
+   ],
+   [
+    "continuation_indent.SetAll",
+    "4"
+   ],
+   [
+    "continuation_indent.before_block",
+    "8"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.continuation_indent",
+  "input": "\nif a\n    or c then\n\nend\nlocal t = a\n    + c\n",
+  "expected": "\nif a\n    or c then\n\nend\nlocal t = a\n        + c\n",
+  "style": [
+   [
+    "continuation_indent.SetAll",
+    "4"
+   ],
+   [
+    "continuation_indent.SetAll",
+    "8"
+   ],
+   [
+    "continuation_indent.SetAll",
+    "4"
+   ],
+   [
+    "continuation_indent.before_block",
+    "8"
+   ],
+   [
+    "continuation_indent.SetAll",
+    "4"
+   ],
+   [
+    "continuation_indent.in_expr",
+    "8"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.continuation_indent",
+  "input": "\nif a\n    or c then\n\nend\nlocal t = {\n    a = 1,\n    dddddddd\n        .ccccc\n}\n",
+  "expected": "\nif a\n    or c then\n\nend\nlocal t = {\n    a = 1,\n    dddddddd\n            .ccccc\n}\n",
+  "style": [
+   [
+    "continuation_indent.SetAll",
+    "4"
+   ],
+   [
+    "continuation_indent.SetAll",
+    "8"
+   ],
+   [
+    "continuation_indent.SetAll",
+    "4"
+   ],
+   [
+    "continuation_indent.before_block",
+    "8"
+   ],
+   [
+    "continuation_indent.SetAll",
+    "4"
+   ],
+   [
+    "continuation_indent.in_expr",
+    "8"
+   ],
+   [
+    "continuation_indent.SetAll",
+    "4"
+   ],
+   [
+    "continuation_indent.in_table",
+    "8"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.max_line_length",
+  "input": "\nfunction f(aaaaaaaaaaaaaaaaaaaaaaaa,bbbbbbbbbbbbbbbbbb,cccccccccccccccccccccccccccccc)\n\nend\n",
+  "expected": "\nfunction f(aaaaaaaaaaaaaaaaaaaaaaaa, bbbbbbbbbbbbbbbbbb,\n           cccccccccccccccccccccccccccccc)\n\nend\n",
+  "style": [
+   [
+    "max_line_length",
+    "80"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.max_line_length",
+  "input": "\nfunction f(aaaaaaaaaaaaaaaaaaaaaaaa,bbbbbbbbbbbbbbbbbb,cccccccccccccccccccccccccccccc)\n\nend\n",
+  "expected": "\nfunction f(aaaaaaaaaaaaaaaaaaaaaaaa, bbbbbbbbbbbbbbbbbb, cccccccccccccccccccccccccccccc)\n\nend\n",
+  "style": [
+   [
+    "max_line_length",
+    "80"
+   ],
+   [
+    "max_line_length",
+    "120"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.table_separator_style",
+  "input": "\nlocal t = { aaa, bbb, ccc; }\n",
+  "expected": "\nlocal t = { aaa, bbb, ccc; }\n",
+  "style": [
+   [
+    "table_separator_style",
+    "TableSeparatorStyle::None"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.table_separator_style",
+  "input": "\nlocal t = { aaa, bbb, ccc; }\n",
+  "expected": "\nlocal t = { aaa, bbb, ccc, }\n",
+  "style": [
+   [
+    "table_separator_style",
+    "TableSeparatorStyle::None"
+   ],
+   [
+    "table_separator_style",
+    "TableSeparatorStyle::Comma"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.table_separator_style",
+  "input": "\nlocal t = { aaa, bbb, ccc; }\n",
+  "expected": "\nlocal t = { aaa; bbb; ccc; }\n",
+  "style": [
+   [
+    "table_separator_style",
+    "TableSeparatorStyle::None"
+   ],
+   [
+    "table_separator_style",
+    "TableSeparatorStyle::Comma"
+   ],
+   [
+    "table_separator_style",
+    "TableSeparatorStyle::Semicolon"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.table_separator_style",
+  "input": "\nlocal t = { aaa, bbb, ccc; }\nlocal d = {\n    d = 123,\n    k = 456,\n    c,\n    e\n}\n",
+  "expected": "\nlocal t = { aaa, bbb, ccc, }\nlocal d = {\n    d = 123;\n    k = 456;\n    c,\n    e\n}\n",
+  "style": [
+   [
+    "table_separator_style",
+    "TableSeparatorStyle::None"
+   ],
+   [
+    "table_separator_style",
+    "TableSeparatorStyle::Comma"
+   ],
+   [
+    "table_separator_style",
+    "TableSeparatorStyle::Semicolon"
+   ],
+   [
+    "table_separator_style",
+    "TableSeparatorStyle::OnlyKVColon"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.trailing_table_separator",
+  "input": "\nlocal t = { aaa, bbb, ccc, }\n",
+  "expected": "\nlocal t = { aaa, bbb, ccc, }\n",
+  "style": [
+   [
+    "trailing_table_separator",
+    "TrailingTableSeparator::Keep"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.trailing_table_separator",
+  "input": "\nlocal t = { aaa, bbb, ccc, }\n",
+  "expected": "\nlocal t = { aaa, bbb, ccc }\n",
+  "style": [
+   [
+    "trailing_table_separator",
+    "TrailingTableSeparator::Keep"
+   ],
+   [
+    "trailing_table_separator",
+    "TrailingTableSeparator::Never"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.trailing_table_separator",
+  "input": "\nlocal t = { aaa, bbb, ccc }\n",
+  "expected": "\nlocal t = { aaa, bbb, ccc, }\n",
+  "style": [
+   [
+    "trailing_table_separator",
+    "TrailingTableSeparator::Keep"
+   ],
+   [
+    "trailing_table_separator",
+    "TrailingTableSeparator::Never"
+   ],
+   [
+    "trailing_table_separator",
+    "TrailingTableSeparator::Always"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.trailing_table_separator",
+  "input": "\nlocal t = { aaa, bbb, ccc, }\nlocal d = {\n    a = 123,\n    b = 123\n}\n",
+  "expected": "\nlocal t = { aaa, bbb, ccc }\nlocal d = {\n    a = 123,\n    b = 123,\n}\n",
+  "style": [
+   [
+    "trailing_table_separator",
+    "TrailingTableSeparator::Keep"
+   ],
+   [
+    "trailing_table_separator",
+    "TrailingTableSeparator::Never"
+   ],
+   [
+    "trailing_table_separator",
+    "TrailingTableSeparator::Always"
+   ],
+   [
+    "trailing_table_separator",
+    "TrailingTableSeparator::Smart"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.trailing_table_separator",
+  "input": "\nlocal t = { function ()\n    local t = 123\nend }\n\nlocal t = { {\n    okokok = 123\n} }\n",
+  "expected": "\nlocal t = { function()\n    local t = 123\nend }\n\nlocal t = { {\n    okokok = 123,\n} }\n",
+  "style": [
+   [
+    "trailing_table_separator",
+    "TrailingTableSeparator::Keep"
+   ],
+   [
+    "trailing_table_separator",
+    "TrailingTableSeparator::Never"
+   ],
+   [
+    "trailing_table_separator",
+    "TrailingTableSeparator::Always"
+   ],
+   [
+    "trailing_table_separator",
+    "TrailingTableSeparator::Smart"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.call_arg_parentheses",
+  "input": "\np(123)\np \"12313\"\np(\"456\")\n",
+  "expected": "\np(123)\np \"12313\"\np(\"456\")\n",
+  "style": [
+   [
+    "call_arg_parentheses",
+    "CallArgParentheses::Keep"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.call_arg_parentheses",
+  "input": "\np(123)\np \"12313\"\np(\"456\")\nlocal t = {\n    a({\n        a = 123\n    }),\n    d = 123\n}\n",
+  "expected": "\np(123)\np \"12313\"\np \"456\"\nlocal t = {\n    a {\n        a = 123\n    },\n    d = 123\n}\n",
+  "style": [
+   [
+    "call_arg_parentheses",
+    "CallArgParentheses::Keep"
+   ],
+   [
+    "call_arg_parentheses",
+    "CallArgParentheses::Remove"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.call_arg_parentheses",
+  "input": "\np(\"456\")\np({1231})\n",
+  "expected": "\np \"456\"\np({ 1231 })\n",
+  "style": [
+   [
+    "call_arg_parentheses",
+    "CallArgParentheses::Keep"
+   ],
+   [
+    "call_arg_parentheses",
+    "CallArgParentheses::Remove"
+   ],
+   [
+    "call_arg_parentheses",
+    "CallArgParentheses::RemoveStringOnly"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.call_arg_parentheses",
+  "input": "\np(\"456\")\np({1231})\n",
+  "expected": "\np(\"456\")\np { 1231 }\n",
+  "style": [
+   [
+    "call_arg_parentheses",
+    "CallArgParentheses::Keep"
+   ],
+   [
+    "call_arg_parentheses",
+    "CallArgParentheses::Remove"
+   ],
+   [
+    "call_arg_parentheses",
+    "CallArgParentheses::RemoveStringOnly"
+   ],
+   [
+    "call_arg_parentheses",
+    "CallArgParentheses::RemoveTableOnly"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.space_around_table_field_list",
+  "input": "\nlocal t = { aaa }\nlocal t2 = {\n}\nlocal t3 = {}\n",
+  "expected": "\nlocal t = { aaa }\nlocal t2 = {\n}\nlocal t3 = {}\n",
+  "style": [
+   [
+    "space_around_table_field_list",
+    "true"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.space_around_table_field_list",
+  "input": "\nlocal t = { aaa }\nlocal t2 = {\n}\nlocal t3 = {}\n",
+  "expected": "\nlocal t = {aaa}\nlocal t2 = {\n}\nlocal t3 = {}\n",
+  "style": [
+   [
+    "space_around_table_field_list",
+    "true"
+   ],
+   [
+    "space_around_table_field_list",
+    "false"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.space_before_attribute",
+  "input": "\nlocal t <const> = 123\nlocal t2 <close> = {}\n",
+  "expected": "\nlocal t <const> = 123\nlocal t2 <close> = {}\n",
+  "style": [
+   [
+    "space_before_attribute",
+    "true"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.space_before_attribute",
+  "input": "\nlocal t <const> = 123\nlocal t2 <close> = {}\n",
+  "expected": "\nlocal t<const> = 123\nlocal t2<close> = {}\n",
+  "style": [
+   [
+    "space_before_attribute",
+    "true"
+   ],
+   [
+    "space_before_attribute",
+    "false"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.space_before_function_open_parenthesis",
+  "input": "\nfunction f() end\n",
+  "expected": "\nfunction f () end\n",
+  "style": [
+   [
+    "space_before_function_open_parenthesis",
+    "true"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.space_before_function_open_parenthesis",
+  "input": "\nfunction f() end\n",
+  "expected": "\nfunction f() end\n",
+  "style": [
+   [
+    "space_before_function_open_parenthesis",
+    "true"
+   ],
+   [
+    "space_before_function_open_parenthesis",
+    "false"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.space_before_function_call_open_parenthesis",
+  "input": "\nprint(1, 2, 3)\n",
+  "expected": "\nprint (1, 2, 3)\n",
+  "style": [
+   [
+    "space_before_function_call_open_parenthesis",
+    "true"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.space_before_function_call_open_parenthesis",
+  "input": "\nprint(1, 2, 3)\n",
+  "expected": "\nprint(1, 2, 3)\n",
+  "style": [
+   [
+    "space_before_function_call_open_parenthesis",
+    "true"
+   ],
+   [
+    "space_before_function_call_open_parenthesis",
+    "false"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.space_before_closure_open_parenthesis",
+  "input": "\nlocal f = function ()\nend\n",
+  "expected": "\nlocal f = function ()\nend\n",
+  "style": [
+   [
+    "space_before_closure_open_parenthesis",
+    "true"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.space_before_closure_open_parenthesis",
+  "input": "\nlocal f = function ()\nend\n",
+  "expected": "\nlocal f = function()\nend\n",
+  "style": [
+   [
+    "space_before_closure_open_parenthesis",
+    "true"
+   ],
+   [
+    "space_before_closure_open_parenthesis",
+    "false"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.space_before_function_call_single_arg",
+  "input": "\nlocal f = p { a = 123 }\np \"aaa\"\n",
+  "expected": "\nlocal f = p { a = 123 }\np \"aaa\"\n",
+  "style": [
+   [
+    "space_before_function_call_single_arg.SetAll",
+    "FunctionSingleArgSpace::Always"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.space_before_function_call_single_arg",
+  "input": "\nlocal f = p { a = 123 }\np \"aaa\"\n",
+  "expected": "\nlocal f = p{ a = 123 }\np \"aaa\"\n",
+  "style": [
+   [
+    "space_before_function_call_single_arg.SetAll",
+    "FunctionSingleArgSpace::Always"
+   ],
+   [
+    "space_before_function_call_single_arg.string",
+    "FunctionSingleArgSpace::Always"
+   ],
+   [
+    "space_before_function_call_single_arg.table",
+    "FunctionSingleArgSpace::None"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.space_before_function_call_single_arg",
+  "input": "\nlocal f = p { a = 123 }\np \"aaa\"\n",
+  "expected": "\nlocal f = p { a = 123 }\np\"aaa\"\n",
+  "style": [
+   [
+    "space_before_function_call_single_arg.SetAll",
+    "FunctionSingleArgSpace::Always"
+   ],
+   [
+    "space_before_function_call_single_arg.string",
+    "FunctionSingleArgSpace::Always"
+   ],
+   [
+    "space_before_function_call_single_arg.table",
+    "FunctionSingleArgSpace::None"
+   ],
+   [
+    "space_before_function_call_single_arg.string",
+    "FunctionSingleArgSpace::None"
+   ],
+   [
+    "space_before_function_call_single_arg.table",
+    "FunctionSingleArgSpace::Always"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.space_before_function_call_single_arg",
+  "input": "\nlocal f = p { a = 123 }\np \"aaa\"\n",
+  "expected": "\nlocal f = p{ a = 123 }\np\"aaa\"\n",
+  "style": [
+   [
+    "space_before_function_call_single_arg.SetAll",
+    "FunctionSingleArgSpace::Always"
+   ],
+   [
+    "space_before_function_call_single_arg.string",
+    "FunctionSingleArgSpace::Always"
+   ],
+   [
+    "space_before_function_call_single_arg.table",
+    "FunctionSingleArgSpace::None"
+   ],
+   [
+    "space_before_function_call_single_arg.string",
+    "FunctionSingleArgSpace::None"
+   ],
+   [
+    "space_before_function_call_single_arg.table",
+    "FunctionSingleArgSpace::Always"
+   ],
+   [
+    "space_before_function_call_single_arg.SetAll",
+    "FunctionSingleArgSpace::None"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.space_before_function_call_single_arg",
+  "input": "\np    \"aaa\"\np \"aaa\"\n",
+  "expected": "\np    \"aaa\"\np \"aaa\"\n",
+  "style": [
+   [
+    "space_before_function_call_single_arg.SetAll",
+    "FunctionSingleArgSpace::Always"
+   ],
+   [
+    "space_before_function_call_single_arg.string",
+    "FunctionSingleArgSpace::Always"
+   ],
+   [
+    "space_before_function_call_single_arg.table",
+    "FunctionSingleArgSpace::None"
+   ],
+   [
+    "space_before_function_call_single_arg.string",
+    "FunctionSingleArgSpace::None"
+   ],
+   [
+    "space_before_function_call_single_arg.table",
+    "FunctionSingleArgSpace::Always"
+   ],
+   [
+    "space_before_function_call_single_arg.SetAll",
+    "FunctionSingleArgSpace::None"
+   ],
+   [
+    "space_before_function_call_single_arg.SetAll",
+    "FunctionSingleArgSpace::None"
+   ],
+   [
+    "space_before_function_call_single_arg.string",
+    "FunctionSingleArgSpace::Keep"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.space_before_function_call_single_arg",
+  "input": "\np { a = 123 }\np   { a = 123 }\n",
+  "expected": "\np { a = 123 }\np   { a = 123 }\n",
+  "style": [
+   [
+    "space_before_function_call_single_arg.SetAll",
+    "FunctionSingleArgSpace::Always"
+   ],
+   [
+    "space_before_function_call_single_arg.string",
+    "FunctionSingleArgSpace::Always"
+   ],
+   [
+    "space_before_function_call_single_arg.table",
+    "FunctionSingleArgSpace::None"
+   ],
+   [
+    "space_before_function_call_single_arg.string",
+    "FunctionSingleArgSpace::None"
+   ],
+   [
+    "space_before_function_call_single_arg.table",
+    "FunctionSingleArgSpace::Always"
+   ],
+   [
+    "space_before_function_call_single_arg.SetAll",
+    "FunctionSingleArgSpace::None"
+   ],
+   [
+    "space_before_function_call_single_arg.SetAll",
+    "FunctionSingleArgSpace::None"
+   ],
+   [
+    "space_before_function_call_single_arg.string",
+    "FunctionSingleArgSpace::Keep"
+   ],
+   [
+    "space_before_function_call_single_arg.SetAll",
+    "FunctionSingleArgSpace::None"
+   ],
+   [
+    "space_before_function_call_single_arg.table",
+    "FunctionSingleArgSpace::Keep"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.space_before_open_square_bracket",
+  "input": "\nt [123] = 123\n",
+  "expected": "\nt [123] = 123\n",
+  "style": [
+   [
+    "space_before_open_square_bracket",
+    "true"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.space_before_open_square_bracket",
+  "input": "\nt [123] = 123\n",
+  "expected": "\nt[123] = 123\n",
+  "style": [
+   [
+    "space_before_open_square_bracket",
+    "true"
+   ],
+   [
+    "space_before_open_square_bracket",
+    "false"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.space_inside_function_call_parentheses",
+  "input": "\np(1,2,3)\np()\n",
+  "expected": "\np( 1, 2, 3 )\np()\n",
+  "style": [
+   [
+    "space_inside_function_call_parentheses",
+    "true"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.space_inside_function_call_parentheses",
+  "input": "\np(1,2,3)\np()\n",
+  "expected": "\np(1, 2, 3)\np()\n",
+  "style": [
+   [
+    "space_inside_function_call_parentheses",
+    "true"
+   ],
+   [
+    "space_inside_function_call_parentheses",
+    "false"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.space_inside_function_param_list_parentheses",
+  "input": "\nfunction f()\nend\nfunction f2(a,b,c)\nend\n",
+  "expected": "\nfunction f()\nend\n\nfunction f2( a, b, c )\nend\n",
+  "style": [
+   [
+    "space_inside_function_param_list_parentheses",
+    "true"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.space_inside_function_param_list_parentheses",
+  "input": "\nfunction f()\nend\n\nfunction f2(a,b,c)\nend\n",
+  "expected": "\nfunction f()\nend\n\nfunction f2(a, b, c)\nend\n",
+  "style": [
+   [
+    "space_inside_function_param_list_parentheses",
+    "true"
+   ],
+   [
+    "space_inside_function_param_list_parentheses",
+    "false"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.space_inside_square_brackets",
+  "input": "\nlocal t = { [1] = 123 }\nt[1] = 456\n",
+  "expected": "\nlocal t = { [ 1 ] = 123 }\nt[ 1 ] = 456\n",
+  "style": [
+   [
+    "space_inside_square_brackets",
+    "true"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.space_inside_square_brackets",
+  "input": "\nlocal t = { [1] = 123 }\nt[1] = 456\n",
+  "expected": "\nlocal t = { [1] = 123 }\nt[1] = 456\n",
+  "style": [
+   [
+    "space_inside_square_brackets",
+    "true"
+   ],
+   [
+    "space_inside_square_brackets",
+    "false"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.space_around_table_append_operator",
+  "input": "\nt[#t+1] = 123\n",
+  "expected": "\nt[#t+1] = 123\n",
+  "style": [
+   [
+    "space_around_table_append_operator",
+    "true"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.space_around_table_append_operator",
+  "input": "\nt[#t+1] = 123\n",
+  "expected": "\nt[#t + 1] = 123\n",
+  "style": [
+   [
+    "space_around_table_append_operator",
+    "true"
+   ],
+   [
+    "space_around_table_append_operator",
+    "false"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.ignore_spaces_inside_function_call",
+  "input": "\nmap('k',      123,      456)\n",
+  "expected": "\nmap('k',      123,      456)\n",
+  "style": [
+   [
+    "ignore_spaces_inside_function_call",
+    "true"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.ignore_spaces_inside_function_call",
+  "input": "\nmap('k',      123,      456)\n",
+  "expected": "\nmap('k', 123, 456)\n",
+  "style": [
+   [
+    "ignore_spaces_inside_function_call",
+    "true"
+   ],
+   [
+    "ignore_spaces_inside_function_call",
+    "false"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.space_before_inline_comment",
+  "input": "\nlocal t = 123 --hello\n",
+  "expected": "\nlocal t = 123 --hello\n",
+  "style": [
+   [
+    "space_before_inline_comment",
+    "SpaceBeforeInlineComment(1)"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.space_before_inline_comment",
+  "input": "\nlocal t = 123 --hello\n",
+  "expected": "\nlocal t = 123  --hello\n",
+  "style": [
+   [
+    "space_before_inline_comment",
+    "SpaceBeforeInlineComment(1)"
+   ],
+   [
+    "space_before_inline_comment",
+    "SpaceBeforeInlineComment(2)"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.space_before_inline_comment",
+  "input": "\nlocal function fff()                   --123131\n    local t = \"hello world\", 1         --12313131\nend\nlocal t        = hello --fjoiwjfowifw\nyes.it.is.me.a = 123                --fjoiwjfowifw\n",
+  "expected": "\nlocal function fff()                   --123131\n    local t = \"hello world\", 1         --12313131\nend\nlocal t        = hello --fjoiwjfowifw\nyes.it.is.me.a = 123                --fjoiwjfowifw\n",
+  "style": [
+   [
+    "space_before_inline_comment",
+    "SpaceBeforeInlineComment(1)"
+   ],
+   [
+    "space_before_inline_comment",
+    "SpaceBeforeInlineComment(2)"
+   ],
+   [
+    "space_before_inline_comment",
+    "SpaceBeforeInlineComment(0, SpaceBeforeInlineCommentStyle::Keep)"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.space_around_math_operator",
+  "input": "\nlocal t = 123 + (456^7) / 4 * 5 - 9\n",
+  "expected": "\nlocal t = 123 + (456 ^ 7) / 4 * 5 - 9\n",
+  "style": [
+   [
+    "space_around_math_operator.SetAll",
+    "true"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.space_around_math_operator",
+  "input": "\nlocal t = 123 + (456^7) / 4 * 5 - 9\n",
+  "expected": "\nlocal t = 123+(456^7)/4*5-9\n",
+  "style": [
+   [
+    "space_around_math_operator.SetAll",
+    "true"
+   ],
+   [
+    "space_around_math_operator.SetAll",
+    "false"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.space_around_math_operator",
+  "input": "\nlocal t = 123 + (456^7) / 4 * 5 - 9\n",
+  "expected": "\nlocal t = 123 + (456^7) / 4 * 5 - 9\n",
+  "style": [
+   [
+    "space_around_math_operator.SetAll",
+    "true"
+   ],
+   [
+    "space_around_math_operator.SetAll",
+    "false"
+   ],
+   [
+    "space_around_math_operator.SetAll",
+    "true"
+   ],
+   [
+    "space_around_math_operator.exponent",
+    "false"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.space_after_comma",
+  "input": "\nlocal t = 1,2,3\np(4,5,6)\n",
+  "expected": "\nlocal t = 1, 2, 3\np(4, 5, 6)\n",
+  "style": [
+   [
+    "space_after_comma",
+    "true"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.space_after_comma",
+  "input": "\nlocal t = 1,2,3\np(4,5,6)\n",
+  "expected": "\nlocal t = 1,2,3\np(4,5,6)\n",
+  "style": [
+   [
+    "space_after_comma",
+    "true"
+   ],
+   [
+    "space_after_comma",
+    "false"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.space_after_comma_in_for_statement",
+  "input": "\nfor i,j,k in pairs(a) do\nend\n\nfor i = 1, 2, 3 do\nend\n",
+  "expected": "\nfor i, j, k in pairs(a) do\nend\n\nfor i = 1, 2, 3 do\nend\n",
+  "style": [
+   [
+    "space_after_comma_in_for_statement",
+    "true"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.space_after_comma_in_for_statement",
+  "input": "\nfor i,j,k in pairs(a) do\nend\n\nfor i = 1, 2, 3 do\nend\n",
+  "expected": "\nfor i,j,k in pairs(a) do\nend\n\nfor i = 1,2,3 do\nend\n",
+  "style": [
+   [
+    "space_after_comma_in_for_statement",
+    "true"
+   ],
+   [
+    "space_after_comma_in_for_statement",
+    "false"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.space_around_concat_operator",
+  "input": "\nlocal t = \"123\" .. 1\n",
+  "expected": "\nlocal t = \"123\" .. 1\n",
+  "style": [
+   [
+    "space_around_concat_operator",
+    "SpaceAroundStyle::Always"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.space_around_concat_operator",
+  "input": "\nlocal t = \"123\" .. 1\n",
+  "expected": "\nlocal t = \"123\"..1\n",
+  "style": [
+   [
+    "space_around_concat_operator",
+    "SpaceAroundStyle::Always"
+   ],
+   [
+    "space_around_concat_operator",
+    "SpaceAroundStyle::None"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.align_call_args",
+  "input": "\ncpdd(1,\n2,\n3)\n",
+  "expected": "\ncpdd(1,\n    2,\n    3)\n",
+  "style": [
+   [
+    "align_call_args",
+    "false"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.align_call_args",
+  "input": "\ncpdd(1,\n    2,\n    3)\n",
+  "expected": "\ncpdd(1,\n     2,\n     3)\n",
+  "style": [
+   [
+    "align_call_args",
+    "false"
+   ],
+   [
+    "align_call_args",
+    "true"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.align_function_params",
+  "input": "\nfunction f(aaa,\n    bbb,\n    ccc)\nend\n",
+  "expected": "\nfunction f(aaa,\n    bbb,\n    ccc)\nend\n",
+  "style": [
+   [
+    "align_function_params",
+    "false"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.align_function_params",
+  "input": "\nfunction f(aaa,\n    bbb,\n    ccc)\nend\n",
+  "expected": "\nfunction f(aaa,\n           bbb,\n           ccc)\nend\n",
+  "style": [
+   [
+    "align_function_params",
+    "false"
+   ],
+   [
+    "align_function_params",
+    "true"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.align_continuous_assign_statement",
+  "input": "\nlocal t  = 123\nlocal dddd = 456\n",
+  "expected": "\nlocal t = 123\nlocal dddd = 456\n",
+  "style": [
+   [
+    "align_continuous_assign_statement",
+    "ContinuousAlign::None"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.align_continuous_assign_statement",
+  "input": "\nlocal t  = 123\nlocal dddd = 456\n",
+  "expected": "\nlocal t    = 123\nlocal dddd = 456\n",
+  "style": [
+   [
+    "align_continuous_assign_statement",
+    "ContinuousAlign::None"
+   ],
+   [
+    "align_continuous_assign_statement",
+    "ContinuousAlign::WhenExtraSpace"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.align_continuous_assign_statement",
+  "input": "\nlocal t = 123\nlocal dddd = 456\n",
+  "expected": "\nlocal t    = 123\nlocal dddd = 456\n",
+  "style": [
+   [
+    "align_continuous_assign_statement",
+    "ContinuousAlign::None"
+   ],
+   [
+    "align_continuous_assign_statement",
+    "ContinuousAlign::WhenExtraSpace"
+   ],
+   [
+    "align_continuous_assign_statement",
+    "ContinuousAlign::Always"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.align_continuous_rect_table_field",
+  "input": "\nlocal t = {\n    aaa  = 123,\n    bbbbbbbb = 456\n}\n",
+  "expected": "\nlocal t = {\n    aaa = 123,\n    bbbbbbbb = 456\n}\n",
+  "style": [
+   [
+    "align_continuous_rect_table_field",
+    "ContinuousAlign::None"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.align_continuous_rect_table_field",
+  "input": "\nlocal t = {\n    aaa  = 123,\n    bbbbbbbb = 456\n}\n",
+  "expected": "\nlocal t = {\n    aaa      = 123,\n    bbbbbbbb = 456\n}\n",
+  "style": [
+   [
+    "align_continuous_rect_table_field",
+    "ContinuousAlign::None"
+   ],
+   [
+    "align_continuous_rect_table_field",
+    "ContinuousAlign::WhenExtraSpace"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.align_continuous_rect_table_field",
+  "input": "\nlocal t = {\n    aaa = 123,\n    bbbbbbbb = 456\n}\n",
+  "expected": "\nlocal t = {\n    aaa      = 123,\n    bbbbbbbb = 456\n}\n",
+  "style": [
+   [
+    "align_continuous_rect_table_field",
+    "ContinuousAlign::None"
+   ],
+   [
+    "align_continuous_rect_table_field",
+    "ContinuousAlign::WhenExtraSpace"
+   ],
+   [
+    "align_continuous_rect_table_field",
+    "ContinuousAlign::Always"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.align_if_branch",
+  "input": "\nif source.type ~= 'getglobal'\n    and source.type ~= 'getlocal' then\n    return\nend\nif t == 1 then\nelseif b == 456 then\nend\nif c == 1\n    and d == 3 then\nend\n",
+  "expected": "\nif source.type ~= 'getglobal'\n    and source.type ~= 'getlocal' then\n    return\nend\nif t == 1 then\nelseif b == 456 then\nend\nif c == 1\n    and d == 3 then\nend\n",
+  "style": [
+   [
+    "align_if_branch",
+    "false"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.align_if_branch",
+  "input": "\nif source.type ~= 'getglobal'\n    and source.type ~= 'getlocal' then\n    return\nend\nif t == 1 then\nelseif b == 456 then\nend\nif c == 1\n    and d == 3 then\nend\n",
+  "expected": "\nif  source.type ~= 'getglobal'\nand source.type ~= 'getlocal' then\n    return\nend\nif t == 1 then\nelseif b == 456 then\nend\nif  c == 1\nand d == 3 then\nend\n",
+  "style": [
+   [
+    "align_if_branch",
+    "false"
+   ],
+   [
+    "align_if_branch",
+    "true"
+   ],
+   [
+    "never_indent_before_if_condition",
+    "true"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.align_array_table",
+  "input": "\nlocal t = {\n    { \"fwfwf\", njqoifjiowiof, 121313 },\n    { \"fwfw\", fjwofw, wngjwoigw },\n    { a, b, c, d },\n    { 1, 2, 3 },\n}\n",
+  "expected": "\nlocal t = {\n    { \"fwfwf\", njqoifjiowiof, 121313 },\n    { \"fwfw\", fjwofw, wngjwoigw },\n    { a, b, c, d },\n    { 1, 2, 3 },\n}\n",
+  "style": [
+   [
+    "align_array_table",
+    "AlignArrayTable::None"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.align_array_table",
+  "input": "\nlocal t = {\n    { \"fwfwf\", njqoifjiowiof, 121313 },\n    { \"fwfw\", fjwofw, wngjwoigw },\n    { a, b, c, d },\n    { 1, 2, 3 },\n}\n",
+  "expected": "\nlocal t = {\n    { \"fwfwf\", njqoifjiowiof, 121313 },\n    { \"fwfw\",  fjwofw,        wngjwoigw },\n    { a,       b,             c,        d },\n    { 1,       2,             3 },\n}\n",
+  "style": [
+   [
+    "align_array_table",
+    "AlignArrayTable::None"
+   ],
+   [
+    "align_array_table",
+    "AlignArrayTable::Normal"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.align_array_table",
+  "input": "\nlocal t = {\n    { \"fwfwf\", njqoifjiowiof, 121313 },\n    { \"fwfw\", fjwofw, wngjwoigw },\n    { a, b, c, d },\n    { 1, 2, 3 },\n}\n",
+  "expected": "\nlocal t = {\n    { \"fwfwf\", njqoifjiowiof, 121313      },\n    { \"fwfw\",  fjwofw,        wngjwoigw   },\n    { a,       b,             c,        d },\n    { 1,       2,             3           },\n}\n",
+  "style": [
+   [
+    "align_array_table",
+    "AlignArrayTable::None"
+   ],
+   [
+    "align_array_table",
+    "AlignArrayTable::Normal"
+   ],
+   [
+    "align_array_table",
+    "AlignArrayTable::ContainCurly"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.never_indent_before_if_condition",
+  "input": "\nif a\nand b then\nend\n",
+  "expected": "\nif a\n    and b then\nend\n",
+  "style": [
+   [
+    "never_indent_before_if_condition",
+    "false"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.never_indent_before_if_condition",
+  "input": "\nif a\nand b then\nend\n",
+  "expected": "\nif a\nand b then\nend\n",
+  "style": [
+   [
+    "never_indent_before_if_condition",
+    "false"
+   ],
+   [
+    "never_indent_before_if_condition",
+    "true"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.never_indent_comment_on_if_branch",
+  "input": "\nif a then\n    local t = 13\n    --hello\nelseif b then\nend\n",
+  "expected": "\nif a then\n    local t = 13\n    --hello\nelseif b then\nend\n",
+  "style": [
+   [
+    "never_indent_comment_on_if_branch",
+    "false"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.never_indent_comment_on_if_branch",
+  "input": "\nif a then\n    local t = 13\n    --hello\nelseif b then\nend\n",
+  "expected": "\nif a then\n    local t = 13\n--hello\nelseif b then\nend\n",
+  "style": [
+   [
+    "never_indent_comment_on_if_branch",
+    "false"
+   ],
+   [
+    "never_indent_comment_on_if_branch",
+    "true"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.break_all_list_when_line_exceed",
+  "input": "\nlocal t = { aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb, cccccccccccccccccccccccccccccccccccccc, eeeeeeeeeeeeeeee }\n",
+  "expected": "\nlocal t = { aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb,\n    cccccccccccccccccccccccccccccccccccccc, eeeeeeeeeeeeeeee }\n",
+  "style": [
+   [
+    "break_all_list_when_line_exceed",
+    "false"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.break_all_list_when_line_exceed",
+  "input": "\nlocal t = { aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb, cccccccccccccccccccccccccccccccccccccc, eeeeeeeeeeeeeeee }\n",
+  "expected": "\nlocal t = {\n    aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa,\n    bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb,\n    cccccccccccccccccccccccccccccccccccccc,\n    eeeeeeeeeeeeeeee\n}\n",
+  "style": [
+   [
+    "break_all_list_when_line_exceed",
+    "false"
+   ],
+   [
+    "break_all_list_when_line_exceed",
+    "true"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.auto_collapse_lines",
+  "input": "\nlocal t = {\n    aaaa,\n    bbbbbbb,\n    dddd = 123,\n    hhihi = 123\n}\n",
+  "expected": "\nlocal t = {\n    aaaa,\n    bbbbbbb,\n    dddd = 123,\n    hhihi = 123\n}\n",
+  "style": [
+   [
+    "auto_collapse_lines",
+    "false"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.auto_collapse_lines",
+  "input": "\nlocal t = {\n    aaaa,\n    bbbbbbb,\n    dddd = 123,\n    hhihi = 123\n}\n",
+  "expected": "\nlocal t = { aaaa, bbbbbbb, dddd = 123, hhihi = 123 }\n",
+  "style": [
+   [
+    "auto_collapse_lines",
+    "false"
+   ],
+   [
+    "auto_collapse_lines",
+    "true"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.ignore_space_after_colon",
+  "input": "\nlocal t = switch(a)\n    : case(function()\n    end)\n",
+  "expected": "\nlocal t = switch(a)\n    :case(function()\n    end)\n",
+  "style": [
+   [
+    "ignore_space_after_colon",
+    "false"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.ignore_space_after_colon",
+  "input": "\nlocal t = switch(a)\n    : case(function()\n    end)\n",
+  "expected": "\nlocal t = switch(a)\n    : case(function()\n    end)\n",
+  "style": [
+   [
+    "ignore_space_after_colon",
+    "false"
+   ],
+   [
+    "ignore_space_after_colon",
+    "true"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.remove_call_expression_list_finish_comma",
+  "input": "\np(1,2,3,)\n",
+  "expected": "\np(1, 2, 3,)\n",
+  "style": [
+   [
+    "remove_call_expression_list_finish_comma",
+    "false"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.remove_call_expression_list_finish_comma",
+  "input": "\np(1,2,3,)\n",
+  "expected": "\np(1, 2, 3)\n",
+  "style": [
+   [
+    "remove_call_expression_list_finish_comma",
+    "false"
+   ],
+   [
+    "remove_call_expression_list_finish_comma",
+    "true"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.align_continuous_inline_comment",
+  "input": "\nfunction f() --hello world\n    local t = 132 --1313\nend\n\nlocal t = {\n    { 11111, 2,   3333333333333 }, --hello\n    { 123,   345, 46 }, --yes\n    { 1,     2,   3 }, --hh\n}\n\nlocal t = {\n    aa = 1, -- e1\n    bbaa = 2, --bb\n}\n",
+  "expected": "\nfunction f() --hello world\n    local t = 132 --1313\nend\n\nlocal t = {\n    { 11111, 2,   3333333333333 }, --hello\n    { 123,   345, 46 }, --yes\n    { 1,     2,   3 }, --hh\n}\n\nlocal t = {\n    aa = 1, -- e1\n    bbaa = 2, --bb\n}\n",
+  "style": [
+   [
+    "align_continuous_inline_comment",
+    "false"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.align_continuous_inline_comment",
+  "input": "\nfunction f() --hello world\n    local t = 132 --1313\nend\n\nlocal t = {\n    { 11111, 2,   3333333333333 }, --hello\n    { 123,   345, 46 }, --yes\n    { 1,     2,   3 }, --hh\n}\n\nlocal t = {\n    aa = 1, -- e1\n    bbaa = 2, --bb\n}\n",
+  "expected": "\nfunction f()      --hello world\n    local t = 132 --1313\nend\n\nlocal t = {\n    { 11111, 2,   3333333333333 }, --hello\n    { 123,   345, 46 },            --yes\n    { 1,     2,   3 },             --hh\n}\n\nlocal t = {\n    aa = 1,   -- e1\n    bbaa = 2, --bb\n}\n",
+  "style": [
+   [
+    "align_continuous_inline_comment",
+    "false"
+   ],
+   [
+    "align_continuous_inline_comment",
+    "true"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.align_chain_expr",
+  "input": "\nreturn aaaaaaaaaaaa.wfgoiwjofjw()\n     .afjoajofjw + 123131 + 123131\nlocal t = aaaaaaaaaaaa.wfgoiwjofjw()\n     .afjoajofjw + 123131 + 123131\naaaaaaaaaaaa.wfgoiwjofjw()\n     .afjoajofjw()\n",
+  "expected": "\nreturn aaaaaaaaaaaa.wfgoiwjofjw()\n                   .afjoajofjw + 123131 + 123131\nlocal t = aaaaaaaaaaaa.wfgoiwjofjw()\n                      .afjoajofjw + 123131 + 123131\naaaaaaaaaaaa.wfgoiwjofjw()\n            .afjoajofjw()\n",
+  "style": [
+   [
+    "align_chain_expr",
+    "AlignChainExpr::Always"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.align_chain_expr",
+  "input": "\nreturn aaaaaaaaaaaa.wfgoiwjofjw()\n    .afjoajofjw + 123131 + 123131\nlocal t = aaaaaaaaaaaa.wfgoiwjofjw()\n    .afjoajofjw + 123131 + 123131\naaaaaaaaaaaa.wfgoiwjofjw()\n     .afjoajofjw()\n",
+  "expected": "\nreturn aaaaaaaaaaaa.wfgoiwjofjw()\n    .afjoajofjw + 123131 + 123131\nlocal t = aaaaaaaaaaaa.wfgoiwjofjw()\n    .afjoajofjw + 123131 + 123131\naaaaaaaaaaaa.wfgoiwjofjw()\n            .afjoajofjw()\n",
+  "style": [
+   [
+    "align_chain_expr",
+    "AlignChainExpr::Always"
+   ],
+   [
+    "align_chain_expr",
+    "AlignChainExpr::OnlyCallStmt"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.align_continuous_similar_call_args",
+  "input": "\nmap(\"n\", \"<C-j>\", quickfix_step(\"below\"), { buffer = true })\nmap(\"n\", \"<C-k>\", quickfix_step(\"above\"), { buffer = true })\nmap(\"n\", \"<Space>\", \"<CR><C-w>p\", { buffer = true })\nmap({ \"n\", \"x\" }, \"<CR>\", \"<CR>\", { buffer = true })\n",
+  "expected": "\nmap(\"n\", \"<C-j>\", quickfix_step(\"below\"), { buffer = true })\nmap(\"n\", \"<C-k>\", quickfix_step(\"above\"), { buffer = true })\nmap(\"n\", \"<Space>\", \"<CR><C-w>p\", { buffer = true })\nmap({ \"n\", \"x\" }, \"<CR>\", \"<CR>\", { buffer = true })\n",
+  "style": [
+   [
+    "align_continuous_similar_call_args",
+    "false"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.align_continuous_similar_call_args",
+  "input": "\nmap(\"n\", \"<C-j>\", quickfix_step(\"below\"), { buffer = true })\nmap(\"n\", \"<C-k>\", quickfix_step(\"above\"), { buffer = true })\nmap(\"n\", \"<Space>\", \"<CR><C-w>p\", { buffer = true })\nmap({ \"n\", \"x\" }, \"<CR>\", \"<CR>\", { buffer = true })\n",
+  "expected": "\nmap(\"n\",          \"<C-j>\",   quickfix_step(\"below\"), { buffer = true })\nmap(\"n\",          \"<C-k>\",   quickfix_step(\"above\"), { buffer = true })\nmap(\"n\",          \"<Space>\", \"<CR><C-w>p\",           { buffer = true })\nmap({ \"n\", \"x\" }, \"<CR>\",    \"<CR>\",                 { buffer = true })\n",
+  "style": [
+   [
+    "align_continuous_similar_call_args",
+    "false"
+   ],
+   [
+    "align_continuous_similar_call_args",
+    "true"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.break_before_braces",
+  "input": "\nlocal t = {\n    a = 123\n}\n",
+  "expected": "\nlocal t = {\n    a = 123\n}\n",
+  "style": [
+   [
+    "break_before_braces",
+    "false"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.break_before_braces",
+  "input": "\nlocal t = {\n    a = 123\n}\nlocal t = { {\n    okokok = 123\n} }\n",
+  "expected": "\nlocal t =\n{\n    a = 123\n}\nlocal t =\n{\n    {\n        okokok = 123\n    }\n}\n",
+  "style": [
+   [
+    "break_before_braces",
+    "false"
+   ],
+   [
+    "break_before_braces",
+    "true"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.end_statement_with_semicolon",
+  "input": "\nlocal func = testFunc; print(type(nil)); -- nil;\nprint(\"Hello\"); print(\" \"); --[[ test comment --]] print(\"World\")\nfor i, v in ipairs(values) do\n    if v then\n        print(i, v, \"True\");\n    else\n        print(i, v, \"False\")\n    end;\nend;\nlocal table1 = { 1, 2, 3 }\n",
+  "expected": "\nlocal func = testFunc; print(type(nil)); -- nil;\nprint(\"Hello\"); print(\" \"); --[[ test comment --]] print(\"World\")\nfor i, v in ipairs(values) do\n    if v then\n        print(i, v, \"True\");\n    else\n        print(i, v, \"False\")\n    end;\nend;\nlocal table1 = { 1, 2, 3 }\n",
+  "style": [
+   [
+    "end_statement_with_semicolon",
+    "EndStmtWithSemicolon::Keep"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.end_statement_with_semicolon",
+  "input": "\nlocal func = testFunc; print(type(nil)); -- nil;\nprint(\"Hello\"); print(\" \"); --[[ test comment --]] print(\"World\")\nfor i, v in ipairs(values) do\n    if v then\n        print(i, v, \"True\");\n    else\n        print(i, v, \"False\")\n    end;\nend;\nlocal table1 = { 1, 2, 3 }\n",
+  "expected": "\nlocal func = testFunc; print(type(nil)); -- nil;\nprint(\"Hello\"); print(\" \"); --[[ test comment --]] print(\"World\");\nfor i, v in ipairs(values) do\n    if v then\n        print(i, v, \"True\");\n    else\n        print(i, v, \"False\");\n    end;\nend;\nlocal table1 = { 1, 2, 3 };\n",
+  "style": [
+   [
+    "end_statement_with_semicolon",
+    "EndStmtWithSemicolon::Keep"
+   ],
+   [
+    "end_statement_with_semicolon",
+    "EndStmtWithSemicolon::Always"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.end_statement_with_semicolon",
+  "input": "\nlocal func = testFunc; print(type(nil)); -- nil;\nprint(\"Hello\"); print(\" \"); --[[ test comment --]] print(\"World\")\nfor i, v in ipairs(values) do\n    if v then\n        print(i, v, \"True\");\n    else\n        print(i, v, \"False\")\n    end;\nend;\nlocal table1 = { 1, 2, 3 }\nlocal opts = { on_exit = function() job = nil end }\nlocal opts = { on_exit = function() job = nil; end };\n",
+  "expected": "\nlocal func = testFunc\nprint(type(nil))                         -- nil;\nprint(\"Hello\")\nprint(\" \") --[[ test comment --]]\nprint(\"World\")\nfor i, v in ipairs(values) do\n    if v then\n        print(i, v, \"True\")\n    else\n        print(i, v, \"False\")\n    end\nend\nlocal table1 = { 1, 2, 3 }\nlocal opts = { on_exit = function() job = nil end }\nlocal opts = { on_exit = function() job = nil\nend }\n",
+  "style": [
+   [
+    "end_statement_with_semicolon",
+    "EndStmtWithSemicolon::Keep"
+   ],
+   [
+    "end_statement_with_semicolon",
+    "EndStmtWithSemicolon::Always"
+   ],
+   [
+    "end_statement_with_semicolon",
+    "EndStmtWithSemicolon::ReplaceWithNewline"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.end_statement_with_semicolon",
+  "input": "\nlocal func = testFunc; print(type(nil)); -- nil;\nprint(\"Hello\"); print(\" \"); --[[ test comment --]] print(\"World\")\nfor i, v in ipairs(values) do\n    if v then\n        print(i, v, \"True\");\n    else\n        print(i, v, \"False\")\n    end;\nend;\nlocal table1 = { 1, 2, 3 }\n",
+  "expected": "\nlocal func = testFunc; print(type(nil))  -- nil;\nprint(\"Hello\"); print(\" \"); --[[ test comment --]] print(\"World\")\nfor i, v in ipairs(values) do\n    if v then\n        print(i, v, \"True\")\n    else\n        print(i, v, \"False\")\n    end\nend\nlocal table1 = { 1, 2, 3 }\n",
+  "style": [
+   [
+    "end_statement_with_semicolon",
+    "EndStmtWithSemicolon::Keep"
+   ],
+   [
+    "end_statement_with_semicolon",
+    "EndStmtWithSemicolon::Always"
+   ],
+   [
+    "end_statement_with_semicolon",
+    "EndStmtWithSemicolon::ReplaceWithNewline"
+   ],
+   [
+    "end_statement_with_semicolon",
+    "EndStmtWithSemicolon::SameLine"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.end_statement_with_semicolon",
+  "input": "\nlocal t = pp;\n(\"aa\"):foramt()\nlocal d = {};\n",
+  "expected": "\nlocal t = pp;\n(\"aa\"):foramt()\nlocal d = {}\n",
+  "style": [
+   [
+    "end_statement_with_semicolon",
+    "EndStmtWithSemicolon::Keep"
+   ],
+   [
+    "end_statement_with_semicolon",
+    "EndStmtWithSemicolon::Always"
+   ],
+   [
+    "end_statement_with_semicolon",
+    "EndStmtWithSemicolon::ReplaceWithNewline"
+   ],
+   [
+    "end_statement_with_semicolon",
+    "EndStmtWithSemicolon::SameLine"
+   ],
+   [
+    "end_statement_with_semicolon",
+    "EndStmtWithSemicolon::Never"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.keep_indents_on_empty_lines",
+  "input": "\nlocal t = function()  local a = 131\n\n\n    local b = function()\n        local c = {\n        }\n    end\nend\n      \nlocal t2 = function()\n    local c = 1\nend\n",
+  "expected": "\nlocal t = function()\n    local a = 131\n    \n    \n    local b = function()\n        local c = {\n        }\n    end\nend\n\nlocal t2 = function()\n    local c = 1\nend\n\n",
+  "style": [
+   [
+    "keep_indents_on_empty_lines",
+    "true"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.keep_indents_on_empty_lines",
+  "input": "\nlocal t = function()  local a = 131\n\n\n    local b = function()\n        local c = {\n        }\n    end\nend\n      \nlocal t2 = function()\n    local c = 1\nend\n",
+  "expected": "\nlocal t = function()\n    local a = 131\n\n\n    local b = function()\n        local c = {\n        }\n    end\nend\n\nlocal t2 = function()\n    local c = 1\nend\n\n",
+  "style": [
+   [
+    "keep_indents_on_empty_lines",
+    "true"
+   ],
+   [
+    "keep_indents_on_empty_lines",
+    "false"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.line_space_around_block",
+  "input": "\nfunction f()\n\n    local t = 123\n\nend\n",
+  "expected": "\nfunction f()\n\n    local t = 123\n\nend\n",
+  "style": [
+   [
+    "line_space_around_block",
+    "LineSpace(LineSpaceType::Keep)"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.line_space_around_block",
+  "input": "\nfunction f()\n\n\n    local t = 123\n\n\nend\n",
+  "expected": "\nfunction f()\n\n    local t = 123\n\nend\n",
+  "style": [
+   [
+    "line_space_around_block",
+    "LineSpace(LineSpaceType::Keep)"
+   ],
+   [
+    "line_space_around_block",
+    "LineSpace(LineSpaceType::Max, 2)"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.space_around_assign_operator",
+  "input": "\nlocal t = 123\nlocal d = {\n    d = 123\n}\n",
+  "expected": "\nlocal t = 123\nlocal d = {\n    d = 123\n}\n",
+  "style": [
+   [
+    "space_around_assign_operator",
+    "SpaceAroundStyle::Always"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.space_around_assign_operator",
+  "input": "\nlocal t = 123\nlocal d = {\n    d = 123\n}\n",
+  "expected": "\nlocal t=123\nlocal d={\n    d=123\n}\n",
+  "style": [
+   [
+    "space_around_assign_operator",
+    "SpaceAroundStyle::Always"
+   ],
+   [
+    "space_around_assign_operator",
+    "SpaceAroundStyle::None"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.space_around_logical_operator",
+  "input": "\nlocal t = true == false or a < 2 and b > 3 or c <= 4 and d >= 5 or e ~= 6 and f == 7\n",
+  "expected": "\nlocal t = true == false or a < 2 and b > 3 or c <= 4 and d >= 5 or e ~= 6 and f == 7\n",
+  "style": [
+   [
+    "space_around_logical_operator",
+    "true"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.space_around_logical_operator",
+  "input": "\nlocal t = true == false or a < 2 and b > 3 or c <= 4 and d >= 5 or e ~= 6 and f == 7\n",
+  "expected": "\nlocal t = true==false or a<2 and b>3 or c<=4 and d>=5 or e~=6 and f==7\n",
+  "style": [
+   [
+    "space_around_logical_operator",
+    "true"
+   ],
+   [
+    "space_around_logical_operator",
+    "false"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.allow_non_indented_comments",
+  "input": "\nfunction f()\n    --wjfowoj\n\n    local t = 123\nend\n\ndo\n--12313\n    local t = 123\n    print(t)\nend\n",
+  "expected": "\nfunction f()\n    --wjfowoj\n\n    local t = 123\nend\n\ndo\n--12313\n    local t = 123\n    print(t)\nend\n",
+  "style": [
+   [
+    "allow_non_indented_comments",
+    "true"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "FormatByStyleOption.space_after_comment_dash",
+  "input": "\n--aa\n---aaa\n---@param\n-------\n",
+  "expected": "\n-- aa\n--- aaa\n--- @param\n-------\n",
+  "style": [
+   [
+    "space_after_comment_dash",
+    "true"
+   ]
+  ],
+  "file": "FormatStyle_unitest.cpp"
+ },
+ {
+  "name": "Format.localStatement",
+  "input": "\nlocal t = 123\n",
+  "expected": "\nlocal t = 123\n",
+  "style": [],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.localStatement",
+  "input": "\nlocal t = function()\nend\n",
+  "expected": "\nlocal t = function()\nend\n",
+  "style": [],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.localStatement",
+  "input": "\nlocal t = {\n}\n",
+  "expected": "\nlocal t = {\n}\n",
+  "style": [],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.localStatement",
+  "input": "\nlocal t =\n{\n    a = 123\n}\n",
+  "expected": "\nlocal t =\n{\n    a = 123\n}\n",
+  "style": [],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.localStatement",
+  "input": "\nlocal t, d ,e = aaaa, bbbb, ccccc\n",
+  "expected": "\nlocal t, d, e = aaaa, bbbb, ccccc\n",
+  "style": [],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.localStatement",
+  "input": "\nlocal t<const> = 1\n",
+  "expected": "\nlocal t <const> = 1\n",
+  "style": [],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.AssignStatement",
+  "input": "\nt = 1\n",
+  "expected": "\nt = 1\n",
+  "style": [],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.AssignStatement",
+  "input": "\nt, d, e = 1, 2, 3\n",
+  "expected": "\nt, d, e = 1, 2, 3\n",
+  "style": [],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.AssignStatement",
+  "input": "\nt = function()\nend\n",
+  "expected": "\nt = function()\nend\n",
+  "style": [],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.AssignStatement",
+  "input": "\nt = { a, b, c, d }\n",
+  "expected": "\nt = { a, b, c, d }\n",
+  "style": [],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.AssignStatement",
+  "input": "\nt = {\na, b, c, d\n}\n",
+  "expected": "\nt = {\n    a, b, c, d\n}\n",
+  "style": [],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.AssignStatement",
+  "input": "\nt =\n{\na, b, c, d\n}\n",
+  "expected": "\nt =\n{\n    a, b, c, d\n}\n",
+  "style": [],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.IfStatement",
+  "input": "\nif a then\nend\n",
+  "expected": "\nif a then\nend\n",
+  "style": [],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.IfStatement",
+  "input": "\nif a then\nelseif b then\nend\n",
+  "expected": "\nif a then\nelseif b then\nend\n",
+  "style": [],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.IfStatement",
+  "input": "\nif a and b then\nend\n",
+  "expected": "\nif a and b then\nend\n",
+  "style": [],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.IfStatement",
+  "input": "\nif a == 1\nand b == 2 then\nend\n",
+  "expected": "\nif a == 1\n    and b == 2 then\nend\n",
+  "style": [],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.LocalFunctionStatement",
+  "input": "\nlocal function f() return x end\n",
+  "expected": "\nlocal function f() return x end\n",
+  "style": [],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.LocalFunctionStatement",
+  "input": "\nlocal function f()\n    return x\nend\n",
+  "expected": "\nlocal function f()\n    return x\nend\n",
+  "style": [],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.LocalFunctionStatement",
+  "input": "\nlocal function f(a,b,c,d,e)\n    return x\nend\n",
+  "expected": "\nlocal function f(a, b, c, d, e)\n    return x\nend\n",
+  "style": [],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.LocalFunctionStatement",
+  "input": "\nlocal function f(a,\n    b,\n    c,\n    d,\n    e\n)\n    return x\nend\n",
+  "expected": "\nlocal function f(a,\n                 b,\n                 c,\n                 d,\n                 e\n)\n    return x\nend\n",
+  "style": [],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.WhileStatement",
+  "input": "\nwhile true do break end\n",
+  "expected": "\nwhile true do break end\n",
+  "style": [],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.WhileStatement",
+  "input": "\nwhile true do\nend\n",
+  "expected": "\nwhile true do\nend\n",
+  "style": [],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.DoStatement",
+  "input": "\ndo return x end\n",
+  "expected": "\ndo return x end\n",
+  "style": [],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.DoStatement",
+  "input": "\ndo\n    return x\nend\n",
+  "expected": "\ndo\n    return x\nend\n",
+  "style": [],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.ForStatement",
+  "input": "\nfor i = 1, 2, 1 do\n\nend\n",
+  "expected": "\nfor i = 1, 2, 1 do\n\nend\n",
+  "style": [],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.ForStatement",
+  "input": "\nfor i = 1, 2 do\n\nend\n",
+  "expected": "\nfor i = 1, 2 do\n\nend\n",
+  "style": [],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.ForStatement",
+  "input": "\nfor i,j,k in pairs(ddd) do\n\nend\n",
+  "expected": "\nfor i, j, k in pairs(ddd) do\n\nend\n",
+  "style": [],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.ForStatement",
+  "input": "\nfor i,j,k in next, t, 1 do\n\nend\n",
+  "expected": "\nfor i, j, k in next, t, 1 do\n\nend\n",
+  "style": [],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.RepeatStatement",
+  "input": "\nrepeat\nuntil false\n",
+  "expected": "\nrepeat\nuntil false\n",
+  "style": [],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.RepeatStatement",
+  "input": "\nrepeat\nuntil f1()\n    and f2()\n",
+  "expected": "\nrepeat\nuntil f1()\n    and f2()\n",
+  "style": [],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.FunctionStatement",
+  "input": "\nfunction f() return x end\n",
+  "expected": "\nfunction f() return x end\n",
+  "style": [],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.FunctionStatement",
+  "input": "\nfunction f()\n    return x\nend\n",
+  "expected": "\nfunction f()\n    return x\nend\n",
+  "style": [],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.FunctionStatement",
+  "input": "\nfunction f(a,b,c,d)\n    return x\nend\n",
+  "expected": "\nfunction f(a, b, c, d)\n    return x\nend\n",
+  "style": [],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.FunctionStatement",
+  "input": "\nfunction t:GetInstance()\n    return x\nend\n",
+  "expected": "\nfunction t:GetInstance()\n    return x\nend\n",
+  "style": [],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.FunctionStatement",
+  "input": "\nfunction t.a.b.c:GetInstance()\n    return x\nend\n",
+  "expected": "\nfunction t.a.b.c:GetInstance()\n    return x\nend\n",
+  "style": [],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.FunctionStatement",
+  "input": "\nfunction t.a.b.c.GetInstance()\n    return x\nend\n",
+  "expected": "\nfunction t.a.b.c.GetInstance()\n    return x\nend\n",
+  "style": [],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.LabelStatement",
+  "input": "\nwhile true do\n    if true then\n        goto continue\n    end\n    ::continue::\nend\n",
+  "expected": "\nwhile true do\n    if true then\n        goto continue\n    end\n    ::continue::\nend\n",
+  "style": [],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.BreakStatement",
+  "input": "\nwhile true do\n    if true then\n        break\n    end\nend\n",
+  "expected": "\nwhile true do\n    if true then\n        break\n    end\nend\n",
+  "style": [],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.ReturnStatement",
+  "input": "\nreturn x\n",
+  "expected": "\nreturn x\n",
+  "style": [],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.ReturnStatement",
+  "input": "\nreturn x, y, z\n",
+  "expected": "\nreturn x, y, z\n",
+  "style": [],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.ReturnStatement",
+  "input": "\nfunction wrapper(f)\n    return function()\n        f()\n    end\nend\n",
+  "expected": "\nfunction wrapper(f)\n    return function()\n        f()\n    end\nend\n",
+  "style": [],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.ExpressionStatement",
+  "input": "\np()\n",
+  "expected": "\np()\n",
+  "style": [],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.ExpressionStatement",
+  "input": "\na.b.c.d()\n",
+  "expected": "\na.b.c.d()\n",
+  "style": [],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.ExpressionStatement",
+  "input": "\na.b.c:d(a,b,c)\n",
+  "expected": "\na.b.c:d(a, b, c)\n",
+  "style": [],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.ExpressionStatement",
+  "input": "\na.b.c:d(a,b,c)\n",
+  "expected": "\na.b.c:d(a, b, c)\n",
+  "style": [],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.ExpressionStatement",
+  "input": "\na\n    .b.c:d(a,b,c)\n",
+  "expected": "\na\n    .b.c:d(a, b, c)\n",
+  "style": [],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.Expression",
+  "input": "\nt = a + 1\nt = a..\"12313\"\nt = -a\nt = - - -a\nt = (a + b) + 1\nt = \"hello world\"\nt = [[yes]] .. ddd\nt = {a, b}\nt = function()\nend\np(function()\nend)\nt = p() + n.p()\n",
+  "expected": "\nt = a + 1\nt = a .. \"12313\"\nt = -a\nt = - - -a\nt = (a + b) + 1\nt = \"hello world\"\nt = [[yes]] .. ddd\nt = { a, b }\nt = function()\nend\np(function()\nend)\nt = p() + n.p()\n",
+  "style": [],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.Comment",
+  "input": "\nlocal t = 123--hello\n",
+  "expected": "\nlocal t = 123 --hello\n",
+  "style": [],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.Comment",
+  "input": "\np(a --[[aaa]])\n",
+  "expected": "\np(a --[[aaa]])\n",
+  "style": [],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.Comment",
+  "input": "\nlocal t = {\n    --123456\n    a = 123 --789\n    --10\n}\n",
+  "expected": "\nlocal t = {\n    --123456\n    a = 123 --789\n    --10\n}\n",
+  "style": [],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.Comment",
+  "input": "#! lua 1.lua\n",
+  "expected": "#! lua 1.lua\n",
+  "style": [],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.MultiLine",
+  "input": "\nfunction g(x)\n    if not x then return 3 end return (x('a', 'x'))\nend\n",
+  "expected": "\nfunction g(x)\n    if not x then return 3 end\n    return (x('a', 'x'))\nend\n",
+  "style": [],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.MultiLine",
+  "input": "\nif a then\nelse end\n",
+  "expected": "\nif a then\nelse\nend\n",
+  "style": [],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.sumenko_1915",
+  "input": "\nreturn nil, {\n  sql = true,\n  fields = true,\n  field_names = true,\n  extends = true,\n  mixins = true,\n  __index = true,\n  admin = true\n}\n",
+  "expected": "\nreturn nil, {\n  sql = true,\n  fields = true,\n  field_names = true,\n  extends = true,\n  mixins = true,\n  __index = true,\n  admin = true\n}\n",
+  "style": [
+   [
+    "indent_size",
+    "2"
+   ]
+  ],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.sumenko_1915",
+  "input": "\nlocal t = nil, {\n    sql = true\n}\n",
+  "expected": "\nlocal t = nil, {\n    sql = true\n}\n",
+  "style": [],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.sumenko_1921",
+  "input": "\np(-1)\nt[-1] = -1\n",
+  "expected": "\np(-1)\nt[-1] = -1\n",
+  "style": [],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.codestyle_89",
+  "input": "\nlocal t = {\n    a = cond\n    and \"is true\"\n    or \"is not true\"\n}\n\n\nlocal s = (\"%s\")\n    :format(\"text\")\n\n\nprint((\"%s\")\n    :format(\"text\"))\n\n\nprint(\"s1\"\n    .. \"s2\")\n\n\nlocal f1 = function()\n    print(\"test\")\nend\n\n\nlocal f2 = cond or function()\n    print(\"test\")\nend\n",
+  "expected": "\nlocal t = {\n    a = cond\n        and \"is true\"\n        or \"is not true\"\n}\n\n\nlocal s = (\"%s\")\n    :format(\"text\")\n\n\nprint((\"%s\")\n    :format(\"text\"))\n\n\nprint(\"s1\"\n    .. \"s2\")\n\n\nlocal f1 = function()\n    print(\"test\")\nend\n\n\nlocal f2 = cond or function()\n    print(\"test\")\nend\n",
+  "style": [],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.codestyle_90",
+  "input": "\nnull_ls.setup {\n    sources = {\n        null_ls.builtins.formatting.prettierd.with {\n            disabled_filetypes = { 'html' },\n        },\n        null_ls.builtins.formatting.autopep8.with {\n            extra_args = {\n                '--indent-size=2'\n            }\n        },\n        null_ls.builtins.formatting.xmlformat.with {\n\n        },\n    }\n}\n",
+  "expected": "\nnull_ls.setup {\n    sources = {\n        null_ls.builtins.formatting.prettierd.with {\n            disabled_filetypes = { 'html' },\n        },\n        null_ls.builtins.formatting.autopep8.with {\n            extra_args = {\n                '--indent-size=2'\n            }\n        },\n        null_ls.builtins.formatting.xmlformat.with {\n\n        },\n    }\n}\n",
+  "style": [
+   [
+    "call_arg_parentheses",
+    "CallArgParentheses::Remove"
+   ]
+  ],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.sumneko_1969",
+  "input": "\nGarbage = {\n\t    [\"BahamaFrontDesk\"] = {\n\t\tCoords = vector3( -1382.54, -592.77, 29.91),\n\t\t--Prop = \"\",\n\t}\n}\n",
+  "expected": "\nGarbage = {\n    [\"BahamaFrontDesk\"] = {\n        Coords = vector3(-1382.54, -592.77, 29.91),\n        --Prop = \"\",\n    }\n}\n",
+  "style": [],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.codestyle_93",
+  "input": "\nlocal context = {\n  form_field_token = utils.trunk(form_field_token, 2):map(function(e)\n    local form_item_token, widget = e[1], e[2]\n    return format(form_item_token, widget)\n  end):join('\\n'),\n}\nlocal a = aaa.p(function()\nend):okok()\nlocal a2 = aaa.p(function()\n    end)\n    :okok()\n",
+  "expected": "\nlocal context = {\n  form_field_token = utils.trunk(form_field_token, 2):map(function(e)\n    local form_item_token, widget = e[1], e[2]\n    return format(form_item_token, widget)\n  end):join('\\n'),\n}\nlocal a = aaa.p(function()\nend):okok()\nlocal a2 = aaa.p(function()\n    end)\n    :okok()\n",
+  "style": [
+   [
+    "indent_size",
+    "2"
+   ]
+  ],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.codestyle_98",
+  "input": "\nlocal function t(entry, item)\n    item.dup = ({\n        aa = 0\n    })[entry.name] or 0\n\n    item.dup2 = ({\n        aa = 0,\n    })[entry.name]\n\n    return item\nend\n",
+  "expected": "\nlocal function t(entry, item)\n    item.dup = ({\n        aa = 0\n    })[entry.name] or 0\n\n    item.dup2 = ({\n        aa = 0,\n    })[entry.name]\n\n    return item\nend\n",
+  "style": [],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.feature_format_disable",
+  "input": "\nfunction f()\n---@format disable\nlocal t=123\n\n\nokoko=-123\nend\nlocal t =123\n",
+  "expected": "\nfunction f()\n    ---@format disable\nlocal t=123\n\n\nokoko=-123\nend\n\nlocal t = 123\n",
+  "style": [],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.feature_format_disable",
+  "input": "\nfunction f()\n---@format disable-next\nlocal t=123\n\n\nokoko=-123\nend\nlocal t =123\n",
+  "expected": "\nfunction f()\n    ---@format disable-next\nlocal t=123\n\n\n    okoko = -123\nend\n\nlocal t = 123\n",
+  "style": [],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.feature_format_disable",
+  "input": "\nlocal t = {\n    ---@format disable-next\n\n    aa  = 123,\n    ---@format disable-next\n    lcc             =           123,\n    gjopepgo = 123,\n}\n",
+  "expected": "\nlocal t = {\n    ---@format disable-next\n\n    aa  = 123,\n    ---@format disable-next\n    lcc             =           123,\n    gjopepgo = 123,\n}\n",
+  "style": [],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.feature_format_disable",
+  "input": "\nlocal t = {\n    ---@format disable-next-line\n    foo =  123, bar  = 234,\n    baz =  345,\n}\n",
+  "expected": "\nlocal t = {\n    ---@format disable-next-line\n    foo =  123, bar  = 234,\n    baz = 345,\n}\n",
+  "style": [],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.feature_format_disable",
+  "input": "\nlocal t = {\n    ---@format disable-next-line\n    foo =   function( a,  b )\n        return  {\n            foo =   a,\n            bar =  b,\n        }\n    end,\n    bar =  1,\n}\n",
+  "expected": "\nlocal t = {\n    ---@format disable-next-line\n    foo =   function( a,  b )\n        return {\n            foo = a,\n            bar = b,\n        }\n    end,\n    bar = 1,\n}\n",
+  "style": [],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.feature_format_disable",
+  "input": "\nlocal t = {\n    ---@format disable-next-line\n    foo =   function( a,  b )\n        return  {\n            foo =   a,\n            bar =  b,\n        }\n    end,\n    bar =  1,\n}\n---@format disable-next-line\n",
+  "expected": "\nlocal t = {\n    ---@format disable-next-line\n    foo =   function( a,  b )\n        return {\n            foo = a,\n            bar = b,\n        }\n    end,\n    bar = 1,\n}\n---@format disable-next-line\n",
+  "style": [],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.feature_102",
+  "input": "\nlocal t; Init(v)\n",
+  "expected": "\nlocal t; Init(v)\n",
+  "style": [],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.feature_102",
+  "input": "\nlocal t; Init(v)\naaa = 123; pppp(aaa);\n\nddd = 123;\n\npcall(f, 1, 2, 3); do return true end\n",
+  "expected": "\nlocal t; Init(v)\naaa = 123; pppp(aaa);\n\nddd = 123;\n\npcall(f, 1, 2, 3); do return true end\n",
+  "style": [],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.feature_106",
+  "input": "\nlocal empty = function () end\n",
+  "expected": "\nlocal empty = function() end\n",
+  "style": [],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.issue_109",
+  "input": "\n--[[]]\n\n\nlocal t = 13 + 123\n",
+  "expected": "\n--[[]]\n\n\nlocal t = 13 + 123\n",
+  "style": [],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.feature_111",
+  "input": "\nlocal table = { -- My comment\n    elem1 = {},\n    elem2 = {}\n}\n",
+  "expected": "\nlocal table = { -- My comment\n    elem1 = {},\n    elem2 = {}\n}\n",
+  "style": [],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.feature_107_ignore_unicode_align",
+  "input": "\nlocal t = 123\nlocal dddd  = 456\n\n\nlocal 你说的对 = 123\nlocal 但是  = 456\n",
+  "expected": "\nlocal t    = 123\nlocal dddd = 456\n\n\nlocal 你说的对 = 123\nlocal 但是 = 456\n",
+  "style": [],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.feature_107_ignore_unicode_align",
+  "input": "\nlocal t = {\n    t = 123\n    dddd  = 456\n}\n\n\nlocal t = {\n    你说的对 = 123\n    但是  = 456\n}\n",
+  "expected": "\nlocal t = {\n    t    = 123\n    dddd = 456\n}\n\n\nlocal t = {\n    你说的对 = 123\n    但是 = 456\n}\n",
+  "style": [],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.feature_107_ignore_unicode_align",
+  "input": "\nlocal t = { -- hello\n    t = 123\n    dddd = 456 -- hello\n}\n\n\nlocal t = { --hello\n    你说的对 = 123 --hello\n    但是 = 456 --hello\n}\n",
+  "expected": "\nlocal t = {    -- hello\n    t = 123\n    dddd = 456 -- hello\n}\n\n\nlocal t = { --hello\n    你说的对 = 123 --hello\n    但是 = 456 --hello\n}\n",
+  "style": [],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.feature_107_ignore_unicode_align",
+  "input": "\nlocal t = {\n    { 1, 222, 333 }\n    { 4, 55, 6 }\n}\n\n\nlocal t = {\n    { \"你说的对\", 222, 333 },\n    { \"但是\", 55, 6 }\n}\n",
+  "expected": "\nlocal t = {\n    { 1, 222, 333 }\n    { 4, 55,  6 }\n}\n\n\nlocal t = {\n    { \"你说的对\", 222, 333 },\n    { \"但是\", 55, 6 }\n}\n",
+  "style": [],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.bug_131",
+  "input": "\nlocal table = { -- My comment\n    elem1 = {}, --12313\n    elem2 = {}\n}\n",
+  "expected": "\nlocal table = {  -- My comment\n    elem1 = {},  --12313\n    elem2 = {}\n}\n",
+  "style": [
+   [
+    "space_before_inline_comment",
+    "SpaceBeforeInlineComment(2)"
+   ],
+   [
+    "align_continuous_inline_comment",
+    "false"
+   ]
+  ],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.bug_144",
+  "input": "\nlocal t = 1 .. \"1231\"..bb..1111\n",
+  "expected": "\nlocal t = 1 .. \"1231\"..bb..1111\n",
+  "style": [
+   [
+    "space_around_concat_operator",
+    "SpaceAroundStyle::None"
+   ]
+  ],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.bug_144",
+  "input": "\nlocal t = 1 .. \"1231\"..bb..1111\n",
+  "expected": "\nlocal t = 1 ..\"1231\"..bb..1111\n",
+  "style": [
+   [
+    "space_around_concat_operator",
+    "SpaceAroundStyle::None"
+   ],
+   [
+    "space_around_concat_operator",
+    "SpaceAroundStyle::NoSpaceAsym"
+   ]
+  ],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.bug_144",
+  "input": "\nlocal t = 1\nlocal t <const> = 1\n",
+  "expected": "\nlocal t=1\nlocal t <const> = 1\n",
+  "style": [
+   [
+    "space_around_concat_operator",
+    "SpaceAroundStyle::None"
+   ],
+   [
+    "space_around_concat_operator",
+    "SpaceAroundStyle::NoSpaceAsym"
+   ],
+   [
+    "space_around_concat_operator",
+    "SpaceAroundStyle::Always"
+   ],
+   [
+    "space_around_assign_operator",
+    "SpaceAroundStyle::None"
+   ]
+  ],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.bug_144",
+  "input": "\nlocal t = 1\nlocal t <const> = 1\n",
+  "expected": "\nlocal t=1\nlocal t <const> =1\n",
+  "style": [
+   [
+    "space_around_concat_operator",
+    "SpaceAroundStyle::None"
+   ],
+   [
+    "space_around_concat_operator",
+    "SpaceAroundStyle::NoSpaceAsym"
+   ],
+   [
+    "space_around_concat_operator",
+    "SpaceAroundStyle::Always"
+   ],
+   [
+    "space_around_assign_operator",
+    "SpaceAroundStyle::None"
+   ],
+   [
+    "space_around_assign_operator",
+    "SpaceAroundStyle::NoSpaceAsym"
+   ]
+  ],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.feature_146_support_UTF_8_Basic_Latin_and_Latin_1_Supplement",
+  "input": "\nt[\"¡¢£¤¥¦§¨©ª«®¯°±²³´µ¶·¸¹º»¼½¾¿ÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖ×ØÙÚÛÜÝÞßàáâãäåæçèéêëìíîïðñòóôõö÷øùúûüýþÿ\"] = 1\nb  = 123\n\n\nonly_latin = {\n    { 'aaaa', nil },\n    { 'e', nil },\n}\n",
+  "expected": "\nt[\"¡¢£¤¥¦§¨©ª«®¯°±²³´µ¶·¸¹º»¼½¾¿ÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖ×ØÙÚÛÜÝÞßàáâãäåæçèéêëìíîïðñòóôõö÷øùúûüýþÿ\"] = 1\nb                                                                                                  = 123\n\n\nonly_latin = {\n    { 'aaaa', nil },\n    { 'e',    nil },\n}\n",
+  "style": [],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.issue_170",
+  "input": "\n--[[]]\n",
+  "expected": "\n--[[]]\n",
+  "style": [],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.issue_170",
+  "input": "\n--[[]]--\n",
+  "expected": "\n--[[]] --\n",
+  "style": [],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.issue_170",
+  "input": "\n--[[-----------\n\n]]-------------\n",
+  "expected": "\n--[[-----------\n\n]] -------------\n",
+  "style": [],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "Format.issue_186",
+  "input": "\nfoo 'a'\nfoo \"b\"\nfoo {}\n",
+  "expected": "\nfoo(\"a\")\nfoo(\"b\")\nfoo({})\n",
+  "style": [
+   [
+    "call_arg_parentheses",
+    "CallArgParentheses::Always"
+   ],
+   [
+    "quote_style",
+    "QuoteStyle::Double"
+   ]
+  ],
+  "file": "FormatResult_unitest.cpp"
+ },
+ {
+  "name": "RangeFormat.all_range",
+  "range": [
+   0,
+   100
+  ],
+  "input": "\nlocal t = 123\nfunction f()\n    do return x end\n    while true do return true end\n    if a then return b end\n    okkk = 123\nend\n",
+  "expected": "\nlocal t = 123\nfunction f()\n    do return x end\n    while true do return true end\n    if a then return b end\n    okkk = 123\nend\n",
+  "style": [],
+  "file": "RangeFormat_unitest.cpp"
+ },
+ {
+  "name": "RangeFormat.range",
+  "range": [
+   1,
+   1
+  ],
+  "input": "\nlocal t  =  123\n\n\ndddddddd   =     12313131\n",
+  "expected": "\nlocal t = 123\n",
+  "style": [],
+  "file": "RangeFormat_unitest.cpp"
+ },
+ {
+  "name": "RangeFormat.range",
+  "range": [
+   4,
+   4
+  ],
+  "input": "\nlocal t  =  123\n\n\ndddddddd   =     12313131\n",
+  "expected": "\ndddddddd = 12313131\n",
+  "style": [],
+  "file": "RangeFormat_unitest.cpp"
+ },
+ {
+  "name": "RangeFormat.range",
+  "range": [
+   2,
+   3
+  ],
+  "input": "\nfunction f(aa,            b)\n    local t  =  123\n    local c = 1231\nend\n",
+  "expected": "\n    local t = 123\n    local c = 1231\n",
+  "style": [],
+  "file": "RangeFormat_unitest.cpp"
+ },
+ {
+  "name": "RangeFormat.line_range",
+  "range": [
+   2,
+   2
+  ],
+  "input": "\nlocal t = {\n    a = 123\n}\n",
+  "expected": "\n    a = 123\n",
+  "style": [],
+  "file": "RangeFormat_unitest.cpp"
+ }
+]

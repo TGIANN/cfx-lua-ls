@@ -1,0 +1,225 @@
+completion common 0
+completion common 1
+completion common 100
+completion common 11
+completion common 12
+completion common 132
+completion common 134
+completion common 136
+completion common 146
+completion common 152
+completion common 153
+completion common 154
+completion common 155
+completion common 156
+completion common 16
+completion common 163
+completion common 164
+completion common 165
+completion common 175
+completion common 181
+completion common 19
+completion common 191
+completion common 209
+completion common 211
+completion common 212
+completion common 215
+completion common 22
+completion common 220
+completion common 235
+completion common 25
+completion common 26
+completion common 260
+completion common 27
+completion common 28
+completion common 29
+completion common 33
+completion common 36
+completion common 37
+completion common 45
+completion common 46
+completion common 49
+completion common 50
+completion common 52
+completion common 53
+completion common 56
+completion common 57
+completion common 58
+completion common 63
+completion common 64
+completion common 65
+completion common 74
+completion common 8
+completion common 81
+completion continue 0
+hover-exact 0
+hover-exact 100
+hover-exact 101
+hover-exact 104
+hover-exact 113
+hover-exact 114
+hover-exact 115
+hover-exact 117
+hover-exact 118
+hover-exact 119
+hover-exact 120
+hover-exact 121
+hover-exact 124
+hover-exact 126
+hover-exact 128
+hover-exact 13
+hover-exact 135
+hover-exact 136
+hover-exact 137
+hover-exact 138
+hover-exact 144
+hover-exact 146
+hover-exact 147
+hover-exact 148
+hover-exact 153
+hover-exact 159
+hover-exact 161
+hover-exact 164
+hover-exact 169
+hover-exact 17
+hover-exact 170
+hover-exact 18
+hover-exact 183
+hover-exact 187
+hover-exact 189
+hover-exact 190
+hover-exact 2
+hover-exact 21
+hover-exact 25
+hover-exact 26
+hover-exact 27
+hover-exact 28
+hover-exact 32
+hover-exact 34
+hover-exact 35
+hover-exact 47
+hover-exact 49
+hover-exact 50
+hover-exact 51
+hover-exact 52
+hover-exact 53
+hover-exact 54
+hover-exact 59
+hover-exact 61
+hover-exact 62
+hover-exact 63
+hover-exact 64
+hover-exact 65
+hover-exact 68
+hover-exact 70
+hover-exact 72
+hover-exact 73
+hover-exact 76
+hover-exact 78
+hover-exact 8
+hover-exact 80
+hover-exact 85
+hover-exact 86
+hover-exact 88
+hover-exact 90
+hover-exact 91
+hover-exact 92
+hover-exact 93
+hover-exact 94
+hover-exact 95
+hover-exact 97
+hover-exact 99
+hover-type 101
+hover-type 104
+hover-type 113
+hover-type 114
+hover-type 115
+hover-type 117
+hover-type 118
+hover-type 119
+hover-type 120
+hover-type 121
+hover-type 123
+hover-type 124
+hover-type 126
+hover-type 127
+hover-type 128
+hover-type 13
+hover-type 132
+hover-type 137
+hover-type 138
+hover-type 142
+hover-type 144
+hover-type 145
+hover-type 146
+hover-type 147
+hover-type 148
+hover-type 156
+hover-type 159
+hover-type 161
+hover-type 163
+hover-type 164
+hover-type 168
+hover-type 17
+hover-type 170
+hover-type 171
+hover-type 173
+hover-type 174
+hover-type 175
+hover-type 176
+hover-type 177
+hover-type 178
+hover-type 179
+hover-type 18
+hover-type 180
+hover-type 181
+hover-type 182
+hover-type 183
+hover-type 186
+hover-type 187
+hover-type 188
+hover-type 189
+hover-type 190
+hover-type 25
+hover-type 26
+hover-type 27
+hover-type 28
+hover-type 32
+hover-type 34
+hover-type 35
+hover-type 36
+hover-type 45
+hover-type 46
+hover-type 47
+hover-type 48
+hover-type 49
+hover-type 51
+hover-type 53
+hover-type 54
+hover-type 56
+hover-type 59
+hover-type 60
+hover-type 61
+hover-type 62
+hover-type 63
+hover-type 64
+hover-type 65
+hover-type 68
+hover-type 70
+hover-type 71
+hover-type 72
+hover-type 73
+hover-type 78
+hover-type 79
+hover-type 8
+hover-type 85
+hover-type 86
+hover-type 88
+hover-type 90
+hover-type 91
+hover-type 92
+hover-type 93
+hover-type 94
+hover-type 95
+hover-type 97
+hover-type 99

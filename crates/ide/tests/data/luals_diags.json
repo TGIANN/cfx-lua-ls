@@ -1,0 +1,3294 @@
+[
+{
+"code": "ambiguity-1",
+"n": 0,
+"script": "local x\nx = <!x or 0 + 1!>\n",
+"config": []
+},
+{
+"code": "ambiguity-1",
+"n": 1,
+"script": "local x, y\nx = <!x + y or 0!>\n",
+"config": []
+},
+{
+"code": "ambiguity-1",
+"n": 2,
+"script": "local x, y, z\nx = x and y or '' .. z\n",
+"config": []
+},
+{
+"code": "ambiguity-1",
+"n": 3,
+"script": "local x\nx = x or -1\n",
+"config": []
+},
+{
+"code": "ambiguity-1",
+"n": 4,
+"script": "local x\nx = x or (0 + 1)\n",
+"config": []
+},
+{
+"code": "ambiguity-1",
+"n": 5,
+"script": "local x, y\nx = (x + y) or 0\n",
+"config": []
+},
+{
+"code": "assign-type-mismatch",
+"n": 0,
+"script": "local m = {}\n\n---@type integer[]\nm.ints = {}\n",
+"config": []
+},
+{
+"code": "assign-type-mismatch",
+"n": 1,
+"script": "---@class A\n---@field x A\n\n---@type A\nlocal t\n\nt.x = {}\n",
+"config": []
+},
+{
+"code": "assign-type-mismatch",
+"n": 2,
+"script": "---@class A\n---@field x integer\n\n---@type A\nlocal t\n\n<!t.x!> = true\n",
+"config": []
+},
+{
+"code": "assign-type-mismatch",
+"n": 3,
+"script": "---@class A\n---@field x integer\n\n---@type A\nlocal t\n\n---@type boolean\nlocal y\n\n<!t.x!> = y\n",
+"config": []
+},
+{
+"code": "assign-type-mismatch",
+"n": 4,
+"script": "---@class A\nlocal m\n\nm.x = 1\n\n---@type A\nlocal t\n\n<!t.x!> = true\n",
+"config": []
+},
+{
+"code": "assign-type-mismatch",
+"n": 5,
+"script": "---@class A\nlocal m\n\n---@type integer\nm.x = 1\n\n<!m.x!> = true\n",
+"config": []
+},
+{
+"code": "assign-type-mismatch",
+"n": 6,
+"script": "---@class A\nlocal mt\n\n---@type integer\nmt.x = 1\n\nfunction mt:init()\n    <!self.x!> = true\nend\n",
+"config": []
+},
+{
+"code": "assign-type-mismatch",
+"n": 7,
+"script": "---@class A\n---@field x integer\n\n---@type A\nlocal t = {\n    <!x!> = true\n}\n",
+"config": []
+},
+{
+"code": "assign-type-mismatch",
+"n": 8,
+"script": "---@type boolean[]\nlocal t = {}\n\nt[5] = nil\n",
+"config": []
+},
+{
+"code": "assign-type-mismatch",
+"n": 9,
+"script": "---@type table<string, true>\nlocal t = {}\n\nt['x'] = nil\n",
+"config": []
+},
+{
+"code": "assign-type-mismatch",
+"n": 10,
+"script": "---@type [boolean]\nlocal t = { <![1]!> = nil }\n\nt = nil\n",
+"config": []
+},
+{
+"code": "assign-type-mismatch",
+"n": 11,
+"script": "local t = { true }\n\nt[1] = nil\n",
+"config": []
+},
+{
+"code": "assign-type-mismatch",
+"n": 12,
+"script": "---@class A\nlocal t = {\n    x = 1\n}\n\n<!t.x!> = true\n",
+"config": []
+},
+{
+"code": "assign-type-mismatch",
+"n": 13,
+"script": "---@type number\nlocal t\n\nt = 1\n",
+"config": []
+},
+{
+"code": "assign-type-mismatch",
+"n": 14,
+"script": "---@type number\nlocal t\n\n---@type integer\nlocal y\n\nt = y\n",
+"config": []
+},
+{
+"code": "assign-type-mismatch",
+"n": 15,
+"script": "---@class A\nlocal m\n\n---@type number\nm.x = 1\n\n<!m.x!> = {}\n",
+"config": []
+},
+{
+"code": "assign-type-mismatch",
+"n": 16,
+"script": "local n\n\nif G then\n    n = {}\nelse\n    n = nil\nend\n\nlocal t = {\n    x = n,\n}\n",
+"config": []
+},
+{
+"code": "assign-type-mismatch",
+"n": 17,
+"script": "---@type boolean[]\nlocal t = {}\n\n---@type boolean?\nlocal x\n\nt[#t+1] = x\n",
+"config": []
+},
+{
+"code": "assign-type-mismatch",
+"n": 18,
+"script": "---@type number\nlocal n\n---@type integer\nlocal i\n\n<?i?> = n\n",
+"config": []
+},
+{
+"code": "assign-type-mismatch",
+"n": 19,
+"script": "---@type number\nlocal n\n---@type integer\nlocal i\n\ni = n\n",
+"config": [
+"Lua.type.castNumberToInteger"
+]
+},
+{
+"code": "assign-type-mismatch",
+"n": 20,
+"script": "---@type number|boolean\nlocal nb\n\n---@type number\nlocal n\n\n<?n?> = nb\n",
+"config": []
+},
+{
+"code": "assign-type-mismatch",
+"n": 21,
+"script": "---@type number|boolean\nlocal nb\n\n---@type number\nlocal n\n\nn = nb\n",
+"config": [
+"Lua.type.weakUnionCheck"
+]
+},
+{
+"code": "assign-type-mismatch",
+"n": 22,
+"script": "---@class Option: string\n\n---@param x Option\nlocal function f(x) end\n\n---@type Option\nlocal x = 'aaa'\n\nf(x)\n",
+"config": []
+},
+{
+"code": "assign-type-mismatch",
+"n": 23,
+"script": "---@type number\nlocal <!x!> = 'aaa'\n",
+"config": [
+"Lua.type.weakUnionCheck"
+]
+},
+{
+"code": "assign-type-mismatch",
+"n": 24,
+"script": "---@class X\n\n---@class A\nlocal mt = G\n\n---@type X\nmt._x = nil\n",
+"config": [
+"Lua.type.weakUnionCheck"
+]
+},
+{
+"code": "assign-type-mismatch",
+"n": 25,
+"script": "---@type number?\nlocal nb\n\n---@type number\nlocal n\n\nn = nb\n",
+"config": [
+"Lua.type.weakNilCheck"
+]
+},
+{
+"code": "assign-type-mismatch",
+"n": 26,
+"script": "---@type number|nil\nlocal nb\n\n---@type number\nlocal n\n\nn = nb\n",
+"config": [
+"Lua.type.weakNilCheck"
+]
+},
+{
+"code": "assign-type-mismatch",
+"n": 27,
+"script": "---@class A\nlocal a = {}\n\n---@class B\nlocal <!b!> = a\n",
+"config": []
+},
+{
+"code": "assign-type-mismatch",
+"n": 28,
+"script": "---@class A\nlocal a = {}\n\n---@class B: A\nlocal b = a\n",
+"config": []
+},
+{
+"code": "assign-type-mismatch",
+"n": 29,
+"script": "---@class A\nlocal a = {}\na.__index = a\n\n---@class B: A\nlocal b = setmetatable({}, a)\n",
+"config": []
+},
+{
+"code": "assign-type-mismatch",
+"n": 30,
+"script": "---@class A\nlocal a = {}\n\n---@class B: A\nlocal b = setmetatable({}, {__index = a})\n",
+"config": []
+},
+{
+"code": "assign-type-mismatch",
+"n": 31,
+"script": "---@class A\nlocal a = {}\n\n---@class B\nlocal <!b!> = setmetatable({}, {__index = a})\n",
+"config": []
+},
+{
+"code": "assign-type-mismatch",
+"n": 32,
+"script": "---@class A\n---@field x number?\nlocal a\n\n---@class B\n---@field x number\nlocal b\n\nb.x = a.x\n",
+"config": []
+},
+{
+"code": "assign-type-mismatch",
+"n": 33,
+"script": "\n---@class A\n---@field x number?\nlocal a\n\n---@type number\nlocal t\n\nt = a.x\n",
+"config": []
+},
+{
+"code": "assign-type-mismatch",
+"n": 34,
+"script": "local mt = {}\nmt.x = 1\nmt.x = nil\n",
+"config": []
+},
+{
+"code": "assign-type-mismatch",
+"n": 35,
+"script": "---@type number\nlocal x = G\n",
+"config": [
+"Lua.type.weakUnionCheck"
+]
+},
+{
+"code": "assign-type-mismatch",
+"n": 36,
+"script": "---@generic T\n---@param x T\n---@return T\nlocal function f(x)\n    return x\nend\n",
+"config": [
+"Lua.type.weakUnionCheck"
+]
+},
+{
+"code": "assign-type-mismatch",
+"n": 37,
+"script": "---@alias test boolean\n\n---@type test\nlocal <!test!> = 4\n",
+"config": []
+},
+{
+"code": "assign-type-mismatch",
+"n": 38,
+"script": "---@class MyClass\nlocal MyClass = {}\n\nfunction MyClass:new()\n    ---@class MyClass\n    local myObject = setmetatable({\n        initialField = true\n    }, self)\n\n    print(myObject.initialField)\nend\n",
+"config": []
+},
+{
+"code": "assign-type-mismatch",
+"n": 39,
+"script": "---@class T\nlocal t = {\n    x = nil\n}\n\nt.x = 1\n",
+"config": []
+},
+{
+"code": "assign-type-mismatch",
+"n": 40,
+"script": "---@type {[1]: string, [10]: number, xx: boolean}\nlocal t = {\n    <!true!>,\n    <![10]!> = 's',\n    <!xx!> = 1,\n}\n",
+"config": []
+},
+{
+"code": "assign-type-mismatch",
+"n": 41,
+"script": "---@type boolean[]\nlocal t = { <!1!>, <!2!>, <!3!> }\n",
+"config": []
+},
+{
+"code": "assign-type-mismatch",
+"n": 42,
+"script": "---@type boolean[]\nlocal t = { true, false, nil }\n",
+"config": []
+},
+{
+"code": "assign-type-mismatch",
+"n": 43,
+"script": "---@type boolean|nil\nlocal x\n\n---@type boolean[]\nlocal t = { true, false, x }\n",
+"config": []
+},
+{
+"code": "assign-type-mismatch",
+"n": 44,
+"script": "---@enum Enum\nlocal t = {\n    x = 1,\n    y = 2,\n}\n\n---@type Enum\nlocal y\n\n---@type integer\nlocal x = y\n",
+"config": []
+},
+{
+"code": "assign-type-mismatch",
+"n": 45,
+"script": "---@type string|string[]|string[][]\nlocal t = {{'a'}}\n",
+"config": []
+},
+{
+"code": "assign-type-mismatch",
+"n": 46,
+"script": "local A = \"Hello\"\nlocal B = \"World\"\n\n---@alias myLiteralAliases `A` | `B`\n\n---@type myLiteralAliases\nlocal x = A\n",
+"config": []
+},
+{
+"code": "assign-type-mismatch",
+"n": 47,
+"script": "local enum = { a = 1, b = 2 }\n\n---@type { [integer] : boolean }\nlocal t = {\n    <![enum.a]!> = 1,\n    <![enum.b]!> = 2,\n    <![3]!> = 3,\n}\n",
+"config": []
+},
+{
+"code": "assign-type-mismatch",
+"n": 48,
+"script": "---@class SomeClass\n---@field [1] string\n-- ...\n\n---@param some_param SomeClass|SomeClass[]\nlocal function some_fn(some_param) return end\n\nsome_fn { { \"test\" } } -- <- diagnostic: \"Cannot assign `table` to `string`.\"\n",
+"config": []
+},
+{
+"code": "assign-type-mismatch",
+"n": 49,
+"script": "---@type string[]\nlocal arr = {\n    <!3!>,\n}\n",
+"config": []
+},
+{
+"code": "assign-type-mismatch",
+"n": 50,
+"script": "---@type (string|boolean)[]\nlocal arr2 = {\n    <!3!>, -- no warnings\n}\n",
+"config": []
+},
+{
+"code": "assign-type-mismatch",
+"n": 51,
+"script": "local t = {}\nt.a = 1\nt.a = 2\nreturn t\n",
+"config": []
+},
+{
+"code": "await-in-sync",
+"n": 0,
+"script": "function F()\n    <!coroutine.yield!>()\nend\n",
+"config": []
+},
+{
+"code": "await-in-sync",
+"n": 1,
+"script": "---@async\nfunction F()\n    coroutine.yield()\nend\n",
+"config": []
+},
+{
+"code": "await-in-sync",
+"n": 2,
+"script": "---@type async fun()\nlocal f\n\nfunction F()\n    <!f!>()\nend\n",
+"config": []
+},
+{
+"code": "await-in-sync",
+"n": 3,
+"script": "---@type async fun()\nlocal f\n\n---@async\nfunction F()\n    f()\nend\n",
+"config": []
+},
+{
+"code": "await-in-sync",
+"n": 4,
+"script": "local function f(cb)\n    cb()\nend\n\nreturn function()\n    <!f>(function () ---@async\n        return nil\n    end)\nend\n",
+"config": []
+},
+{
+"code": "await-in-sync",
+"n": 5,
+"script": "local function f(cb)\n    pcall(cb)\nend\n\nreturn function()\n    <!f!>(function () ---@async\n        return nil\n    end)\nend\n",
+"config": []
+},
+{
+"code": "await-in-sync",
+"n": 6,
+"script": "---@param c any\nlocal function f(c)\n    return c\nend\n\nreturn function ()\n    f(function () ---@async\n        return nil\n    end)\nend\n",
+"config": []
+},
+{
+"code": "await-in-sync",
+"n": 7,
+"script": "---@param ... any\nlocal function f(...)\n    return ...\nend\n\nreturn function ()\n    f(function () ---@async\n        return nil\n    end)\nend\n",
+"config": []
+},
+{
+"code": "await-in-sync",
+"n": 8,
+"script": "---@vararg any\nlocal function f(...)\n    return ...\nend\n\nreturn function ()\n    f(function () ---@async\n        return nil\n    end)\nend\n",
+"config": []
+},
+{
+"code": "await-in-sync",
+"n": 9,
+"script": "local function f(...)\n    return ...\nend\n\nreturn function ()\n    f(function () ---@async\n        return nil\n    end)\nend\n",
+"config": []
+},
+{
+"code": "await-in-sync",
+"n": 10,
+"script": "local function f(...)\n    return ...\nend\n\nreturn function ()\n    f(function () ---@async\n        return nil\n    end)\nend\n",
+"config": []
+},
+{
+"code": "await-in-sync",
+"n": 11,
+"script": "local function f(cb)\n    cb()\nend\n\nlocal function af()\n    <!f!>(function () ---@async\n        return nil\n    end)\nend\n\nreturn af\n",
+"config": []
+},
+{
+"code": "cast-local-type",
+"n": 0,
+"script": "local x = 0\n\n<!x!> = true\n",
+"config": []
+},
+{
+"code": "cast-local-type",
+"n": 1,
+"script": "---@type integer\nlocal x\n\n<!x!> = true\n",
+"config": []
+},
+{
+"code": "cast-local-type",
+"n": 2,
+"script": "---@type unknown\nlocal x\n\nx = nil\n",
+"config": []
+},
+{
+"code": "cast-local-type",
+"n": 3,
+"script": "---@type unknown\nlocal x\n\nx = 1\n",
+"config": []
+},
+{
+"code": "cast-local-type",
+"n": 4,
+"script": "---@type unknown|nil\nlocal x\n\nx = 1\n",
+"config": []
+},
+{
+"code": "cast-local-type",
+"n": 5,
+"script": "local x = {}\n\nx = nil\n",
+"config": []
+},
+{
+"code": "cast-local-type",
+"n": 6,
+"script": "---@type string\nlocal x\n\n<?x?> = nil\n",
+"config": []
+},
+{
+"code": "cast-local-type",
+"n": 7,
+"script": "---@type string?\nlocal x\n\nx = nil\n",
+"config": []
+},
+{
+"code": "cast-local-type",
+"n": 8,
+"script": "---@type table\nlocal x\n\n<!x!> = nil\n",
+"config": []
+},
+{
+"code": "cast-local-type",
+"n": 9,
+"script": "local x\n\nx = nil\n",
+"config": []
+},
+{
+"code": "cast-local-type",
+"n": 10,
+"script": "---@type integer\nlocal x\n\n---@type number\n<!x!> = f()\n",
+"config": []
+},
+{
+"code": "cast-local-type",
+"n": 11,
+"script": "---@type number\nlocal x\n\n---@type integer\nx = f()\n",
+"config": []
+},
+{
+"code": "cast-local-type",
+"n": 12,
+"script": "---@type number|boolean\nlocal x\n\n---@type string\n<!x!> = f()\n",
+"config": []
+},
+{
+"code": "cast-local-type",
+"n": 13,
+"script": "---@type number|boolean\nlocal x\n\n---@type boolean\nx = f()\n",
+"config": []
+},
+{
+"code": "cast-local-type",
+"n": 14,
+"script": "---@type number|boolean\nlocal x\n\n---@type boolean|string\n<!x!> = f()\n",
+"config": []
+},
+{
+"code": "cast-local-type",
+"n": 15,
+"script": "---@type boolean\nlocal x\n\nif not x then\n    return\nend\n\nx = f()\n",
+"config": []
+},
+{
+"code": "cast-local-type",
+"n": 16,
+"script": "---@type boolean\nlocal x\n\n---@type integer\nlocal y\n\n<!x!> = y\n",
+"config": []
+},
+{
+"code": "cast-local-type",
+"n": 17,
+"script": "local y = true\n\nlocal x\nx = 1\nx = y\n",
+"config": []
+},
+{
+"code": "cast-local-type",
+"n": 18,
+"script": "local t = {}\n\nlocal x = 0\nx = x + #t\n",
+"config": []
+},
+{
+"code": "cast-local-type",
+"n": 19,
+"script": "local x = 0\n\nx = 1.0\n",
+"config": []
+},
+{
+"code": "cast-local-type",
+"n": 20,
+"script": "---@class A\n\nlocal t = {}\n\n---@type A\nlocal a\n\nt = a\n",
+"config": []
+},
+{
+"code": "cast-local-type",
+"n": 21,
+"script": "---@type integer\nlocal x\n\nx = 1.0\n",
+"config": []
+},
+{
+"code": "cast-local-type",
+"n": 22,
+"script": "---@type integer\nlocal x\n\n<!x!> = 1.5\n",
+"config": []
+},
+{
+"code": "cast-local-type",
+"n": 23,
+"script": "---@type integer\nlocal x\n\nx = 1 + G\n",
+"config": []
+},
+{
+"code": "cast-local-type",
+"n": 24,
+"script": "---@type integer\nlocal x\n\nx = 1 + G\n",
+"config": []
+},
+{
+"code": "cast-local-type",
+"n": 25,
+"script": "---@alias A integer\n\n---@type A\nlocal a\n\n---@type integer\nlocal b\n\nb = a\n",
+"config": []
+},
+{
+"code": "cast-local-type",
+"n": 26,
+"script": "---@type string[]\nlocal t\n\n<!t!> = 'xxx'\n",
+"config": []
+},
+{
+"code": "cast-local-type",
+"n": 27,
+"script": "---@type 1|2\nlocal x\n\nx = 1\nx = 2\n<!x!> = 3\n",
+"config": []
+},
+{
+"code": "cast-local-type",
+"n": 28,
+"script": "---@type 'x'|'y'\nlocal x\n\nx = 'x'\nx = 'y'\n<!x!> = 'z'\n",
+"config": []
+},
+{
+"code": "cast-local-type",
+"n": 29,
+"script": "local t = {\n    x = 1,\n}\n\nlocal x\nt[x] = true\n",
+"config": []
+},
+{
+"code": "cast-local-type",
+"n": 30,
+"script": "---@type table<string, string>\nlocal x\n\n---@type table<number, string>\nlocal y\n\n<!x!> = y\n",
+"config": []
+},
+{
+"code": "cast-local-type",
+"n": 31,
+"script": "---@type table<string, string>\nlocal x\n\n---@type table<string, number>\nlocal y\n\n<!x!> = y\n",
+"config": []
+},
+{
+"code": "cast-local-type",
+"n": 32,
+"script": "---@type table<string, string>\nlocal x\n\n---@type table<string, string>\nlocal y\n\nx = y\n",
+"config": []
+},
+{
+"code": "cast-local-type",
+"n": 33,
+"script": "---@type { x: number, y: number }\nlocal t1\n\n---@type { x: number }\nlocal t2\n\n<!t1!> = t2\n",
+"config": []
+},
+{
+"code": "cast-local-type",
+"n": 34,
+"script": "---@type { x: number, [integer]: number }\nlocal t1\n\n---@type { x: number }\nlocal t2\n\n<!t1!> = t2\n",
+"config": []
+},
+{
+"code": "cast-local-type",
+"n": 35,
+"script": "local x\n\nif X then\n    x = 'A'\nelseif X then\n    x = 'B'\nelse\n    x = 'C'\nend\n\nlocal y = x\n\n<!y!> = nil\n",
+"config": []
+},
+{
+"code": "cast-local-type",
+"n": 36,
+"script": "---@type 'A'|'B'|'C'|'D'|'E'|'F'|'G'|'H'|'I'|'J'|'K'|'L'|'M'|'N'|'O'|'P'|'Q'|'R'|'S'|'T'|'U'|'V'|'W'|'X'|'Y'|'Z'\nlocal x\n\n<!x!> = nil\n",
+"config": []
+},
+{
+"code": "cast-local-type",
+"n": 37,
+"script": "---@class A\n---@field x string\n---@field y number\n\nlocal a = {x = \"\", y = 0}\n\n---@type A\nlocal v\nv = a\n",
+"config": []
+},
+{
+"code": "cast-local-type",
+"n": 38,
+"script": "---@class A\n---@field x string\n---@field y number\n\nlocal a = {x = \"\"}\n\n---@type A\nlocal v\n<!v!> = a\n",
+"config": [
+"Lua.type.checkTableShape"
+]
+},
+{
+"code": "cast-local-type",
+"n": 39,
+"script": "---@class A\n---@field x string\n---@field y number\n\nlocal a = {x = \"\", y = \"\"}\n\n---@type A\nlocal v\n<!v!> = a\n",
+"config": [
+"Lua.type.checkTableShape"
+]
+},
+{
+"code": "cast-local-type",
+"n": 40,
+"script": "---@class A\n---@field x string\n---@field y? B\n\n---@class B\n---@field x string\n\nlocal a = {x = \"b\", y = {x = \"c\"}}\n\n---@type A\nlocal v\nv = a\n",
+"config": [
+"Lua.type.checkTableShape"
+]
+},
+{
+"code": "cast-local-type",
+"n": 41,
+"script": "---@class A\n---@field x string\n---@field y B\n\n---@class B\n---@field x string\n\nlocal a = {x = \"b\", y = {}}\n\n---@type A\nlocal v\n<!v!> = a\n",
+"config": [
+"Lua.type.checkTableShape"
+]
+},
+{
+"code": "cast-type-mismatch",
+"n": 0,
+"script": "---@type string|boolean\nlocal t\n\n---@cast t string\n",
+"config": []
+},
+{
+"code": "cast-type-mismatch",
+"n": 1,
+"script": "---@type string|boolean\nlocal t\n\n---@cast t <!number!>\n",
+"config": []
+},
+{
+"code": "circle-doc-class",
+"n": 0,
+"script": "---@class <!A : B!>\n---@class <!B : C!>\n---@class <!C : D!>\n---@class <!D : A!>\n",
+"config": []
+},
+{
+"code": "circle-doc-class",
+"n": 1,
+"script": "---@class A : B\n---@class B : C\n---@class C : D\n---@class D\n",
+"config": []
+},
+{
+"code": "close-non-object",
+"n": 0,
+"script": "local _ <close> = <!1!>\n",
+"config": []
+},
+{
+"code": "close-non-object",
+"n": 1,
+"script": "local _ <close> = <!''!>\n",
+"config": []
+},
+{
+"code": "close-non-object",
+"n": 2,
+"script": "local c <close> = <!(function () return 1 end)()!>\n",
+"config": []
+},
+{
+"code": "close-non-object",
+"n": 3,
+"script": "---@type unknown\nlocal t\n\nlocal _ <close> = t\n",
+"config": []
+},
+{
+"code": "code-after-break",
+"n": 0,
+"script": "while true do\n    break\n    <!print()\n    print()!>\nend\n",
+"config": []
+},
+{
+"code": "count-down-loop",
+"n": 0,
+"script": "for i = <!10, 1!> do\n    print(i)\nend\n",
+"config": []
+},
+{
+"code": "count-down-loop",
+"n": 1,
+"script": "for i = <!10, 1, 5!> do\n    print(i)\nend\n",
+"config": []
+},
+{
+"code": "count-down-loop",
+"n": 2,
+"script": "for i = <!100, 10, 1!> do\n    print(i)\nend\n",
+"config": []
+},
+{
+"code": "count-down-loop",
+"n": 3,
+"script": "for i = <!1, -10!> do\n    print(i)\nend\n",
+"config": []
+},
+{
+"code": "count-down-loop",
+"n": 4,
+"script": "for i = 1, 1 do\n    print(i)\nend\n",
+"config": []
+},
+{
+"code": "deprecated",
+"n": 0,
+"script": "local _ = <!unpack!>\n",
+"config": []
+},
+{
+"code": "deprecated",
+"n": 1,
+"script": "T = {}\n---@deprecated # comment\nT.x = 1\n\nprint(<!T.x!>)\n",
+"config": []
+},
+{
+"code": "deprecated",
+"n": 2,
+"script": "T = {}\n\n---@deprecated\nfunction T:ff()\nend\n\n<!T:ff!>()\n",
+"config": []
+},
+{
+"code": "discard-returns",
+"n": 0,
+"script": "---@nodiscard\nlocal function f()\n    return 1\nend\n\n<!f()!>\n",
+"config": []
+},
+{
+"code": "discard-returns",
+"n": 1,
+"script": "---@nodiscard\nlocal function f()\n    return 1\nend\n\nX = f()\n",
+"config": []
+},
+{
+"code": "discard-returns",
+"n": 2,
+"script": "---@nodiscard\nlocal function f()\n    return 1\nend\n\nfor i = 1, 2 do\n    <!f()!>\nend\n",
+"config": []
+},
+{
+"code": "discard-returns",
+"n": 3,
+"script": "---@nodiscard\nlocal function f()\n    return 1\nend\n\nfor i = 1, 2 do\n    local v = f()\nend\n",
+"config": []
+},
+{
+"code": "discard-returns",
+"n": 4,
+"script": "---@nodiscard\nlocal function f()\n    return 1\nend\n\nwhile true do\n    <!f()!>\n    break\nend\n",
+"config": []
+},
+{
+"code": "discard-returns",
+"n": 5,
+"script": "---@nodiscard\nlocal function f()\n    return 1\nend\n\nwhile true do\n    local v = f()\n    break\nend\n",
+"config": []
+},
+{
+"code": "discard-returns",
+"n": 6,
+"script": "---@nodiscard\nlocal function f()\n    return 1\nend\n\nrepeat\n    <!f()!>\n    break\nuntil true\n",
+"config": []
+},
+{
+"code": "discard-returns",
+"n": 7,
+"script": "---@nodiscard\nlocal function f()\n    return 1\nend\n\nrepeat\n    local v = f()\n    break\nuntil true\n",
+"config": []
+},
+{
+"code": "discard-returns",
+"n": 8,
+"script": "---@nodiscard\nlocal function f()\n    return 1\nend\n\nfor index, value in ipairs({}) do\n    <!f()!>\nend\n",
+"config": []
+},
+{
+"code": "discard-returns",
+"n": 9,
+"script": "---@nodiscard\nlocal function f()\n    return 1\nend\n\nfor index, value in ipairs({}) do\n    local v = f()\nend\n",
+"config": []
+},
+{
+"code": "discard-returns",
+"n": 10,
+"script": "---@nodiscard\nlocal function f()\n    return 1\nend\n\nif 1 == 1 then\n    <!f()!>\nend\n",
+"config": []
+},
+{
+"code": "discard-returns",
+"n": 11,
+"script": "---@nodiscard\nlocal function f()\n    return 1\nend\n\nif 1 == 1 then\n    local v = f()\nend\n",
+"config": []
+},
+{
+"code": "discard-returns",
+"n": 12,
+"script": "---@nodiscard\nlocal function f()\n    return 1\nend\n\nif 1 == 1 then\n    local v = f()\nelse\n    <!f()!>\nend\n",
+"config": []
+},
+{
+"code": "discard-returns",
+"n": 13,
+"script": "---@nodiscard\nlocal function f()\n    return 1\nend\n\nif 1 == 1 then\n    local v = f()\nelse\n    local v = f()\nend\n",
+"config": []
+},
+{
+"code": "discard-returns",
+"n": 14,
+"script": "---@nodiscard\nlocal function f()\n    return 1\nend\n\nif 1 == 1 then\n    local v = f()\nelseif 1 == 2 then\n    <!f()!>\nelse\n    local v = f()\nend\n",
+"config": []
+},
+{
+"code": "discard-returns",
+"n": 15,
+"script": "---@nodiscard\nlocal function f()\n    return 1\nend\n\nif 1 == 1 then\n    local v = f()\nelseif 1 == 2 then\n    local v = f()\nelse\n    local v = f()\nend\n",
+"config": []
+},
+{
+"code": "discard-returns",
+"n": 16,
+"script": "---@nodiscard\nlocal function f()\n    return 1\nend\n\nlocal function bar(callback)\nend\n\nbar(function ()\n    <!f()!>\nend)\n",
+"config": []
+},
+{
+"code": "discard-returns",
+"n": 17,
+"script": "---@nodiscard\nlocal function f()\n    return 1\nend\n\nlocal function bar(callback)\nend\n\nbar(function ()\n    local v = f()\nend)\n",
+"config": []
+},
+{
+"code": "discard-returns",
+"n": 18,
+"script": "---@nodiscard\nlocal function f()\n    return 1\nend\n\ndo\n    <!f()!>\nend\n",
+"config": []
+},
+{
+"code": "discard-returns",
+"n": 19,
+"script": "---@nodiscard\nlocal function f()\n    return 1\nend\n\ndo\n    local v = f()\nend\n",
+"config": []
+},
+{
+"code": "discard-returns",
+"n": 20,
+"script": "---@nodiscard\nlocal function f()\n    return 2\nend\n\nfor i = 1, f() do\nend\n",
+"config": []
+},
+{
+"code": "discard-returns",
+"n": 21,
+"script": "---@nodiscard\nlocal function list_iter(t)\n    local i = 0\n    local n = #t\n    return function ()\n        i = i + 1\n        if i <= n then return t[i] end\n    end\nend\n\nlocal t = {10, 20, 30}\nfor element in list_iter(t) do\nend\n",
+"config": []
+},
+{
+"code": "discard-returns",
+"n": 22,
+"script": "---@nodiscard\nlocal function f()\n    return 1\nend\n\nif f() then\nend\n",
+"config": []
+},
+{
+"code": "doc-field-no-class",
+"n": 0,
+"script": "---@field <!x Class!>\n---@class Class\n",
+"config": []
+},
+{
+"code": "doc-field-no-class",
+"n": 1,
+"script": "---@class Class\n\n---@field <!x Class!>\n",
+"config": []
+},
+{
+"code": "doc-field-no-class",
+"n": 2,
+"script": "---@class Class\n---\n---@field x Class\n",
+"config": []
+},
+{
+"code": "duplicate-doc-alias",
+"n": 0,
+"script": "---@alias <!A!> integer\n---@alias <!A!> integer\n",
+"config": []
+},
+{
+"code": "duplicate-doc-alias",
+"n": 1,
+"script": "---@class A\n---@class B\n---@alias <!A!> B\n",
+"config": []
+},
+{
+"code": "duplicate-doc-alias",
+"n": 2,
+"script": "---@alias A integer\n---@alias(partial) A integer\n\n---@enum B\n---@enum(partial) B\n\n---@enum(key) C\n---@enum(key, partial) C\n",
+"config": []
+},
+{
+"code": "duplicate-doc-field",
+"n": 0,
+"script": "---@class Class\n---@field <!x!> Class\n---@field <!x!> Class\n",
+"config": []
+},
+{
+"code": "duplicate-doc-field",
+"n": 1,
+"script": "--- @class Emit\n--- @field on fun(eventName: string, cb: function)\n--- @field on fun(eventName: '\"died\"', cb: fun(i: integer))\n--- @field on fun(eventName: '\"won\"', cb: fun(s: string))\nlocal emit = {}\n",
+"config": []
+},
+{
+"code": "duplicate-doc-field",
+"n": 2,
+"script": "--- @class Emit\n--- @field on fun(eventName: string, cb: function)\n--- @field on fun(eventName: '\"died\"', cb: fun(i: integer))\n--- @field on fun(eventName: '\"won\"', cb: fun(s: string))\n--- @field on fun(eventName: '\"died\"', cb: fun(i: integer))\nlocal emit = {}\n",
+"config": []
+},
+{
+"code": "duplicate-doc-field",
+"n": 3,
+"script": "---@class A\n\n---@class B\n---@field [integer] A\n---@field [A] true\n",
+"config": []
+},
+{
+"code": "duplicate-doc-field",
+"n": 4,
+"script": "---@class A\n\n---@class B\n---@field [<!A!>] A\n---@field [<!A!>] true\n",
+"config": []
+},
+{
+"code": "duplicate-doc-param",
+"n": 0,
+"script": "---@class Class\n---@param <!x!> Class\n---@param y Class\n---@param <!x!> Class\nlocal function f(x, y)\n    return x, y\nend\n\nlocal _\nf(_, _)\n",
+"config": []
+},
+{
+"code": "duplicate-index",
+"n": 0,
+"script": "return {\n    <!x!> = 1,\n    y = 2,\n    <!x!> = 3,\n}\n",
+"config": []
+},
+{
+"code": "duplicate-index",
+"n": 1,
+"script": "return {\n    x = 1,\n    y = 2,\n}, {\n    x = 1,\n    y = 2,\n}\n",
+"config": []
+},
+{
+"code": "duplicate-index",
+"n": 2,
+"script": "return {\n    1, <!2!>, 3,\n    [<!2!>] = 4,\n}\n",
+"config": []
+},
+{
+"code": "duplicate-set-field",
+"n": 0,
+"script": "local m = {}\n\nfunction <!m:fff!>()\nend\n\nfunction <!m:fff!>()\nend\n\nreturn m\n",
+"config": []
+},
+{
+"code": "duplicate-set-field",
+"n": 1,
+"script": "local m = {}\n\nfunction <!m:fff!>()\nend\n\ndo\n    function <!m:fff!>()\n    end\nend\n\nreturn m\n",
+"config": []
+},
+{
+"code": "duplicate-set-field",
+"n": 2,
+"script": "local m = {}\n\nm.x = true\nm.x = false\n\nreturn m\n",
+"config": []
+},
+{
+"code": "duplicate-set-field",
+"n": 3,
+"script": "local m = {}\n\nm.x = io.open('')\nm.x = nil\n\nreturn m\n",
+"config": []
+},
+{
+"code": "duplicate-set-field",
+"n": 4,
+"script": "---@class A\nX = {}\n\nfunction <!X.f!>() end\n\nfunction <!X.f!>() end\n",
+"config": []
+},
+{
+"code": "duplicate-set-field",
+"n": 5,
+"script": "---@meta\n\n---@class A\nX = {}\n\nfunction X.f() end\n\nfunction X.f() end\n",
+"config": []
+},
+{
+"code": "duplicate-set-field",
+"n": 6,
+"script": "---@class A\nX = {}\n\nif true then\n    function X.f() end\nelse\n    function X.f() end\nend\n",
+"config": []
+},
+{
+"code": "duplicate-set-field",
+"n": 7,
+"script": "---@class A\nX = {}\n\nfunction X:f() end\n\n---@type x\nlocal x\n\nfunction x:f() end\n",
+"config": []
+},
+{
+"code": "duplicate-set-field",
+"n": 8,
+"script": "---@class A\nX = {}\n\nfunction X:f() end\n\n---@type x\nlocal x\n\nfunction <!x:f!>() end\n\nfunction <!x:f!>() end\n",
+"config": []
+},
+{
+"code": "empty-block",
+"n": 0,
+"script": "<!if true then\nend!>\n",
+"config": []
+},
+{
+"code": "empty-block",
+"n": 1,
+"script": "<!if true then\nelse\nend!>\n",
+"config": []
+},
+{
+"code": "empty-block",
+"n": 2,
+"script": "if true then\nelse\n    return\nend\n",
+"config": []
+},
+{
+"code": "empty-block",
+"n": 3,
+"script": "while true do\nend\n",
+"config": []
+},
+{
+"code": "empty-block",
+"n": 4,
+"script": "<!for _ = 1, 10 do\nend!>\n",
+"config": []
+},
+{
+"code": "empty-block",
+"n": 5,
+"script": "<!for _ in pairs({}) do\nend!>\n",
+"config": []
+},
+{
+"code": "global-element",
+"n": 0,
+"script": "local x = 123\nx = 321\n<!Y!> = \"global\"\n<!z!> = \"global\"\n",
+"config": []
+},
+{
+"code": "global-element",
+"n": 1,
+"script": "local function test1()\n    print()\nend\n\nfunction <!Test2!>()\n    print()\nend\n",
+"config": []
+},
+{
+"code": "global-element",
+"n": 2,
+"script": "local function closure1()\n    local elem1 = 1\n    <!elem2!> = 2\nend\n\nfunction <!Closure2!>()\n    local elem1 = 1\n    <!elem2!> = 2\nend\n",
+"config": []
+},
+{
+"code": "global-element",
+"n": 3,
+"script": "GLOBAL1 = \"allowed\"\n<!global2!> = \"not allowed\"\n<!GLOBAL3!> = \"not allowed\"\n",
+"config": [
+"Lua.diagnostics.globals"
+]
+},
+{
+"code": "global-element",
+"n": 4,
+"script": "function GLOBAL1()\n    print()\nend\n",
+"config": [
+"Lua.diagnostics.globals"
+]
+},
+{
+"code": "global-element",
+"n": 5,
+"script": "local function closure1()\n    local elem1 = 1\n    GLOBAL1 = 2\nend\n\nfunction GLOBAL_CLOSURE()\n    local elem1 = 1\n    GLOBAL2 = 2\n    <!elem2!> = 2\nend\n",
+"config": [
+"Lua.diagnostics.globals"
+]
+},
+{
+"code": "global-in-nil-env",
+"n": 0,
+"script": "local _\nprint(_)\nlocal _\nprint(_)\nlocal _ENV\n<!print!>(_ENV) -- 由于重定义了_ENV，因此print变为了未定义全局变量\n",
+"config": []
+},
+{
+"code": "global-in-nil-env",
+"n": 1,
+"script": "_ENV = nil\n<!print!>(<!A!>) -- `print` and `A` should warning \n",
+"config": []
+},
+{
+"code": "global-in-nil-env",
+"n": 2,
+"script": "local _ENV = nil\n<!print!>(<!A!>) -- `print` and `A` should warning \n",
+"config": []
+},
+{
+"code": "global-in-nil-env",
+"n": 3,
+"script": "_ENV = {}\nprint(A) -- no warning\n",
+"config": []
+},
+{
+"code": "global-in-nil-env",
+"n": 4,
+"script": "local _ENV = {}\nprint(A) -- no warning\n",
+"config": []
+},
+{
+"code": "global-in-nil-env",
+"n": 5,
+"script": "_ENV = nil\n<!GLOBAL!> = 1 --> _ENV.GLOBAL = 1\n",
+"config": []
+},
+{
+"code": "global-in-nil-env",
+"n": 6,
+"script": "_ENV = nil\nlocal _ = <!print!> --> local _ = _ENV.print\n",
+"config": []
+},
+{
+"code": "global-in-nil-env",
+"n": 7,
+"script": "local function foo(_ENV)\n    Joe = \"human\"\nend\n",
+"config": []
+},
+{
+"code": "incomplete-signature-doc",
+"n": 0,
+"script": "function FG0()\nend\n\n---comment\nfunction FG1()\nend\n\n---@async\nfunction FG1_()\nend\n",
+"config": []
+},
+{
+"code": "incomplete-signature-doc",
+"n": 1,
+"script": "function FGP0(p)\n  print(p)\nend\n\n---comment\nfunction FGP1(p)\n  print(p)\nend\n\n---@async\nfunction FGP1_(p)\n  print(p)\nend\n\n---comment\n---@param p any\nfunction FGP2(p)\n  print(p)\nend\n",
+"config": []
+},
+{
+"code": "incomplete-signature-doc",
+"n": 2,
+"script": "function FGPP0(p0, p1)\n  print(p0, p1)\nend\n\n---comment\nfunction FGPP1(p0, p1)\n  print(p0, p1)\nend\n\n---@async\nfunction FGPP1_(p0, p1)\n  print(p0, p1)\nend\n\n---comment\n---@param p0 any\nfunction FGPP2(p0, <!p1!>)\n  print(p0, p1)\nend\n\n---comment\n---@param p1 any\nfunction FGPP2_(<!p0!>, p1)\n  print(p0, p1)\nend\n\n---comment\n---@param p0 any\n---@param p1 any\nfunction FGPP3(p0, p1)\n  print(p0, p1)\nend\n",
+"config": []
+},
+{
+"code": "incomplete-signature-doc",
+"n": 3,
+"script": "function FGR0()\n  return 0\nend\n\n---comment\nfunction FGR1()\n  return 0\nend\n\n---@async\nfunction FGR1_()\n  return 0\nend\n\n---comment\n---@return integer\nfunction FGR2()\n  return 0\nend\n",
+"config": []
+},
+{
+"code": "incomplete-signature-doc",
+"n": 4,
+"script": "function FGRR0()\n  return 0, 1\nend\n\n---comment\nfunction FGRR1()\n  return 0, 1\nend\n\n---@async\nfunction FGRR1_()\n  return 0, 1\nend\n\n---comment\n---@return integer\nfunction FGRR2()\n  return 0, <!1!>\nend\n\n---comment\n---@return integer\n---@return integer\nfunction FGRR3()\n  return 0, 1\nend\n",
+"config": []
+},
+{
+"code": "incomplete-signature-doc",
+"n": 5,
+"script": "function FGPR0(p)\n  print(p)\n  return 0\nend\n\n---comment\nfunction FGPR1(p)\n  print(p)\n  return 0\nend\n\n---@async\nfunction FGPR1_(p)\n  print(p)\n  return 0\nend\n\n---comment\n---@param p any\nfunction FGPR2(p)\n  print(p)\n  return <!0!>\nend\n\n---comment\n---@return integer\nfunction FGPR3(<!p!>)\n  print(p)\n  return 0\nend\n\n---comment\n---@param p any\n---@return integer\nfunction FGPR4(p)\n  print(p)\n  return 0\nend\n",
+"config": []
+},
+{
+"code": "incomplete-signature-doc",
+"n": 6,
+"script": "local function FL0()\nend\n\nFL0()\n\n---comment\nlocal function FL1()\nend\n\nFL1()\n\n---@async\nlocal function FL1_()\n",
+"config": []
+},
+{
+"code": "incomplete-signature-doc",
+"n": 7,
+"script": "local function FLP0(p)\n  print(p)\nend\n\nFLP0(0)\n\n---comment\nlocal function FLP1(p)\n  print(p)\nend\n\nFLP1(0)\n\n---@async\nlocal function FLP1_(p)\n  print(p)\nend\n\n---comment\n---@param p any\nlocal function FLP2(p)\n  print(p)\nend\n\nFLP2(0)\n",
+"config": []
+},
+{
+"code": "incomplete-signature-doc",
+"n": 8,
+"script": "local function FLPP0(p0, p1)\n  print(p0, p1)\nend\n\nFLPP0(0, 1)\n\n---comment\nlocal function FLPP1(p0, p1)\n  print(p0, p1)\nend\n\nFLPP1(0, 1)\n\n---@async\nlocal function FLPP1_(p0, p1)\n  print(p0, p1)\nend\n\n---comment\n---@param p0 any\nlocal function FLPP2(p0, <!p1!>)\n  print(p0, p1)\nend\n\nFLPP2(0, 1)\n\n---comment\n---@param p0 any\n---@param p1 any\nlocal function FLPP3(p0, p1)\n  print(p0, p1)\nend\n\nFLPP3(0, 1)\n",
+"config": []
+},
+{
+"code": "incomplete-signature-doc",
+"n": 9,
+"script": "local function FLR0()\n  return 0\nend\n\nlocal vr0 = FLR0()\n\n---comment\nlocal function FLR1()\n  return 0\nend\n\n---@async\nlocal function FLR1_()\n  return 0\nend\n\nlocal vr1 = FLR1()\n\n---comment\n---@return integer\nlocal function FLR2()\n  return 0\nend\n\nlocal vr2 = FLR2()\n",
+"config": []
+},
+{
+"code": "incomplete-signature-doc",
+"n": 10,
+"script": "local function FLRR0()\n  return 0, 1\nend\n\nlocal vrr0, _ = FLRR0()\n\n---comment\nlocal function FLRR1()\n  return 0, 1\nend\n\nlocal vrr1, _ = FLRR1()\n\n---@async\nlocal function FLRR1_()\n  return 0, 1\nend\n\n---comment\n---@return integer\nlocal function FLRR2()\n  return 0, <!1!>\nend\n\nlocal vrr2, _ = FLRR2()\n\n---comment\n---@return integer\n---@return integer\nlocal function FLRR3()\n  return 0, 1\nend\n\nlocal vrr3, _ = FLRR3()\n",
+"config": []
+},
+{
+"code": "incomplete-signature-doc",
+"n": 11,
+"script": "local function FLPR0(p)\n  print(p)\n  return 0\nend\n\nlocal vpr0 = FLPR0(0)\n\n---comment\nlocal function FLPR1(p)\n  print(p)\n  return 0\nend\n\n---@async\nlocal function FLPR1_(p)\n  print(p)\n  return 0\nend\n\nlocal vpr1 = FLPR1(0)\n\n---comment\n---@param p any\nlocal function FLPR2(p)\n  print(p)\n  return <!0!>\nend\n\nlocal vpr2 = FLPR2(0)\n\n---comment\n---@return integer\nlocal function FLPR3(<!p!>)\n  print(p)\n  return 0\nend\n\nlocal vpr3 = FLPR3(0)\n\n---comment\n---@param p any\n---@return integer\nlocal function FLPR4(p)\n  print(p)\n  return 0\nend\n\nlocal vpr4 = FLPR4(0)\n",
+"config": []
+},
+{
+"code": "inject-field",
+"n": 0,
+"script": "---@class Class\nlocal m = {}\n\nm.xx = 1 -- OK\n\n---@type Class\nlocal m\n\nm.xx = 1 -- OK\nm.<!yy!> = 1 -- Warning\n",
+"config": []
+},
+{
+"code": "inject-field",
+"n": 1,
+"script": "---@class Class\nlocal m = {}\n\nm.xx = 1 -- OK\n\n---@class Class\nlocal m\n\nm.xx = 1 -- OK\nm.yy = 1 -- OK\n",
+"config": []
+},
+{
+"code": "inject-field",
+"n": 2,
+"script": "---@type { xx: number }\nlocal m\n\nm.xx = 1 -- OK\nm.<!yy!> = 1 -- Warning\n",
+"config": []
+},
+{
+"code": "inject-field",
+"n": 3,
+"script": "---@type { xx: number, [any]: any }\nlocal m\n\nm.xx = 1 -- OK\nm.yy = 1 -- OK\n",
+"config": []
+},
+{
+"code": "inject-field",
+"n": 4,
+"script": "---@class Class\n---@field x number\n\n---@type Class\nlocal t\n\nt.x = 1 -- OK\nt.<!y!> = 2 -- Warning\n",
+"config": []
+},
+{
+"code": "inject-field",
+"n": 5,
+"script": "---@class Class\n---@field x number\n---@field [any] any\n\n---@type Class\nlocal t\n\nt.x = 1 -- OK\nt.y = 2 -- OK\n",
+"config": []
+},
+{
+"code": "inject-field",
+"n": 6,
+"script": "---@class (exact) Class\n---@field x number\nlocal m = {\n    x = 1, -- OK\n    <!y!> = 2, -- Warning\n}\n\nm.x = 1 -- OK\nm.<!y!> = 2 -- Warning\n\nfunction m:init() -- OK\n    self.x = 1 -- OK\n    self.<!y!> = 2 -- Warning\n    function self:<!xx!>() -- Warning\n    end\nend\n",
+"config": []
+},
+{
+"code": "inject-field",
+"n": 7,
+"script": "---@class Class\nlocal m = {\n    xx = 1, -- OK\n}\n\n---@type Class\nlocal m\n\nm.xx = 1 -- OK\nm.<!yy!> = 1 -- Warning\n",
+"config": []
+},
+{
+"code": "invisible",
+"n": 0,
+"script": "---@class A\n---@field private x number\n---@field protected y number\n---@field public z number\nlocal t\nprint(t.x)\n",
+"config": []
+},
+{
+"code": "invisible",
+"n": 1,
+"script": "---@class A\n---@field private x number\n---@field protected y number\n---@field public z number\n\n---@type A\nlocal t\n\nprint(t.<!x!>)\n",
+"config": []
+},
+{
+"code": "invisible",
+"n": 2,
+"script": "---@class A\n---@field private x number\n---@field protected y number\n---@field public z number\n\n---@class B: A\nlocal t\n\nprint(t.y)\n",
+"config": []
+},
+{
+"code": "invisible",
+"n": 3,
+"script": "---@class A\n---@field private x number\n---@field protected y number\n---@field public z number\n\n---@class B: A\n\n---@type B\nlocal t\n\nprint(t.<!y!>)\n",
+"config": []
+},
+{
+"code": "invisible",
+"n": 4,
+"script": "---@class A\n---@field private x number\n---@field protected y number\n---@field public z number\n\n---@class B: A\n\n---@type B\nlocal t\n\nprint(t.z)\n",
+"config": []
+},
+{
+"code": "invisible",
+"n": 5,
+"script": "---@class A\n---@field _id number\n\n---@type A\nlocal t\n\nprint(t._id)\n",
+"config": []
+},
+{
+"code": "invisible",
+"n": 6,
+"script": "---@class A\n---@field _id number\n\n---@type A\nlocal t\n\nprint(t.<!_id!>)\n\n---@class B: A\nlocal t2\n\nprint(t2.<!_id!>)\n",
+"config": [
+"Lua.doc.privateName"
+]
+},
+{
+"code": "invisible",
+"n": 7,
+"script": "---@class A\nlocal A = {\n    _id = 0\n}\n\n---@type A\nlocal t\n\nprint(t.<!_id!>)\n\n---@class B: A\nlocal t2\n\nprint(t2.<!_id!>)\n",
+"config": [
+"Lua.doc.privateName"
+]
+},
+{
+"code": "invisible",
+"n": 8,
+"script": "---@class A\nlocal A = {\n    _id = 0\n}\n\n---@type A\nlocal t\n\nprint(t.<!_id!>)\n\n---@class B: A\nlocal t2\n\nprint(t2._id)\n",
+"config": [
+"Lua.doc.protectedName"
+]
+},
+{
+"code": "invisible",
+"n": 9,
+"script": "---@class A\n---@field _id number\n\n---@type A\nlocal t\n\nprint(t.<!_id!>)\n\n---@class B: A\nlocal t2\n\nprint(t2._id)\n",
+"config": [
+"Lua.doc.protectedName"
+]
+},
+{
+"code": "invisible",
+"n": 10,
+"script": "---@class A\n---@field _id_ number\n---@field _user number\n\n---@type A\nlocal t\nprint(t.<!_id_!>)\nprint(t.<!_user!>)\n\n---@class B: A\nlocal t2\nprint(t2._id_)\nprint(t2.<!_user!>)\n",
+"config": [
+"Lua.doc.privateName",
+"Lua.doc.protectedName",
+"Lua.doc.regengine"
+]
+},
+{
+"code": "invisible",
+"n": 11,
+"script": "---@class A\n---@field private x number\nlocal mt = {}\n\nfunction mt:init()\n    print(self.x)\nend\n",
+"config": []
+},
+{
+"code": "invisible",
+"n": 12,
+"script": "---@diagnostic disable: unused-local\n---@diagnostic disable: missing-fields\n---@class A\n---@field private x number\nlocal mt = {}\n\nfunction mt:init()\n    ---@type A\n    local obj = {}\n\n    obj.x = 1\nend\n",
+"config": []
+},
+{
+"code": "invisible",
+"n": 13,
+"script": "---@diagnostic disable: unused-local\n---@diagnostic disable: missing-fields\n---@class A\n---@field private x number\nlocal mt = {}\n\nmt.init = function ()\n    ---@type A\n    local obj = {}\n\n    obj.x = 1\nend\n",
+"config": []
+},
+{
+"code": "lowercase-global",
+"n": 0,
+"script": "<!aa!> = 1\ntostring = 1\nROOT = 1\n_G.bb = 1\n",
+"config": []
+},
+{
+"code": "lowercase-global",
+"n": 1,
+"script": "---@diagnostic disable-next-line\nx = 1\n",
+"config": []
+},
+{
+"code": "lowercase-global",
+"n": 2,
+"script": "---@diagnostic disable-next-line: lowercase-global\nx = 1\n",
+"config": []
+},
+{
+"code": "lowercase-global",
+"n": 3,
+"script": "---@diagnostic disable-next-line: unused-local\n<!x!> = 1\n",
+"config": []
+},
+{
+"code": "lowercase-global",
+"n": 4,
+"script": "---@diagnostic disable\nx = 1\n",
+"config": []
+},
+{
+"code": "lowercase-global",
+"n": 5,
+"script": "---@diagnostic disable\n---@diagnostic enable\n<!x!> = 1\n",
+"config": []
+},
+{
+"code": "lowercase-global",
+"n": 6,
+"script": "---@diagnostic disable\n---@diagnostic disable\n---@diagnostic enable\nx = 1\n",
+"config": []
+},
+{
+"code": "lowercase-global",
+"n": 7,
+"script": "global x, y, z\n",
+"config": [
+"Lua.runtime.version=Lua 5.5"
+]
+},
+{
+"code": "missing-fields",
+"n": 0,
+"script": "---@diagnostic disable: unused-local\n---@class A\n---@field x number\n---@field y? number\n---@field z number\n\n---@type A\nlocal t = <!{}!>\n",
+"config": []
+},
+{
+"code": "missing-fields",
+"n": 1,
+"script": "---@diagnostic disable: unused-local\n---@class A\n---@field x number\n---@field y? number\n---@field z number\n\n---@type A\nlocal t = <!{\n    x = 1,\n}!>\n",
+"config": []
+},
+{
+"code": "missing-fields",
+"n": 2,
+"script": "---@diagnostic disable: unused-local\n---@class A\n---@field x number\n---@field y? number\n---@field z number\n\n---@type A\nlocal t = <!{\n    x = 1,\n    y = 2,\n}!>\n",
+"config": []
+},
+{
+"code": "missing-fields",
+"n": 3,
+"script": "---@diagnostic disable: unused-local\n---@class A\n---@field x number\n---@field y? number\n---@field z number\n\n---@type A\nlocal t = {\n    x = 1,\n    y = 2,\n    z = 3,\n}\n",
+"config": []
+},
+{
+"code": "missing-fields",
+"n": 4,
+"script": "---@diagnostic disable: unused-local\n---@class A\n---@field x number\n---@field y? number\n---@field z number\nlocal A = {}\n\nfunction A:fun()\nend\n\n---@type A\nlocal t = {\n    x = 1,\n    y = 2,\n    z = 3,\n}\n",
+"config": []
+},
+{
+"code": "missing-fields",
+"n": 5,
+"script": "---@diagnostic disable: unused-local\n\n---@class Parent\n---@field a number\nlocal Parent = {}\n\nfunction Parent:fun2()\nend\n\n---@class A : Parent\n---@field x number\n---@field y? number\n---@field z number\nlocal A = {}\n\nfunction A:fun()\nend\n\n---@type A\nlocal t = <!{\n    x = 1,\n    y = 2,\n}!>\n",
+"config": []
+},
+{
+"code": "missing-fields",
+"n": 6,
+"script": "---@diagnostic disable: unused-local\n\n---@class Parent\n---@field a number\nlocal Parent = {}\n\nfunction Parent:fun2()\nend\n\n---@class A : Parent\n---@field x number\n---@field y? number\n---@field z number\nlocal A = {}\n\nfunction A:fun()\nend\n\n---@type A\nlocal t = {\n    x = 1,\n    y = 2,\n    z = 3,\n    a = 1,\n}\n",
+"config": []
+},
+{
+"code": "missing-fields",
+"n": 7,
+"script": "---@diagnostic disable: unused-local\n---@class A\n---@field x number\n---@field y? number\n---@field z number\nlocal A = {}\n\nfunction A:fun()\nend\n\n---@type A\nlocal t = <!{\n    x = 1,\n    y = 2,\n}!>\n",
+"config": []
+},
+{
+"code": "missing-fields",
+"n": 8,
+"script": "---@diagnostic disable: unused-local\n---@class A\n---@field x number\n---@field y? number\n---@field z number\n\n---@type A\nlocal t = {\n    x = 1,\n    z = 3,\n}\n",
+"config": []
+},
+{
+"code": "missing-fields",
+"n": 9,
+"script": "---@diagnostic disable: unused-local\n---@class A\n---@field x number\n---@field y? number\n---@field z number\n\n---@param a A\nlocal function f(a) end\n\nf <!{}!>\n",
+"config": []
+},
+{
+"code": "missing-fields",
+"n": 10,
+"script": "---@diagnostic disable: unused-local\n---@class A\n---@field x number\n---@field y? number\n---@field z number\n\n---@param a A\nlocal function f(a) end\n\nf <!{\n    x = 1,\n}!>\n",
+"config": []
+},
+{
+"code": "missing-fields",
+"n": 11,
+"script": "---@diagnostic disable: unused-local\n---@class A\n---@field x number\n---@field y? number\n---@field z number\n\n---@param a A\nlocal function f(a) end\n\nf <!{\n    x = 1,\n    y = 2,\n}!>\n",
+"config": []
+},
+{
+"code": "missing-fields",
+"n": 12,
+"script": "---@diagnostic disable: unused-local\n---@class A\n---@field x number\n---@field y? number\n---@field z number\n\n---@param a A\nlocal function f(a) end\n\nf {\n    x = 1,\n    y = 2,\n    z = 3,\n}\n",
+"config": []
+},
+{
+"code": "missing-fields",
+"n": 13,
+"script": "---@diagnostic disable: unused-local\n---@class A\n---@field x number\n---@field y? number\n---@field z number\n\n---@param a A\nlocal function f(a) end\n\nf {\n    x = 1,\n    z = 3,\n}\n",
+"config": []
+},
+{
+"code": "missing-fields",
+"n": 14,
+"script": "---@diagnostic disable: unused-local\n---@class A\n---@field x number\nlocal t = {}\n",
+"config": []
+},
+{
+"code": "missing-fields",
+"n": 15,
+"script": "---@diagnostic disable: unused-local\n\n---@class A\n---@field x number\n\n---@class A\nlocal t = {}\n",
+"config": []
+},
+{
+"code": "missing-fields",
+"n": 16,
+"script": "---@diagnostic disable: unused-local\n\n---@class Foo\n---@field a number\n---@field b number\n---@field c number\n\n---@type Foo|Foo[]\nlocal a = {\n    {\n        a = 1,\n        b = 2,\n        c = 3,\n    }\n}\n",
+"config": []
+},
+{
+"code": "missing-fields",
+"n": 17,
+"script": "---@diagnostic disable: unused-local\n\n---@class Foo\n---@field a number\n---@field b number\n---@field c number\n\n---@class Bar\n---@field ba number\n---@field bb number\n---@field bc number\n\n---@type Foo|Bar\nlocal b = {\n    a = 1,\n    b = 2,\n    c = 3,\n}\n",
+"config": []
+},
+{
+"code": "missing-fields",
+"n": 18,
+"script": "---@class A\n---@field x integer\n\n---@type A\nreturn <!{}!>\n",
+"config": []
+},
+{
+"code": "missing-fields",
+"n": 19,
+"script": "---@class A\n---@field x number\n\n---@class B\n---@field y number\n\n---@type A|B\nlocal t = <!{\n    z = 1,\n}!>\n",
+"config": []
+},
+{
+"code": "missing-fields",
+"n": 20,
+"script": "---@class A\n---@field x number\n\n---@class B\n---@field y number\n\n---@type A|B\nlocal t = {\n    y = 1,\n}\n",
+"config": []
+},
+{
+"code": "missing-fields",
+"n": 21,
+"script": "---@diagnostic disable: unused-local\n\n---@class Foo\n---@field a number\n---@field b number\n---@field c number\n\n---@class Foo\n\n---@class Bar\n---@field ba number\n---@field bb number\n---@field bc number\n\n---@class Bar\n---@field bd number\n\n---@type Foo|Bar\nlocal x = {\n\tba = 1,\n\tbb = 2,\n\tbc = 3,\n\tbd = 4,\n}\n",
+"config": []
+},
+{
+"code": "missing-fields",
+"n": 22,
+"script": "---@diagnostic disable: unused-local\n\n---@class Foo\n---@field a number\n---@field b number\n---@field c number\n\n---@class Foo\n\n---@class Bar\n---@field ba number\n---@field bb number\n---@field bc number\n\n---@class Bar\n---@field bd number\n\n---@type Foo|Bar\nlocal x = {\n\ta = 1,\n\tb = 2,\n\tc = 3,\n}\n",
+"config": []
+},
+{
+"code": "missing-fields",
+"n": 23,
+"script": "---@diagnostic disable: unused-local\n\n---@class Foo\n---@field a number\n---@field b number\n---@field c number\n\n---@class Foo\n\n---@class Bar\n---@field ba number\n---@field bb number\n---@field bc number\n\n---@class Bar\n---@field bd number\n\n---@type Foo|Bar\nlocal x = <!{\n\ta = 1,\n\tb = 2,\n}!>\n",
+"config": []
+},
+{
+"code": "missing-fields",
+"n": 24,
+"script": "---@diagnostic disable: unused-local\n\n---@class Foo\n---@field a number\n---@field b number\n---@field c number\n\n---@class Foo\n\n---@class Bar\n---@field ba number\n---@field bb number\n---@field bc number\n\n---@class Bar\n---@field bd number\n\n---@type Foo|Bar\nlocal x = <!{\n\tba = 1,\n\tbb = 2,\n\tbd = 4,\n}!>\n",
+"config": []
+},
+{
+"code": "missing-fields",
+"n": 25,
+"script": "---@class A\n---@field [1] string\n---@field x number\n\n---@type A\nlocal t = {x = 1, \"\"}\n",
+"config": []
+},
+{
+"code": "missing-fields",
+"n": 26,
+"script": "---@class A\n---@field [1] string\n---@field x number\n\n---@type A\nlocal t = <!{x = 1}!>\n",
+"config": []
+},
+{
+"code": "missing-fields",
+"n": 27,
+"script": "---@class A\n---@field x number\n\n---@class B: A\n\n---@type B\nlocal t = <!{}!>\n",
+"config": []
+},
+{
+"code": "missing-fields",
+"n": 28,
+"script": "---@class A\n---@field x number\n---@field y number\n\n---@class B: A\n\n---@type B\nlocal t = <!{y = 1}!>\n",
+"config": []
+},
+{
+"code": "missing-fields",
+"n": 29,
+"script": "---@class A\n---@field x number\n\n---@class B: A\n---@field y number\n\n---@type B\nlocal t = <!{y = 1}!>\n",
+"config": []
+},
+{
+"code": "missing-fields",
+"n": 30,
+"script": "---@class A\n---@field x? number\n\n---@class B: A\n\n---@type B\nlocal t = {}\n",
+"config": []
+},
+{
+"code": "missing-fields",
+"n": 31,
+"script": "---@class A\n---@field x? number\n---@field y number\n\n---@class B: A\n\n---@type B\nlocal t = {y = 1}\n",
+"config": []
+},
+{
+"code": "missing-fields",
+"n": 32,
+"script": "---@class A\n---@field x? number\n\n---@class B: A\n---@field y number\n\n---@type B\nlocal t = {y = 1}\n",
+"config": []
+},
+{
+"code": "missing-fields",
+"n": 33,
+"script": "---@class A\n---@field x number\n\n---@class B: A\n\n---@param b B\nlocal function f(b) end\n\nf <!{}!>\n",
+"config": []
+},
+{
+"code": "missing-fields",
+"n": 34,
+"script": "---@class A\n---@field x number\n---@field y number\n\n---@class B: A\n\n---@param b B\nlocal function f(b) end\n\nf <!{y = 1}!>\n",
+"config": []
+},
+{
+"code": "missing-fields",
+"n": 35,
+"script": "---@class A\n---@field x number\n\n---@class B: A\n---@field y number\n\n---@param b B\nlocal function f(b) end\n\nf <!{y = 1}!>\n",
+"config": []
+},
+{
+"code": "missing-fields",
+"n": 36,
+"script": "---@class A\n---@field x number\n\n---@class (partial) B: A\n\n---@type B\nlocal t = {}\n",
+"config": []
+},
+{
+"code": "missing-fields",
+"n": 37,
+"script": "---@class A\n---@field x number\n\n---@class (partial) B: A\n---@field y number\n\n---@type B\nlocal t = <!{}!>\n",
+"config": []
+},
+{
+"code": "missing-fields",
+"n": 38,
+"script": "---@class A\n---@field x number\n\n---@class (partial) B: A\n---@field y number\n\n---@type B\nlocal t = {y = 1}\n",
+"config": []
+},
+{
+"code": "missing-global-doc",
+"n": 0,
+"script": "<!function FG0()\nend!>\n\n---comment\nfunction FG1()\nend\n",
+"config": []
+},
+{
+"code": "missing-global-doc",
+"n": 1,
+"script": "function FGP0(<!p!>)\n  print(p)\nend\n\n---comment\nfunction FGP1(<!p!>)\n  print(p)\nend\n\n---comment\n---@param p any\nfunction FGP2(p)\n  print(p)\nend\n",
+"config": []
+},
+{
+"code": "missing-global-doc",
+"n": 2,
+"script": "function FGPP0(<!p0!>, <!p1!>)\n  print(p0, p1)\nend\n\n---comment\nfunction FGPP1(<!p0!>, <!p1!>)\n  print(p0, p1)\nend\n\n---comment\n---@param p0 any\nfunction FGPP2(p0, <!p1!>)\n  print(p0, p1)\nend\n\n---comment\n---@param p0 any\n---@param p1 any\nfunction FGPP3(p0, p1)\n  print(p0, p1)\nend\n",
+"config": []
+},
+{
+"code": "missing-global-doc",
+"n": 3,
+"script": "function FGR0()\n  return <!0!>\nend\n\n---comment\nfunction FGR1()\n  return <!0!>\nend\n\n---comment\n---@return integer\nfunction FGR2()\n  return 0\nend\n",
+"config": []
+},
+{
+"code": "missing-global-doc",
+"n": 4,
+"script": "function FGRR0()\n  return <!0!>, <!1!>\nend\n\n---comment\nfunction FGRR1()\n  return <!0!>, <!1!>\nend\n\n---comment\n---@return integer\nfunction FGRR2()\n  return 0, <!1!>\nend\n\n---comment\n---@return integer\n---@return integer\nfunction FGRR3()\n  return 0, 1\nend\n",
+"config": []
+},
+{
+"code": "missing-global-doc",
+"n": 5,
+"script": "function FGPR0(<!p!>)\n  print(p)\n  return <!0!>\nend\n\n---comment\nfunction FGPR1(<!p!>)\n  print(p)\n  return <!0!>\nend\n\n---comment\n---@param p any\nfunction FGPR2(p)\n  print(p)\n  return <!0!>\nend\n\n---comment\n---@return integer\nfunction FGPR3(<!p!>)\n  print(p)\n  return 0\nend\n\n---comment\n---@param p any\n---@return integer\nfunction FGPR4(p)\n  print(p)\n  return 0\nend\n",
+"config": []
+},
+{
+"code": "missing-global-doc",
+"n": 6,
+"script": "local function FL0()\nend\n\nFL0()\n\n---comment\nlocal function FL1()\nend\n\nFL1()\n",
+"config": []
+},
+{
+"code": "missing-global-doc",
+"n": 7,
+"script": "local function FLP0(p)\n  print(p)\nend\n\nFLP0(0)\n\n---comment\nlocal function FLP1(p)\n  print(p)\nend\n\nFLP1(0)\n\n---comment\n---@param p any\nlocal function FLP2(p)\n  print(p)\nend\n\nFLP2(0)\n",
+"config": []
+},
+{
+"code": "missing-global-doc",
+"n": 8,
+"script": "local function FLPP0(p0, p1)\n  print(p0, p1)\nend\n\nFLPP0(0, 1)\n\n---comment\nlocal function FLPP1(p0, p1)\n  print(p0, p1)\nend\n\nFLPP1(0, 1)\n\n---comment\n---@param p0 any\nlocal function FLPP2(p0, p1)\n  print(p0, p1)\nend\n\nFLPP2(0, 1)\n\n---comment\n---@param p0 any\n---@param p1 any\nlocal function FLPP3(p0, p1)\n  print(p0, p1)\nend\n\nFLPP3(0, 1)\n",
+"config": []
+},
+{
+"code": "missing-global-doc",
+"n": 9,
+"script": "local function FLR0()\n  return 0\nend\n\nlocal vr0 = FLR0()\n\n---comment\nlocal function FLR1()\n  return 0\nend\n\nlocal vr1 = FLR1()\n\n---comment\n---@return integer\nlocal function FLR2()\n  return 0\nend\n\nlocal vr2 = FLR2()\n",
+"config": []
+},
+{
+"code": "missing-global-doc",
+"n": 10,
+"script": "local function FLRR0()\n  return 0, 1\nend\n\nlocal vrr0, _ = FLRR0()\n\n---comment\nlocal function FLRR1()\n  return 0, 1\nend\n\nlocal vrr1, _ = FLRR1()\n\n---comment\n---@return integer\nlocal function FLRR2()\n  return 0, 1\nend\n\nlocal vrr2, _ = FLRR2()\n\n---comment\n---@return integer\n---@return integer\nlocal function FLRR3()\n  return 0, 1\nend\n\nlocal vrr3, _ = FLRR3()\n",
+"config": []
+},
+{
+"code": "missing-global-doc",
+"n": 11,
+"script": "local function FLPR0(p)\n  print(p)\n  return 0\nend\n\nlocal vpr0 = FLPR0(0)\n\n---comment\nlocal function FLPR1(p)\n  print(p)\n  return 0\nend\n\nlocal vpr1 = FLPR1(0)\n\n---comment\n---@param p any\nlocal function FLPR2(p)\n  print(p)\n  return 0\nend\n\nlocal vpr2 = FLPR2(0)\n\n---comment\n---@return integer\nlocal function FLPR3(p)\n  print(p)\n  return 0\nend\n\nlocal vpr3 = FLPR3(0)\n\n---comment\n---@param p any\n---@return integer\nlocal function FLPR4(p)\n  print(p)\n  return 0\nend\n\nlocal vpr4 = FLPR4(0)\n",
+"config": []
+},
+{
+"code": "missing-local-export-doc",
+"n": 0,
+"script": "local mod = {}\n\nlocal <!function fl0()\nend!>\n  \n---comment\nlocal function fl1()\nend\n  \nlocal function fl2()\nend\n  \nfunction FG0()\nend\n  \nmod.fl0 = fl0\nmod.fl1 = fl1\nreturn mod\n",
+"config": []
+},
+{
+"code": "missing-local-export-doc",
+"n": 1,
+"script": "local mod = {}\n  \nlocal function flp0(<!p!>)\n  print(p)\nend\n\n---comment\nlocal function flp1(<!p!>)\n  print(p)\nend\n\n---comment\n---@param p any\nlocal function flp2(p)\n  print(p)\nend\n\nmod.flp0 = flp0\nmod.flp1 = flp1\nreturn mod\n",
+"config": []
+},
+{
+"code": "missing-local-export-doc",
+"n": 2,
+"script": "local mod = {}\n\nlocal function flpp0(<!p0!>, <!p1!>)\n  print(p0, p1)\nend\n\n---comment\nlocal function flpp1(<!p0!>, <!p1!>)\n  print(p0, p1)\nend\n\n---comment\n---@param p0 any\nlocal function flpp2(p0, <!p1!>)\n  print(p0, p1)\nend\n\n---comment\n---@param p0 any\n---@param p1 any\nlocal function flpp3(p0, p1)\n  print(p0, p1)\nend\n\nmod.flpp0 = flpp0\nmod.flpp1 = flpp1\nmod.flpp2 = flpp2\nmod.flpp3 = flpp3\nreturn mod\n",
+"config": []
+},
+{
+"code": "missing-local-export-doc",
+"n": 3,
+"script": "local mod = {}\n\nlocal function flr0()\n  return <!0!>\nend\n\n---comment\nlocal function flr1()\n  return <!0!>\nend\n\n---comment\n---@return integer\nlocal function flr2()\n  return 0\nend\n\nmod.flr0 = flr0\nmod.flr1 = flr1\nmod.flr2 = flr2\nreturn mod\n",
+"config": []
+},
+{
+"code": "missing-local-export-doc",
+"n": 4,
+"script": "local mod = {}\n\nlocal function flrr0()\n  return <!0!>, <!1!>\nend\n\n---comment\nlocal function flrr1()\n  return <!0!>, <!1!>\nend\n\n---comment\n---@return integer\nlocal function flrr2()\n  return 0, <!1!>\nend\n\n---comment\n---@return integer\n---@return integer\nlocal function flrr3()\n  return 0, 1\nend\n\nmod.flrr0 = flrr0\nmod.flrr1 = flrr1\nmod.flrr2 = flrr2\nreturn mod\n",
+"config": []
+},
+{
+"code": "missing-local-export-doc",
+"n": 5,
+"script": "local mod = {}\n\nlocal function flpr0(<!p!>)\n  print(p)\n  return <!0!>\nend\n\n---comment\nlocal function flpr1(<!p!>)\n  print(p)\n  return <!0!>\nend\n\n---comment\n---@param p any\nlocal function flpr2(p)\n  print(p)\n  return <!0!>\nend\n\n---comment\n---@return integer\nlocal function flpr3(<!p!>)\n  print(p)\n  return 0\nend\n\n---comment\n---@param p any\n---@return integer\nlocal function flpr4(p)\n  print(p)\n  return 0\nend\n\nmod.flpr0 = flpr0\nmod.flpr1 = flpr1\nmod.flpr2 = flpr2\nmod.flpr3 = flpr3\nmod.flpr4 = flpr4\nreturn mod\n",
+"config": []
+},
+{
+"code": "missing-parameter",
+"n": 0,
+"script": "local function x(a, b)\n    return a, b\nend\nx(1)\n",
+"config": []
+},
+{
+"code": "missing-parameter",
+"n": 1,
+"script": "---@param a integer\n---@param b integer\nlocal function x(a, b)\n    return a, b\nend\n<!x(1)!>\n",
+"config": []
+},
+{
+"code": "missing-parameter",
+"n": 2,
+"script": "---@param a integer\n---@param b integer\nlocal function x(a, b)\n    return a, b\nend\n<!x()!>\n",
+"config": []
+},
+{
+"code": "missing-parameter",
+"n": 3,
+"script": "---@param a integer\n---@param b integer\n---@param ... integer\nlocal function x(a, b, ...)\n    return a, b, ...\nend\nx(1, 2)\n",
+"config": []
+},
+{
+"code": "missing-parameter",
+"n": 4,
+"script": "---@param a integer\n---@param b integer\nlocal function f(a, b)\nend\n\nf(...)\n",
+"config": []
+},
+{
+"code": "missing-parameter",
+"n": 5,
+"script": "---@param a integer\n---@param b integer\nlocal function f(a, b)\nend\n\nlocal function return2Numbers()\n    return 1, 2\nend\n\nf(return2Numbers())\n",
+"config": []
+},
+{
+"code": "missing-parameter",
+"n": 6,
+"script": "---@param a integer\n---@param b? integer\nlocal function x(a, b)\n    return a, b\nend\nx(1)\n",
+"config": []
+},
+{
+"code": "missing-parameter",
+"n": 7,
+"script": "---@param b integer?\nlocal function x(a, b)\n    return a, b\nend\nx(1)\n",
+"config": []
+},
+{
+"code": "missing-parameter",
+"n": 8,
+"script": "---@param b integer|nil\nlocal function x(a, b)\n    return a, b\nend\nx(1)\n",
+"config": []
+},
+{
+"code": "missing-parameter",
+"n": 9,
+"script": "local t = {}\n\nfunction t:init() end\n\n<!t.init()!>\n",
+"config": []
+},
+{
+"code": "missing-return-value",
+"n": 0,
+"script": "---@type fun():number\nlocal function f()\n    <!return!>\nend\n",
+"config": []
+},
+{
+"code": "missing-return-value",
+"n": 1,
+"script": "---@return number\nfunction F()\n    <!return!>\nend\n",
+"config": []
+},
+{
+"code": "missing-return-value",
+"n": 2,
+"script": "---@return number, number\nfunction F()\n    <!return!> 1\nend\n",
+"config": []
+},
+{
+"code": "missing-return-value",
+"n": 3,
+"script": "---@return number, number?\nfunction F()\n    return 1\nend\n",
+"config": []
+},
+{
+"code": "missing-return-value",
+"n": 4,
+"script": "---@return ...\nfunction F()\n    return\nend\n",
+"config": []
+},
+{
+"code": "missing-return",
+"n": 0,
+"script": "---@type fun():number\nlocal function f()\n<!!>end\n",
+"config": []
+},
+{
+"code": "missing-return",
+"n": 1,
+"script": "---@type fun():number?\nlocal function f()\nend\n",
+"config": []
+},
+{
+"code": "missing-return",
+"n": 2,
+"script": "---@type fun():...\nlocal function f()\nend\n",
+"config": []
+},
+{
+"code": "missing-return",
+"n": 3,
+"script": "---@return number\nfunction F()\n    X = 1<!!>\nend\n",
+"config": []
+},
+{
+"code": "missing-return",
+"n": 4,
+"script": "local A\n---@return number\nfunction F()\n    if A then\n        return 1\n    end<!!>\nend\n",
+"config": []
+},
+{
+"code": "missing-return",
+"n": 5,
+"script": "local A, B\n---@return number\nfunction F()\n    if A then\n        return 1\n    elseif B then\n        return 2\n    end<!!>\nend\n",
+"config": []
+},
+{
+"code": "missing-return",
+"n": 6,
+"script": "local A, B\n---@return number\nfunction F()\n    if A then\n        return 1\n    elseif B then\n        return 2\n    else\n        return 3\n    end\nend\n",
+"config": []
+},
+{
+"code": "missing-return",
+"n": 7,
+"script": "local A, B\n---@return number\nfunction F()\n    if A then\n    elseif B then\n        return 2\n    else\n        return 3\n    end<!!>\nend\n",
+"config": []
+},
+{
+"code": "missing-return",
+"n": 8,
+"script": "---@return any\nfunction F()\n    X = 1\nend\n",
+"config": []
+},
+{
+"code": "missing-return",
+"n": 9,
+"script": "---@return any, number\nfunction F()\n    X = 1<!!>\nend\n",
+"config": []
+},
+{
+"code": "missing-return",
+"n": 10,
+"script": "---@return number, any\nfunction F()\n    X = 1<!!>\nend\n",
+"config": []
+},
+{
+"code": "missing-return",
+"n": 11,
+"script": "---@return any, any\nfunction F()\n    X = 1\nend\n",
+"config": []
+},
+{
+"code": "missing-return",
+"n": 12,
+"script": "local A\n---@return number\nfunction F()\n    for _ = 1, 10 do\n        if A then\n            return 1\n        end\n    end\n    error('should not be here')\nend\n",
+"config": []
+},
+{
+"code": "missing-return",
+"n": 13,
+"script": "local A\n---@return number\nfunction F()\n    while true do\n        if A then\n            return 1\n        end\n    end\nend\n",
+"config": []
+},
+{
+"code": "missing-return",
+"n": 14,
+"script": "local A\n---@return number\nfunction F()\n    while A do\n        if A then\n            return 1\n        end\n    end<!!>\nend\n",
+"config": []
+},
+{
+"code": "missing-return",
+"n": 15,
+"script": "local A\n---@return number\nfunction F()\n    while A do\n        if A then\n            return 1\n        else\n            return 2\n        end\n    end\nend\n",
+"config": []
+},
+{
+"code": "missing-return",
+"n": 16,
+"script": "---@return number?\nfunction F()\n\nend\n",
+"config": []
+},
+{
+"code": "missing-return",
+"n": 17,
+"script": "---@generic T\n---@param t T\n---@return T\nfunction F(t)\n\treturn t\nend\n",
+"config": []
+},
+{
+"code": "missing-return",
+"n": 18,
+"script": "---@generic T\n---@param t T\n---@return T?\nfunction F(t)\n\nend\n",
+"config": []
+},
+{
+"code": "need-check-nil",
+"n": 0,
+"script": "---@type string?\nlocal x\n\nlocal s = <!x!>:upper()\n",
+"config": []
+},
+{
+"code": "need-check-nil",
+"n": 1,
+"script": "---@type string?\nlocal x\n\nS = <!x!>:upper()\n",
+"config": []
+},
+{
+"code": "need-check-nil",
+"n": 2,
+"script": "---@type string?\nlocal x\n\nif x then\n    S = x:upper()\nend\n",
+"config": []
+},
+{
+"code": "need-check-nil",
+"n": 3,
+"script": "---@type string?\nlocal x\n\nif not x then\n    x = ''\nend\n\nS = x:upper()\n",
+"config": []
+},
+{
+"code": "need-check-nil",
+"n": 4,
+"script": "---@type fun()?\nlocal x\n\nS = <!x!>()\n",
+"config": []
+},
+{
+"code": "need-check-nil",
+"n": 5,
+"script": "---@type integer?\nlocal x\n\nT = {}\nT[<!x!>] = 1\n",
+"config": []
+},
+{
+"code": "need-check-nil",
+"n": 6,
+"script": "local x, y\nlocal z = x and y\n\nprint(z.y)\n",
+"config": []
+},
+{
+"code": "need-check-nil",
+"n": 7,
+"script": "local x, y\nfunction x()\n    y()\nend\n\nfunction y()\n    x()\nend\n\nx()\n",
+"config": []
+},
+{
+"code": "need-check-nil",
+"n": 8,
+"script": "---@class A\n---@field b string\n---@field c 'string'|string1'\n---@field d 0|1|2\n\n---@type A?\nlocal a\n\nif <!a!>.b == \"string1\" then end\nif <!a!>.b == \"string\" then end\n",
+"config": []
+},
+{
+"code": "need-check-nil",
+"n": 9,
+"script": "---@type string?\nlocal x\n\nlocal s = x?.upper()\n",
+"config": []
+},
+{
+"code": "need-check-nil",
+"n": 10,
+"script": "---@type string?\nlocal x\n\nlocal s = x?.:upper()\n",
+"config": []
+},
+{
+"code": "need-check-nil",
+"n": 11,
+"script": "---@type string?\nlocal x\n\nlocal s = x?.[1]\n",
+"config": []
+},
+{
+"code": "need-check-nil",
+"n": 12,
+"script": "---@type fun()?\nlocal x\n\nx?.()\n",
+"config": []
+},
+{
+"code": "need-check-nil",
+"n": 13,
+"script": "---@type string?\nlocal x\n\nlocal s = x?.field\n",
+"config": []
+},
+{
+"code": "need-check-nil",
+"n": 14,
+"script": "---@type string?\nlocal x\n\nlocal s = x?.field?.sub\n",
+"config": []
+},
+{
+"code": "need-check-nil",
+"n": 15,
+"script": "---@type string?\nlocal x\n\nlocal s = x?.upper()?.field\n",
+"config": []
+},
+{
+"code": "need-check-nil",
+"n": 16,
+"script": "---@type string?\nlocal x\n\nlocal s = <!x!>.upper()?.field\n",
+"config": []
+},
+{
+"code": "need-check-nil",
+"n": 17,
+"script": "---@type string?\nlocal x\n\nlocal s = x?:upper()\n",
+"config": []
+},
+{
+"code": "newfield-call",
+"n": 0,
+"script": "return {\n    <!print\n    'string'!>\n}\n",
+"config": []
+},
+{
+"code": "newfield-call",
+"n": 1,
+"script": "return {\n    <!print\n    {\n        x = 1,\n    }!>\n}\n",
+"config": []
+},
+{
+"code": "newline-call",
+"n": 0,
+"script": "<!print()\n('string')!>:sub(1, 1)\n",
+"config": []
+},
+{
+"code": "newline-call",
+"n": 1,
+"script": "print()\n('string')\n",
+"config": []
+},
+{
+"code": "newline-call",
+"n": 2,
+"script": "print\n{}\n{}\n",
+"config": []
+},
+{
+"code": "newline-call",
+"n": 3,
+"script": "local x\nreturn x\n    : f(1)\n    : f(1)\n",
+"config": []
+},
+{
+"code": "newline-call",
+"n": 4,
+"script": "print()\n'string'\n",
+"config": []
+},
+{
+"code": "newline-call",
+"n": 5,
+"script": "print\n{\n    x = 1,\n}\n",
+"config": []
+},
+{
+"code": "not-yieldable",
+"n": 0,
+"script": "---@param cb fun()\nlocal function f(cb)\n    return cb\nend\n\n---@async\nlocal function af()\n    return nil\nend\n\nf(<!af!>)\n",
+"config": []
+},
+{
+"code": "not-yieldable",
+"n": 1,
+"script": "---@param cb async fun()\nlocal function f(cb)\n    return cb\nend\n\n---@async\nlocal function af()\n    return nil\nend\n\nf(af)\n",
+"config": []
+},
+{
+"code": "not-yieldable",
+"n": 2,
+"script": "local function f(cb)\n    cb()\nend\n\n---@async\nlocal function af()\n    f(function () ---@async\n        return nil\n    end)\nend\n\nreturn af\n",
+"config": []
+},
+{
+"code": "not-yieldable",
+"n": 3,
+"script": "local _ = type(function () ---@async\n    return nil\nend)\n",
+"config": []
+},
+{
+"code": "param-type-mismatch",
+"n": 0,
+"script": "---@param x number\nlocal function f(x) end\n\nf(<!true!>)\n",
+"config": []
+},
+{
+"code": "param-type-mismatch",
+"n": 1,
+"script": "---@class A\n\n---@param n A\nlocal function f(n)\nend\n\n---@class B\nlocal a = {}\n\n---@type A?\na.x = XX\n\nf(a.x)\n",
+"config": []
+},
+{
+"code": "param-type-mismatch",
+"n": 2,
+"script": "---@alias A string|boolean\n\n---@param x string|boolean\nlocal function f(x) end\n\n---@type A\nlocal x\n\nf(x)\n",
+"config": []
+},
+{
+"code": "param-type-mismatch",
+"n": 3,
+"script": "---@alias A string|boolean\n\n---@param x A\nlocal function f(x) end\n\n---@type string|boolean\nlocal x\n\nf(x)\n",
+"config": []
+},
+{
+"code": "param-type-mismatch",
+"n": 4,
+"script": "---@param b boolean\nlocal function f(b)\nend\n\n---@type boolean\nlocal t\n\nif t then\n    f(t)\nend\n",
+"config": []
+},
+{
+"code": "param-type-mismatch",
+"n": 5,
+"script": "---@enum A\nlocal t = {\n    x = 1,\n    y = 2,\n}\n\n---@param x A\nlocal function f(x)\nend\n\nf(<!t!>)\nf(t.x)\nf(1)\nf(<!3!>)\n",
+"config": []
+},
+{
+"code": "param-type-mismatch",
+"n": 6,
+"script": "---@enum A\nlocal t = {\n    x = { h = 1 },\n    y = { h = 2 },\n}\n\n---@param x A\nlocal function f(x)\nend\n\nf(t.x)\nf(t.y)\nf(<!{ h = 1 }!>)\n",
+"config": []
+},
+{
+"code": "param-type-mismatch",
+"n": 7,
+"script": "---@enum(key) A\nlocal t = {\n    x = 1,\n    ['y'] = 2,\n}\n\n---@param x A\nlocal function f(x)\nend\n\nf('x')\nf('y')\nf(<!'z'!>)\n",
+"config": []
+},
+{
+"code": "param-type-mismatch",
+"n": 8,
+"script": "---@generic T: string | boolean | table\n---@param x T\n---@return T\nlocal function f(x)\n    return x\nend\n\nf(<!1!>)\n",
+"config": []
+},
+{
+"code": "param-type-mismatch",
+"n": 9,
+"script": "---@param opts {a:number, b:number}\nlocal function foo(opts)\n\nend\n\n---@param opts {a:number, b:number}\nlocal function bar(opts)\n    foo(opts)\nend\n",
+"config": []
+},
+{
+"code": "param-type-mismatch",
+"n": 10,
+"script": "---@param opts {a:number, b:number}\nlocal function foo(opts)\n\nend\n\n---@param opts {c:number, d:number}\nlocal function bar(opts)\n    foo(<!opts!>)  -- this should raise linting error\nend\n",
+"config": []
+},
+{
+"code": "param-type-mismatch",
+"n": 11,
+"script": "---@param opts {[number]: boolean}\nlocal function foo(opts)\n\nend\n\n---@param opts {[1]: boolean}\nlocal function bar(opts)\n    foo(opts)\nend\n",
+"config": []
+},
+{
+"code": "param-type-mismatch",
+"n": 12,
+"script": "---@generic T\n---@param v1 T\n---@param v2 T|table\nlocal function func(v1, v2)\nend\n\nfunc('hello', 'world')\n",
+"config": []
+},
+{
+"code": "param-type-mismatch",
+"n": 13,
+"script": "---@generic T1, T2, T3, T4, T5\n---@param f fun(): T1?, T2?, T3?, T4?, T5?\n---@return T1?, T2?, T3?, T4?, T5?\nlocal function foo(f)\n    return f()\nend\n\nlocal a, b = foo(function()\n    return 1\nend)\n",
+"config": []
+},
+{
+"code": "param-type-mismatch",
+"n": 14,
+"script": "---@generic T1, T2, T3, T4, T5\n---@param f fun(): T1|nil, T2|nil, T3|nil, T4|nil, T5|nil\n---@return T1?, T2?, T3?, T4?, T5?\nlocal function foo(f)\n    return f()\nend\n\nlocal a, b = foo(function()\n    return 1\nend)\n",
+"config": []
+},
+{
+"code": "param-type-mismatch",
+"n": 15,
+"script": "---@param v integer\n---@return boolean\nlocal function is_string(v)\n    return type(v) == 'string'\nend\n\nprint(is_string(3))\n",
+"config": []
+},
+{
+"code": "param-type-mismatch",
+"n": 16,
+"script": "---@param p integer|string\nlocal function get_val(p)\n    local is_number = type(p) == 'number'\n    return is_number and p or p\nend\n\nget_val('hi')\n",
+"config": []
+},
+{
+"code": "param-type-mismatch",
+"n": 17,
+"script": "---@class Class\nlocal Class = {}\n\n---@param source string\nfunction Class.staticCreator(source)\n\nend\n\nClass.staticCreator(<!true!>)\nClass<!:!>staticCreator() -- Expecting a waring\n",
+"config": []
+},
+{
+"code": "param-type-mismatch",
+"n": 18,
+"script": "---@class A\n\n---@class B : A\n\n---@class C : B\n\n---@class D : B\n\n---@param x A\nlocal function func(x) end\n\n---@type C|D\nlocal var\nfunc(var)\n",
+"config": []
+},
+{
+"code": "param-type-mismatch",
+"n": 19,
+"script": "---@class MyClass\n---@overload fun(x : string) : MyClass\nlocal MyClass = {}\n\nlocal w = MyClass(<!1!>)\n",
+"config": []
+},
+{
+"code": "param-type-mismatch",
+"n": 20,
+"script": "---@enum(key) A\nlocal t1 = {\n    x = 1,\n}\n\n---@enum(key) A\nlocal t2 = {\n    y = 1,\n}\n\n---@param v A\nlocal function f(v) end\n\nf 'x'\nf 'y'\n",
+"config": []
+},
+{
+"code": "param-type-mismatch",
+"n": 21,
+"script": "---@class A\n---@field x string\n---@field y number\n\nlocal a = {x = \"\", y = 0}\n\n---@param a A\nfunction f(a) end\n\nf(a)\n",
+"config": []
+},
+{
+"code": "param-type-mismatch",
+"n": 22,
+"script": "---@class A\n---@field x string\n---@field y number\n\nlocal a = {x = \"\"}\n\n---@param a A\nfunction f(a) end\n\nf(<!a!>)\n",
+"config": [
+"Lua.type.checkTableShape"
+]
+},
+{
+"code": "param-type-mismatch",
+"n": 23,
+"script": "---@class A\n---@field x string\n---@field y number\n\nlocal a = {x = \"\", y = \"\"}\n\n---@param a A\nfunction f(a) end\n\nf(<!a!>)\n",
+"config": [
+"Lua.type.checkTableShape"
+]
+},
+{
+"code": "param-type-mismatch",
+"n": 24,
+"script": "---@class A\n---@field x string\n---@field y? B\n\n---@class B\n---@field x string\n\nlocal a = {x = \"b\", y = {x = \"c\"}}\n\n---@param a A\nfunction f(a) end\n\nf(a)\n",
+"config": [
+"Lua.type.checkTableShape"
+]
+},
+{
+"code": "param-type-mismatch",
+"n": 25,
+"script": "---@class A\n---@field x string\n---@field y B\n\n---@class B\n---@field x string\n\nlocal a = {x = \"b\", y = {}}\n\n---@param a A\nfunction f(a) end\n\nf(<!a!>)\n",
+"config": [
+"Lua.type.checkTableShape"
+]
+},
+{
+"code": "param-type-mismatch",
+"n": 26,
+"script": "---@class A\n---@field x string\n\n---@type A\nlocal a = {}\n\n---@param a A\nfunction f(a) end\n\nf(a)\n",
+"config": [
+"Lua.type.checkTableShape"
+]
+},
+{
+"code": "param-type-mismatch",
+"n": 27,
+"script": "---@class A: integer\n\n---@param a A\nlocal function f(a) end\n\n---@type integer\nlocal i\n\nf(i)\n",
+"config": [
+"Lua.type.checkTableShape"
+]
+},
+{
+"code": "param-type-mismatch",
+"n": 28,
+"script": "---@class A: integer\n\n---@param a A\nlocal function f(a) end\n\nlocal t = {\n    { int = 123 },\n    { int = 456 },\n    { int = 789 },\n}\n\n---@type integer\nlocal i\n\nlocal k = t[i].int\n\nf(k)\n",
+"config": [
+"Lua.type.checkTableShape"
+]
+},
+{
+"code": "param-type-mismatch",
+"n": 29,
+"script": "---@type [1, 2, 3]\nlocal x\n\n---@param y { [1]?: 1, [2]?: 2, [3]?: 3, [4]?: 4}\nlocal function f(y) end\n\nf(x)\n",
+"config": [
+"Lua.type.checkTableShape"
+]
+},
+{
+"code": "param-type-mismatch",
+"n": 30,
+"script": "---@class Base\n\n---@class Middle<T> : Base\n---@field Value T\n\n---@class Child : Middle<boolean>\n\n---@param value Base\nlocal function f(value) end\n\n---@type Child\nlocal child\n\nf(child)\n",
+"config": [
+"Lua.type.checkTableShape"
+]
+},
+{
+"code": "redefined-local",
+"n": 0,
+"script": "local x\nprint(x)\nlocal <!x!>\nprint(x)\n",
+"config": []
+},
+{
+"code": "redefined-local",
+"n": 1,
+"script": "local x\nprint(x)\nlocal <!x!>\nprint(x)\nlocal <!x!>\nprint(x)\n",
+"config": []
+},
+{
+"code": "redefined-local",
+"n": 2,
+"script": "local x\nreturn x, function (<!x!>)\n    return x\nend\n",
+"config": []
+},
+{
+"code": "redundant-parameter",
+"n": 0,
+"script": "local function x(a, b)\n    return a, b\nend\nx(1, 2, <!3!>)\n",
+"config": []
+},
+{
+"code": "redundant-parameter",
+"n": 1,
+"script": "local function x(a, b, ...)\n    return a, b, ...\nend\nx(1, 2, 3, 4, 5)\n",
+"config": []
+},
+{
+"code": "redundant-parameter",
+"n": 2,
+"script": "---@type fun(a, b, ...)\nlocal x\nx(1, 2, 3, 4, 5)\n",
+"config": []
+},
+{
+"code": "redundant-parameter",
+"n": 3,
+"script": "local m = {}\nfunction m:x(a, b)\n    return a, b\nend\nm:x(1, 2, <!3!>)\n",
+"config": []
+},
+{
+"code": "redundant-parameter",
+"n": 4,
+"script": "local m = {}\nfunction m:x(a, b)\n    return a, b\nend\nm.x(m, 2, 3, <!4!>)\n",
+"config": []
+},
+{
+"code": "redundant-parameter",
+"n": 5,
+"script": "local m = {}\nfunction m.x(a, b)\n    return a, b\nend\nm:x(1, <!2!>, <!3!>, <!4!>)\n",
+"config": []
+},
+{
+"code": "redundant-parameter",
+"n": 6,
+"script": "local m = {}\nfunction m.x()\nend\nm:x()\n",
+"config": []
+},
+{
+"code": "redundant-parameter",
+"n": 7,
+"script": "local function f(a, b)\n    return a, b\nend\nf(1, 2, <!3!>, <!4!>)\n",
+"config": []
+},
+{
+"code": "redundant-parameter",
+"n": 8,
+"script": "local mt = {}\nfunction mt:f(a, b)\n    return a, b\nend\nmt.f(mt, 2, 3, <!4!>)\n",
+"config": []
+},
+{
+"code": "redundant-parameter",
+"n": 9,
+"script": "local mt = {}\nfunction mt.f(a, b)\n    return a, b\nend\nmt:f(1, <!2!>, <!3!>, <!4!>)\n",
+"config": []
+},
+{
+"code": "redundant-parameter",
+"n": 10,
+"script": "local mt = {}\nfunction mt:f(a, b)\n    return a, b\nend\nmt:f(1, 2, <!3!>, <!4!>)\n",
+"config": []
+},
+{
+"code": "redundant-parameter",
+"n": 11,
+"script": "local function f(a, b, ...)\n    return a, b, ...\nend\nf(1, 2, 3, 4)\n",
+"config": []
+},
+{
+"code": "redundant-parameter",
+"n": 12,
+"script": "local _ = next({}, 1, <!2!>)\nprint(1, 2, 3, 4, 5)\n",
+"config": []
+},
+{
+"code": "redundant-parameter",
+"n": 13,
+"script": "local function f(callback)\n    callback(1, 2, 3)\nend\nf(function () end)\n",
+"config": []
+},
+{
+"code": "redundant-parameter",
+"n": 14,
+"script": "local f = load('')\nif f then\n    f(1, 2, 3)\nend\n",
+"config": []
+},
+{
+"code": "redundant-parameter",
+"n": 15,
+"script": "local m = {}\nfunction m.open()\nend\n\nm:open()\n",
+"config": []
+},
+{
+"code": "redundant-parameter",
+"n": 16,
+"script": "local m = {}\nfunction m:open()\nend\n\nm.open(m)\n",
+"config": []
+},
+{
+"code": "redundant-parameter",
+"n": 17,
+"script": "table.insert({}, 1, 2, <!3!>)\n",
+"config": []
+},
+{
+"code": "redundant-parameter",
+"n": 18,
+"script": "---@overload fun(...)\nlocal function f() end\n\nf(1)\n",
+"config": []
+},
+{
+"code": "redundant-parameter",
+"n": 19,
+"script": "function F() end\n\n---@param x boolean\nfunction F(x) end\n\nF(k())\n",
+"config": []
+},
+{
+"code": "redundant-parameter",
+"n": 20,
+"script": "local function f()\n    return 1, 2, 3\nend\n\nlocal function k()\nend\n\nk(<!f()!>)\n",
+"config": []
+},
+{
+"code": "redundant-parameter",
+"n": 21,
+"script": "---@diagnostic disable: unused-local\nlocal function f()\n    return 1, 2, 3\nend\n\n---@param x integer\nlocal function k(x)\nend\n\nk(f())\n",
+"config": []
+},
+{
+"code": "redundant-parameter",
+"n": 22,
+"script": "---@meta\n\n---@param x fun()\nlocal function f1(x)\nend\n\n---@return fun()\nlocal function f2()\nend\n\nf1(f2())\n",
+"config": []
+},
+{
+"code": "redundant-parameter",
+"n": 23,
+"script": "---@meta\n\n---@type fun():integer\nlocal f\n\n---@param x integer\nlocal function foo(x) end\n\nfoo(f())\n",
+"config": []
+},
+{
+"code": "redundant-parameter",
+"n": 24,
+"script": "---@meta\n---@diagnostic disable: duplicate-set-field\n---@class A\nlocal m = {}\n\nfunction m.ff() end\n\nfunction m.ff(x) end\n\nm.ff(1)\n",
+"config": []
+},
+{
+"code": "redundant-return-value",
+"n": 0,
+"script": "---@type fun():number\nlocal function f()\n    return 1, <!true!>\nend\n",
+"config": []
+},
+{
+"code": "redundant-return-value",
+"n": 1,
+"script": "---@return number, number?\nfunction F()\n    return 1, 1, <!1!>\nend\n",
+"config": []
+},
+{
+"code": "redundant-return-value",
+"n": 2,
+"script": "---@return number, number?\nfunction F()\n    return 1, 1, <!1!>, <!2!>, <!3!>\nend\n",
+"config": []
+},
+{
+"code": "redundant-return-value",
+"n": 3,
+"script": "---@meta\n\n---@return number, number\nlocal function r2() end\n\n---@return number, number?\nfunction F()\n    return 1, <!r2()!>\nend\n",
+"config": []
+},
+{
+"code": "redundant-return",
+"n": 0,
+"script": "local function f()\n    <!return!>\nend\nf()\n",
+"config": []
+},
+{
+"code": "redundant-return",
+"n": 1,
+"script": "local function f()\n    return nil\nend\nf()\n",
+"config": []
+},
+{
+"code": "redundant-return",
+"n": 2,
+"script": "local function f()\n    local function x()\n        <!return!>\n    end\n    x()\n    return true\nend\nf()\n",
+"config": []
+},
+{
+"code": "redundant-return",
+"n": 3,
+"script": "local function f()\n    local function x()\n        return true\n    end\n    return x()\nend\nf()\n",
+"config": []
+},
+{
+"code": "redundant-value",
+"n": 0,
+"script": "local _ = 1, <!2!>\n",
+"config": []
+},
+{
+"code": "redundant-value",
+"n": 1,
+"script": "_ = 1, <!2!>\n",
+"config": []
+},
+{
+"code": "return-type-mismatch",
+"n": 0,
+"script": "---@return number\nfunction F()\n    return <!true!>\nend\n",
+"config": []
+},
+{
+"code": "return-type-mismatch",
+"n": 1,
+"script": "---@return number?\nfunction F()\n    return 1\nend\n",
+"config": []
+},
+{
+"code": "return-type-mismatch",
+"n": 2,
+"script": "---@return number?\nfunction F()\n    return nil\nend\n",
+"config": []
+},
+{
+"code": "return-type-mismatch",
+"n": 3,
+"script": "---@return number, number\nlocal function f()\n    return 1, 1\nend\n\n---@return number, boolean\nfunction F()\n    return <!f()!>\nend\n",
+"config": []
+},
+{
+"code": "return-type-mismatch",
+"n": 4,
+"script": "---@return boolean, number\nlocal function f()\n    return true, 1\nend\n\n---@return number, boolean\nfunction F()\n    return <!f()!>\nend\n",
+"config": []
+},
+{
+"code": "return-type-mismatch",
+"n": 5,
+"script": "---@return boolean, number?\nlocal function f()\n    return true, 1\nend\n\n---@return number, boolean\nfunction F()\n    return 1, f()\nend\n",
+"config": []
+},
+{
+"code": "return-type-mismatch",
+"n": 6,
+"script": "---@return number, number?\nlocal function f()\n    return 1, 1\nend\n\n---@return number, boolean, number\nfunction F()\n    return 1, <!f()!>\nend\n",
+"config": []
+},
+{
+"code": "return-type-mismatch",
+"n": 7,
+"script": "---@class A\n---@field x number?\n\n---@return number\nfunction F()\n    ---@type A\n    local t\n    return t.x\nend\n",
+"config": []
+},
+{
+"code": "return-type-mismatch",
+"n": 8,
+"script": "---@class A\n---@field x number?\nlocal t = {}\n\n---@return number\nfunction F()\n    return t.x\nend\n",
+"config": []
+},
+{
+"code": "return-type-mismatch",
+"n": 9,
+"script": "---@param ... number\nlocal function f(...)\nend\n\nf(nil)\n",
+"config": []
+},
+{
+"code": "return-type-mismatch",
+"n": 10,
+"script": "---@return number\nfunction F()\n    local n = 0\n    if true then\n        n = 1\n    end\n    return n\nend\n",
+"config": []
+},
+{
+"code": "return-type-mismatch",
+"n": 11,
+"script": "---@param x boolean\n---@return number\n---@overload fun(): boolean\nlocal function f(x)\n    if x then\n        return 1\n    else\n        return false\n    end\nend\n",
+"config": []
+},
+{
+"code": "return-type-mismatch",
+"n": 12,
+"script": "---@param x boolean\n---@return number\n---@overload fun()\nlocal function f(x)\n    if x then\n        return 1\n    else\n        return\n    end\nend\n",
+"config": []
+},
+{
+"code": "return-type-mismatch",
+"n": 13,
+"script": "---@param x boolean\n---@return number\n---@overload fun()\nlocal function f(x)\n    if x then\n        return 1\n    end\nend\n",
+"config": []
+},
+{
+"code": "return-type-mismatch",
+"n": 14,
+"script": "---@param x boolean\n---@return number\n---@overload fun(): boolean, boolean\nlocal function f(x)\n    if x then\n        return 1\n    else\n        return false, false\n    end\nend\n",
+"config": []
+},
+{
+"code": "return-type-mismatch",
+"n": 15,
+"script": "---@type fun():number\nlocal function f()\n    return <!true!>\nend\n",
+"config": []
+},
+{
+"code": "trailing-space",
+"n": 0,
+"script": "<!    !>\n",
+"config": []
+},
+{
+"code": "trailing-space",
+"n": 1,
+"script": "\n<!    !>\n",
+"config": []
+},
+{
+"code": "trailing-space",
+"n": 2,
+"script": "X = 1<!  !>\n",
+"config": []
+},
+{
+"code": "trailing-space",
+"n": 3,
+"script": "X = [=[  \n    ]=]\n",
+"config": []
+},
+{
+"code": "trailing-space",
+"n": 4,
+"script": "-- xxxx  \n",
+"config": []
+},
+{
+"code": "trailing-space",
+"n": 5,
+"script": "-- [=[  \n   ]=]\n",
+"config": []
+},
+{
+"code": "trailing-space",
+"n": 6,
+"script": "return [[   \n    \n]]\n",
+"config": []
+},
+{
+"code": "unbalanced-assignments",
+"n": 0,
+"script": "local x, <!y!>, <!z!> = 1\n",
+"config": []
+},
+{
+"code": "unbalanced-assignments",
+"n": 1,
+"script": "local x, y, <!z!> = 1, 2\n",
+"config": []
+},
+{
+"code": "unbalanced-assignments",
+"n": 2,
+"script": "local x, y, z = print()\n",
+"config": []
+},
+{
+"code": "unbalanced-assignments",
+"n": 3,
+"script": "local x, y, z\n",
+"config": []
+},
+{
+"code": "unbalanced-assignments",
+"n": 4,
+"script": "local x, y, z\nx, <!y!>, <!z!> = 1\n",
+"config": []
+},
+{
+"code": "unbalanced-assignments",
+"n": 5,
+"script": "X, <!Y!>, <!Z!> = 1\n",
+"config": []
+},
+{
+"code": "unbalanced-assignments",
+"n": 6,
+"script": "T = {}\nT.x, <!T.y!>, <!T.z!> = 1\n",
+"config": []
+},
+{
+"code": "unbalanced-assignments",
+"n": 7,
+"script": "T = {}\nT['x'], <!T['y']!>, <!T['z']!> = 1\n",
+"config": []
+},
+{
+"code": "undefined-doc-class",
+"n": 0,
+"script": "---@class A : <!B!>\n",
+"config": []
+},
+{
+"code": "undefined-doc-name",
+"n": 0,
+"script": "---@type <!A!>\n",
+"config": []
+},
+{
+"code": "undefined-doc-name",
+"n": 1,
+"script": "---@class A\n---@type A|<!B!>|<!C!>\n",
+"config": []
+},
+{
+"code": "undefined-doc-name",
+"n": 2,
+"script": "---@class AAA\n---@alias B AAA\n\n---@type B\n",
+"config": []
+},
+{
+"code": "undefined-doc-name",
+"n": 3,
+"script": "---@alias B <!AAA!>\n",
+"config": []
+},
+{
+"code": "undefined-doc-name",
+"n": 4,
+"script": "---@class Container<T>\nlocal Container = {}\n\n---@return T[]\nfunction Container:getAll()\n    return {}\nend\n",
+"config": []
+},
+{
+"code": "undefined-doc-name",
+"n": 5,
+"script": "---@class Box<T>\n---@field value T\n",
+"config": []
+},
+{
+"code": "undefined-doc-name",
+"n": 6,
+"script": "---@class Map<K, V>\nlocal Map = {}\n\n---@param key K\n---@return V\nfunction Map:get(key)\nend\n",
+"config": []
+},
+{
+"code": "undefined-doc-name",
+"n": 7,
+"script": "---@class Pool<T>\nlocal M = {}\n\n---@param item T\nfunction M:push(item) end\n",
+"config": []
+},
+{
+"code": "undefined-doc-name",
+"n": 8,
+"script": "---@class Container<T>\nlocal Container = {}\n\n---@return <!UndefinedType!>\nfunction Container:getBad()\n    return {}\nend\n",
+"config": []
+},
+{
+"code": "undefined-doc-param",
+"n": 0,
+"script": "---@param <!x!> Class\n",
+"config": []
+},
+{
+"code": "undefined-doc-param",
+"n": 1,
+"script": "---@class Class\n---@param <!y!> Class\nlocal function f(x)\n    return x\nend\nf()\n",
+"config": []
+},
+{
+"code": "undefined-doc-param",
+"n": 2,
+"script": "---@class Class\n---@param <!y!> Class\nfunction F(x)\n    return x\nend\nF()\n",
+"config": []
+},
+{
+"code": "undefined-env-child",
+"n": 0,
+"script": "---@type iolib\n_ENV = io\n<!print!>(stderr) -- `print` is warning but `stderr` is not\n",
+"config": []
+},
+{
+"code": "undefined-env-child",
+"n": 1,
+"script": "---@type iolib\nlocal _ENV = io\n<!print!>(stderr) -- `print` is warning but `stderr` is not\n",
+"config": []
+},
+{
+"code": "undefined-env-child",
+"n": 2,
+"script": "local _ENV = { print = print }\nprint(1)\n",
+"config": []
+},
+{
+"code": "undefined-env-child",
+"n": 3,
+"script": "_ENV = {}\nGLOBAL = 1 --> _ENV.GLOBAL = 1\n",
+"config": []
+},
+{
+"code": "undefined-env-child",
+"n": 4,
+"script": "_ENV = {}\nlocal _ = print --> local _ = _ENV.print\n",
+"config": []
+},
+{
+"code": "undefined-env-child",
+"n": 5,
+"script": "GLOBAL = 1\n_ENV = nil\n",
+"config": []
+},
+{
+"code": "undefined-env-child",
+"n": 6,
+"script": "print(1)\n_ENV = nil\n",
+"config": []
+},
+{
+"code": "undefined-field",
+"n": 0,
+"script": "---@class Foo\n---@field field1 integer\nlocal mt = {}\nfunction mt:Constructor()\n    self.field2 = 1\nend\nfunction mt:method1() return 1 end\nfunction mt.method2() return 2 end\n\n---@class Bar: Foo\n---@field field4 integer\nlocal mt2 = {}\n\n---@type Foo\nlocal v\nprint(v.field1 + 1)\nprint(v.field2 + 1)\nprint(v.<!field3!> + 1)\nprint(v:method1())\nprint(v.method2())\nprint(v:<!method3!>())\n\n---@type Bar\nlocal v2\nprint(v2.field1 + 1)\nprint(v2.field2 + 1)\nprint(v2.<!field3!> + 1)\nprint(v2.field4 + 1)\nprint(v2:method1())\nprint(v2.method2())\nprint(v2:<!method3!>())\n\nlocal v3 = {}\nprint(v3.abc)\n\n---@class Bar2\nlocal mt3\nfunction mt3:method() return 1 end\nprint(mt3:method())\n",
+"config": []
+},
+{
+"code": "undefined-field",
+"n": 1,
+"script": "---@class Foo\nlocal Foo\nfunction Foo:method1() end\n\n---@type Foo\nlocal v\nv:method1()\nv:<!method2!>() -- doc.class.name\n",
+"config": []
+},
+{
+"code": "undefined-field",
+"n": 2,
+"script": "---@class Foo\nlocal Foo\nfunction Foo:method1() end\n---@class Bar: Foo\nlocal Bar\nfunction Bar:method3() end\n\n---@type Bar\nlocal v\nv:method1()\nv:<!method2!>() -- doc.class.name\nv:method3()\n",
+"config": []
+},
+{
+"code": "undefined-field",
+"n": 3,
+"script": "---@class Foo\nlocal Foo\nfunction Foo:method1() end\nFoo:<!method2!>() -- doc.class\nFoo:<!method2!>() -- doc.class\n",
+"config": []
+},
+{
+"code": "undefined-field",
+"n": 4,
+"script": "local Foo\nfunction Foo:method1()\n    return Foo:method2() -- table\nend\n",
+"config": []
+},
+{
+"code": "undefined-field",
+"n": 5,
+"script": "---@class Foo\nlocal mt\nfunction mt:method1()\n    mt.<!method2!>() -- doc.class\n    self:method1()\n    return self.<!method2!>() -- doc.class.name\nend\n",
+"config": []
+},
+{
+"code": "undefined-field",
+"n": 6,
+"script": "---@class Foo\nlocal mt\nfunction mt:method1() end\n\n---@class Bar\nlocal mt2\nfunction mt2:method2() end\n\n---@type Foo\nlocal v\n---@type Bar\nlocal v2\nv2 = v\nv2:method1()\nv2:<!method2!>()\n",
+"config": []
+},
+{
+"code": "undefined-field",
+"n": 7,
+"script": "---@type table\nT1 = {}\nprint(T1.f1)\n---@type tablelib\nT2 = {}\nprint(T2.<!f2!>)\n",
+"config": []
+},
+{
+"code": "undefined-field",
+"n": 8,
+"script": "---@type string|table\nlocal n\n\nprint(n.x)\n",
+"config": []
+},
+{
+"code": "undefined-field",
+"n": 9,
+"script": "---@type 'x'\nlocal t\n\nlocal n = t:upper()\n",
+"config": []
+},
+{
+"code": "undefined-field",
+"n": 10,
+"script": "---@alias A 'x'\n\n---@type A\nlocal t\n\nlocal n = t:upper()\n",
+"config": []
+},
+{
+"code": "undefined-field",
+"n": 11,
+"script": "---@enum X\nX = {\n    A = 1,\n    B = 2\n}\n\nprint(X.<!C!>)\n",
+"config": []
+},
+{
+"code": "undefined-field",
+"n": 12,
+"script": "---@class SomeClass\n---@field someExistingVar integer\nlocal SomeClass = {}\n\n---@generic T: SomeClass\n---@param self T\n---@return T\nfunction SomeClass:xyz()\n    print(self.someExistingVar)\n    print(self.<!doesNotExist!>)\n    return self\nend\n",
+"config": []
+},
+{
+"code": "undefined-field",
+"n": 13,
+"script": "---@class A\n---@field a integer\n\n---@class B\n---@field b integer\n\n---@generic T: A|B\n---@param x T\nlocal function f(x)\n    print(x.a, x.b, x.<!c!>)\nend\n",
+"config": []
+},
+{
+"code": "undefined-field",
+"n": 14,
+"script": "---@class A\nlocal A = {}\n\n-- self-referential constraint must not recurse forever\n---@generic T: T\n---@param self T\nfunction A:f()\n    print(self.<!x!>)\nend\n",
+"config": []
+},
+{
+"code": "undefined-global",
+"n": 0,
+"script": "local print, _G\nprint(<!x!>)\nprint(<!log!>)\nprint(<!X!>)\nprint(<!Log!>)\nprint(<!y!>)\nprint(Z)\nprint(_G)\nZ = 1\n",
+"config": []
+},
+{
+"code": "undefined-global",
+"n": 1,
+"script": "X = table[<!x!>]\n",
+"config": []
+},
+{
+"code": "undefined-global",
+"n": 2,
+"script": "T1 = 1\n_ENV.T2 = 1\n_G.T3 = 1\n_ENV._G.T4 = 1\n_G._G._G.T5 = 1\nrawset(_G, 'T6', 1)\nrawset(_ENV, 'T7', 1)\nprint(T1)\nprint(T2)\nprint(T3)\nprint(T4)\nprint(T5)\nprint(T6)\nprint(T7)\n",
+"config": []
+},
+{
+"code": "undefined-global",
+"n": 3,
+"script": "---@class c\nc = {}\n",
+"config": []
+},
+{
+"code": "unknown-cast-variable",
+"n": 0,
+"script": "---@cast <!x!> integer\n",
+"config": []
+},
+{
+"code": "unknown-cast-variable",
+"n": 1,
+"script": "local x, y\n---@cast y number\n",
+"config": []
+},
+{
+"code": "unknown-diag-code",
+"n": 0,
+"script": "---@diagnostic disable-next-line: <!xxx!>\n",
+"config": []
+},
+{
+"code": "unknown-operator",
+"n": 0,
+"script": "---@class A\n---@operator <!xxx!>: A\n",
+"config": []
+},
+{
+"code": "unnecessary-assert",
+"n": 0,
+"script": "local a\nassert(a)\n\n---@type boolean\nlocal b\nassert(b)\n\n---@type any\nlocal c\nassert(c)\n\n---@type unknown\nlocal d\nassert(d)\n\n---@type boolean\nlocal e\nassert(e)\n\n---@type number?\nlocal f\nassert(f)\n\nassert(false)\n\nassert(nil and 5)\n\n---@return string?, string?\nlocal function f() end\n\nassert(f())\n",
+"config": []
+},
+{
+"code": "unreachable-code",
+"n": 0,
+"script": "if X then\n    return false\nelseif X then\n    return false\nelse\n    return false\nend\n<!return true!>\n",
+"config": []
+},
+{
+"code": "unreachable-code",
+"n": 1,
+"script": "function X()\n    if X then\n        return false\n    elseif X then\n        return false\n    else\n        return false\n    end\n    <!return true!>\nend\n",
+"config": []
+},
+{
+"code": "unreachable-code",
+"n": 2,
+"script": "while true do\nend\n\n<!print(1)!>\n",
+"config": []
+},
+{
+"code": "unreachable-code",
+"n": 3,
+"script": "while true do\nend\n\n<!print(1)!>\n",
+"config": []
+},
+{
+"code": "unreachable-code",
+"n": 4,
+"script": "while X do\n    X = 1\nend\n\nprint(1)\n",
+"config": []
+},
+{
+"code": "unreachable-code",
+"n": 5,
+"script": "while true do\n    if not X then\n        break\n    end\nend\n\nprint(1)\n\ndo return end\n",
+"config": []
+},
+{
+"code": "unreachable-code",
+"n": 6,
+"script": "local done = false\n\nlocal function set_done()\n    done = true\nend\n\nwhile not done do\n    set_done()\nend\n\nprint(1)\n",
+"config": []
+},
+{
+"code": "unused-function",
+"n": 0,
+"script": "local <!function x()\nend!>\n",
+"config": []
+},
+{
+"code": "unused-function",
+"n": 1,
+"script": "local x = <!function () end!>\n",
+"config": []
+},
+{
+"code": "unused-function",
+"n": 2,
+"script": "local x\nx = <!function () end!>\n",
+"config": []
+},
+{
+"code": "unused-function",
+"n": 3,
+"script": "local <!function x()\nend!>\nlocal <!function y()\n    x()\nend!>\n",
+"config": []
+},
+{
+"code": "unused-function",
+"n": 4,
+"script": "local f = <!function () end!>\n",
+"config": []
+},
+{
+"code": "unused-function",
+"n": 5,
+"script": "local f;f = <!function () end!>\n",
+"config": []
+},
+{
+"code": "unused-function",
+"n": 6,
+"script": "local <!function f() end!>\n",
+"config": []
+},
+{
+"code": "unused-function",
+"n": 7,
+"script": "local <!function f()\n    f()\nend!>\n",
+"config": []
+},
+{
+"code": "unused-function",
+"n": 8,
+"script": "local <!function test()\nend!>\n\nlocal <!function foo ()\nend!>\n",
+"config": []
+},
+{
+"code": "unused-label",
+"n": 0,
+"script": "::<!LABEL!>::\n",
+"config": []
+},
+{
+"code": "unused-local",
+"n": 0,
+"script": "local <!x!>\n",
+"config": []
+},
+{
+"code": "unused-local",
+"n": 1,
+"script": "local y\nlocal x <close> = y\n",
+"config": []
+},
+{
+"code": "unused-local",
+"n": 2,
+"script": "local function x()\nend\nx()\n",
+"config": []
+},
+{
+"code": "unused-local",
+"n": 3,
+"script": "return function (x)\n    x.a = 1\nend\n",
+"config": []
+},
+{
+"code": "unused-local",
+"n": 4,
+"script": "local <!t!> = {}\n<!t!>.a = 1\n",
+"config": []
+},
+{
+"code": "unused-local",
+"n": 5,
+"script": "InstanceName = 1\nInstance = _G[InstanceName]\n",
+"config": []
+},
+{
+"code": "unused-local",
+"n": 6,
+"script": "local _ = (''):sub(1, 2)\n",
+"config": []
+},
+{
+"code": "unused-local",
+"n": 7,
+"script": "local mt, x\nfunction mt:m()\n    function x:m()\n    end\nend\nreturn mt, x\n",
+"config": []
+},
+{
+"code": "unused-local",
+"n": 8,
+"script": "local mt = {}\nfunction mt:f()\nend\nreturn mt\n",
+"config": []
+},
+{
+"code": "unused-local",
+"n": 9,
+"script": "local <!mt!> = {}\nfunction <!mt!>:f()\nend\n",
+"config": []
+},
+{
+"code": "unused-local",
+"n": 10,
+"script": "local <!x!> = {}\n<!x!>.a = 1\n",
+"config": []
+},
+{
+"code": "unused-local",
+"n": 11,
+"script": "local <!x!> = {}\n<!x!>['a'] = 1\n",
+"config": []
+},
+{
+"code": "unused-local",
+"n": 12,
+"script": "local function f(<!self!>)\n    return 'something'\nend\nf()\n",
+"config": []
+},
+{
+"code": "unused-local",
+"n": 13,
+"script": "local function f(var)\n    print(var)\nend\nlocal var\nf(var)\n",
+"config": []
+},
+{
+"code": "unused-local",
+"n": 14,
+"script": "local <!t!> = {}\n<!t!>[1] = 1\n",
+"config": []
+},
+{
+"code": "unused-local",
+"n": 15,
+"script": "local <!xx!>\nlocal ll_1\nlocal ll_2\nlocal <!ll!>\n",
+"config": [
+"Lua.diagnostics.unusedLocalExclude"
+]
+},
+{
+"code": "unused-vararg",
+"n": 0,
+"script": "local function f(<!...!>)\n    return 'something'\nend\nf()\n",
+"config": []
+},
+{
+"code": "unused-vararg",
+"n": 1,
+"script": "local function f(...args)\n    return 'something'\nend\n",
+"config": []
+}
+]

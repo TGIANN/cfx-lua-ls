@@ -1,0 +1,82 @@
+# Lint the FiveM Lua of a repository with cfx-lua-ls. The results go to GitHub code scanning
+# (SARIF, needs `security-events: write`) and the step fails at the chosen level.
+#
+#   - uses: actions/checkout@v4
+#   - uses: TGIANN/cfx-lua-ls@v0
+#     with:
+#       path: resources
+name: cfx-lua-ls check
+description: Lint FiveM Lua (CfxLua) with cfx-lua-ls and report the results to code scanning.
+branding:
+  icon: check-circle
+  color: blue
+
+inputs:
+  path:
+    description: Folders or files to check, separated by spaces.
+    default: "."
+  version:
+    description: A release tag such as v0.2.0, or latest.
+    default: latest
+  fail-on:
+    description: "Fail the step on diagnostics at this level or above: error, warning, information, hint, or none."
+    default: error
+  sarif:
+    description: Upload the results to GitHub code scanning (true or false).
+    default: "true"
+
+runs:
+  using: composite
+  steps:
+    - name: Download cfx-lua-ls
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        VERSION: ${{ inputs.version }}
+      run: |
+        case "$RUNNER_OS-$RUNNER_ARCH" in
+          Linux-X64) asset=cfx-lua-ls-x86_64-unknown-linux-gnu.tar.gz ;;
+          Windows-X64) asset=cfx-lua-ls-x86_64-pc-windows-msvc.zip ;;
+          macOS-ARM64) asset=cfx-lua-ls-aarch64-apple-darwin.tar.gz ;;
+          macOS-X64) asset=cfx-lua-ls-x86_64-apple-darwin.tar.gz ;;
+          *) echo "::error::no cfx-lua-ls build for $RUNNER_OS $RUNNER_ARCH"; exit 1 ;;
+        esac
+        dir="$RUNNER_TEMP/cfx-lua-ls"
+        mkdir -p "$dir"
+        tag=""
+        if [ "$VERSION" != "latest" ]; then tag="$VERSION"; fi
+        gh release download $tag --repo TGIANN/cfx-lua-ls --pattern "$asset" --dir "$dir" --clobber
+        if [ "${asset##*.}" = "zip" ]; then unzip -o -q "$dir/$asset" -d "$dir"; else tar -xzf "$dir/$asset" -C "$dir"; fi
+        echo "$dir" >> "$GITHUB_PATH"
+
+    - name: Check
+      shell: bash
+      env:
+        CHECK_PATH: ${{ inputs.path }}
+        FAIL_ON: ${{ inputs.fail-on }}
+        SARIF: ${{ inputs.sarif }}
+      run: |
+        # The paths are split on spaces on purpose.
+        # shellcheck disable=SC2086
+        set -- $CHECK_PATH
+        status=0
+        if [ "$FAIL_ON" = "none" ]; then
+          cfx-lua-ls check "$@" || true
+        else
+          cfx-lua-ls check "$@" --fail-on "$FAIL_ON" || status=$?
+        fi
+        if [ "$SARIF" = "true" ]; then
+          cfx-lua-ls check "$@" --format sarif > "$RUNNER_TEMP/cfx-lua-ls.sarif" || true
+        fi
+        echo "CFX_LUA_LS_STATUS=$status" >> "$GITHUB_ENV"
+
+    - name: Upload to code scanning
+      if: inputs.sarif == 'true'
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: ${{ runner.temp }}/cfx-lua-ls.sarif
+        category: cfx-lua-ls
+
+    - name: Result
+      shell: bash
+      run: exit "${CFX_LUA_LS_STATUS:-0}"

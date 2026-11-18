@@ -1,0 +1,108 @@
+# release-please reads the Conventional Commits pushed to main and keeps a release pull request open
+# (CHANGELOG.md, the workspace version in Cargo.toml, every workspace crate in Cargo.lock and the
+# VS Code extension's package.json / package-lock.json).
+# Merging that pull request tags vX.Y.Z and publishes the GitHub release; the build job then attaches
+# the server for each platform and a VS Code extension per platform with the server inside. The
+# extension goes to the Marketplace only when the VSCE_PAT secret is set.
+name: release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    outputs:
+      created: ${{ steps.rp.outputs.release_created }}
+      tag: ${{ steps.rp.outputs.tag_name }}
+    steps:
+      - id: rp
+        uses: googleapis/release-please-action@v5
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  build:
+    needs: release-please
+    if: needs.release-please.outputs.created == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: windows-latest, target: x86_64-pc-windows-msvc, vscode: win32-x64, exe: cfx-lua-ls.exe }
+          - { os: ubuntu-latest, target: x86_64-unknown-linux-gnu, vscode: linux-x64, exe: cfx-lua-ls }
+          - { os: macos-latest, target: aarch64-apple-darwin, vscode: darwin-arm64, exe: cfx-lua-ls }
+          # Cross-built on Apple silicon: Intel runner images are being retired.
+          - { os: macos-latest, target: x86_64-apple-darwin, vscode: darwin-x64, exe: cfx-lua-ls }
+    runs-on: ${{ matrix.os }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ needs.release-please.outputs.tag }}
+      VSCE_PAT: ${{ secrets.VSCE_PAT }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --release --locked -p cfx-lua-ls --target ${{ matrix.target }}
+
+      - name: Attach the server
+        shell: bash
+        run: |
+          # The archive holds the server, LICENSE and NOTICE at its root (action.yml expects that).
+          name="cfx-lua-ls-${{ matrix.target }}"
+          mkdir stage
+          cp "target/${{ matrix.target }}/release/${{ matrix.exe }}" LICENSE NOTICE stage/
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            (cd stage && 7z a "../$name.zip" ./*)
+            gh release upload "$TAG" "$name.zip" --clobber
+          else
+            tar -czf "$name.tar.gz" -C stage .
+            gh release upload "$TAG" "$name.tar.gz" --clobber
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Package the extension
+        shell: bash
+        working-directory: editors/vscode
+        run: |
+          mkdir -p server
+          cp "../../target/${{ matrix.target }}/release/${{ matrix.exe }}" server/
+          cp ../../LICENSE ../../NOTICE .
+          npm ci
+          npx --yes @vscode/vsce@3 package --target ${{ matrix.vscode }} -o "cfx-lua-ls-${{ matrix.vscode }}.vsix"
+          gh release upload "$TAG" "cfx-lua-ls-${{ matrix.vscode }}.vsix" --clobber
+
+      - name: Publish to the Marketplace
+        if: env.VSCE_PAT != ''
+        shell: bash
+        working-directory: editors/vscode
+        run: npx --yes @vscode/vsce@3 publish --packagePath "cfx-lua-ls-${{ matrix.vscode }}.vsix"
+
+  # `uses: TGIANN/cfx-lua-ls@v0` follows the newest release of that major version, once its
+  # archives are attached.
+  major-tag:
+    needs: [release-please, build]
+    if: needs.release-please.outputs.created == 'true'
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ needs.release-please.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.release-please.outputs.tag }}
+      - run: |
+          major="${TAG%%.*}"
+          git tag -f "$major"
+          git push -f origin "refs/tags/$major"
