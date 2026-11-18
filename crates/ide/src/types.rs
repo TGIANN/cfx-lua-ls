@@ -161,6 +161,8 @@ struct Infer<'a> {
     root: SyntaxNode,
     classes: HashMap<String, crate::api::ClassDef>,
     aliases: HashMap<String, T>,
+    /// `---@alias Callback<T> ...`: `T`.
+    alias_generics: HashMap<String, Vec<String>>,
     depth: Cell<usize>,
     /// Statements the flow walk may still look at.
     flow_budget: Cell<usize>,
@@ -2059,9 +2061,11 @@ fn float_misfits(t: &T) -> bool {
         })
 }
 
-/// `---@alias Name T` (with `---|` lines adding members).
-fn doc_aliases(text: &str) -> HashMap<String, T> {
+/// `---@alias Name T` (with `---|` lines adding members), and the generic
+/// names of `---@alias Name<T> ...`.
+fn doc_aliases(text: &str) -> (HashMap<String, T>, HashMap<String, Vec<String>>) {
     let mut out = HashMap::new();
+    let mut gens = HashMap::new();
     let mut run: Vec<(TextSize, &str)> = Vec::new();
     let mut flush = |run: &mut Vec<(TextSize, &str)>| {
         if run.iter().any(|(_, l)| l.contains("@alias")) {
@@ -2069,9 +2073,12 @@ fn doc_aliases(text: &str) -> HashMap<String, T> {
             let mut cur: Option<(String, Vec<T>)> = None;
             for t in tags {
                 match t.tag {
-                    Tag::Alias { name, ty, .. } => {
+                    Tag::Alias { name, ty, generics } => {
                         if let Some((n, parts)) = cur.take() {
                             out.insert(n, union(parts));
+                        }
+                        if !generics.is_empty() {
+                            gens.insert(name.clone(), generics);
                         }
                         cur = Some((name, ty.into_iter().collect()));
                     }
@@ -2102,7 +2109,7 @@ fn doc_aliases(text: &str) -> HashMap<String, T> {
         at += line.len();
     }
     flush(&mut run);
-    out
+    (out, gens)
 }
 
 /// The `---@` tags of the comments a statement starts with.
@@ -2180,9 +2187,9 @@ impl<'a> Infer<'a> {
                 }
             }
         }
-        let mut aliases = doc_aliases(text);
+        let (mut aliases, alias_generics) = doc_aliases(text);
         aliases.extend(enum_aliases(&root, text));
-        Infer { text, names, root, classes, aliases, depth: Cell::new(0), flow_budget: Cell::new(FLOW_BUDGET),
+        Infer { text, names, root, classes, aliases, alias_generics, depth: Cell::new(0), flow_budget: Cell::new(FLOW_BUDGET),
             exhausted: Cell::new(false),
             functions: std::cell::OnceCell::new(),
             class_members: std::cell::OnceCell::new(),
@@ -4148,6 +4155,35 @@ impl<'a> Infer<'a> {
             && let Some(n) = callee_name
             && let Some(item) = crate::library::library().get(&n).iter().find(|i| i.function)
         {
+            // `---@generic K, V` (`next`): the arguments bind them, an unbound
+            // one is nil.
+            if let Some(doc) = item.doc {
+                let (tags, _) = crate::luacats::parse_block(&crate::library::file_text(item.file)[doc], TextSize::from(0));
+                let tags: Vec<Tag> = tags.into_iter().map(|t| t.tag).collect();
+                let gens = generics(&tags);
+                if !gens.is_empty() {
+                    let params = tags
+                        .iter()
+                        .filter_map(|t| match t {
+                            Tag::Param { ty, optional, .. } => Some(ty.clone().map(|t| if *optional { T::Optional(Box::new(t)) } else { t })),
+                            _ => None,
+                        })
+                        .collect();
+                    let rets = crate::library::returns(item).into_iter().map(|r| if matches!(r, T::Dots) { unknown() } else { r }).collect();
+                    let info = Callee { params, rets, generics: gens.clone(), self_param: None };
+                    // `apply` writes an unbound one inside another type as `<K>`.
+                    let open: Vec<String> = gens.iter().map(|g| format!("<{g}>")).collect();
+                    let nil_map: HashMap<String, T> = open.iter().map(|g| (g.clone(), name("nil"))).collect();
+                    return self
+                        .apply(&info, &args)
+                        .into_iter()
+                        .map(|r| match subst(&r, &nil_map, &open, true) {
+                            T::Optional(i) if is(&i, "nil") => name("nil"),
+                            t => t,
+                        })
+                        .collect();
+                }
+            }
             return crate::library::returns(item);
         }
         vec![unknown()]
@@ -4532,9 +4568,51 @@ impl<'a> Infer<'a> {
             return info.rets.clone();
         }
         let mut map = HashMap::new();
+        let mut callbacks = Vec::new();
         for (i, a) in args.iter().enumerate() {
             if let Some(Some(p)) = info.params.get(i) {
-                bind(p, &self.expr_type(a), &info.generics, &mut map);
+                let p = self.generic_alias(p).unwrap_or_else(|| p.clone());
+                if a.kind() == FUNCTION_EXPR && matches!(non_nil(p.clone()), T::Fun(_)) {
+                    callbacks.push((p, a));
+                    continue;
+                }
+                // `{1, 2}` for a `table<K, V>`: its key and value types.
+                if a.kind() == TABLE_EXPR
+                    && let T::Generic(n, kv) = non_nil(p.clone())
+                    && n == "table"
+                    && let [k, v] = kv.as_slice()
+                {
+                    let (keys, vals) = self.constructor_kv(a);
+                    bind(k, &keys, &info.generics, &mut map);
+                    bind(v, &vals, &info.generics, &mut map);
+                    continue;
+                }
+                bind(&p, &self.expr_type(a), &info.generics, &mut map);
+            }
+        }
+        // A function given for a `fun(x: T): U`: its documented parameters and
+        // what its body returns bind `T` and `U` (after the other arguments,
+        // which type its parameters).
+        for (p, a) in callbacks {
+            if let T::Fun(pf) = non_nil(p)
+                && let Some(body) = a.children().find(|c| c.kind() == FUNC_BODY)
+            {
+                let toks: Vec<SyntaxToken> = body
+                    .children()
+                    .filter(|c| c.kind() == PARAM_LIST)
+                    .flat_map(|l| l.children().filter(|p| p.kind() == PARAM).filter_map(|p| p.first_token()).collect::<Vec<_>>())
+                    .collect();
+                for (pp, tok) in pf.params.iter().zip(&toks) {
+                    if let Some(pt) = &pp.ty
+                        && tok.kind() == NAME
+                    {
+                        bind(pt, &self.param_type(tok), &info.generics, &mut map);
+                    }
+                }
+                let rets = self.body_returns(&body);
+                for (pr, r) in pf.rets.iter().zip(&rets) {
+                    bind(&pr.ty, r, &info.generics, &mut map);
+                }
             }
         }
         if !shown {
@@ -4542,6 +4620,35 @@ impl<'a> Infer<'a> {
             return info.rets.iter().map(|t| subst(t, &map, &open, true)).collect();
         }
         info.rets.iter().map(|t| subst(t, &map, &info.generics, true)).collect()
+    }
+
+    /// The key and value types of a table constructor's fields (`nil` for `{}`).
+    fn constructor_kv(&self, ctor: &SyntaxNode) -> (T, T) {
+        let mut keys = Vec::new();
+        let mut vals = Vec::new();
+        for f in ctor.children() {
+            let Some(v) = f.children().last() else { continue };
+            match f.kind() {
+                FIELD_POS => keys.push(name("integer")),
+                FIELD_NAMED => keys.push(name("string")),
+                FIELD_INDEXED => keys.push(f.first_child().map_or_else(unknown, |k| widen(&self.expr_type(&k)))),
+                _ => continue,
+            }
+            vals.push(self.expr_type(&v));
+        }
+        if keys.is_empty() {
+            return (name("nil"), name("nil"));
+        }
+        (union(keys), union(vals))
+    }
+
+    /// `Callback<string>` of `---@alias Callback<T> fun(): T`: `fun(): string`.
+    fn generic_alias(&self, t: &T) -> Option<T> {
+        let T::Generic(n, args) = t else { return None };
+        let gens = self.alias_generics.get(n)?;
+        let body = self.aliases.get(n)?;
+        let map: HashMap<String, T> = gens.iter().cloned().zip(args.iter().cloned()).collect();
+        Some(subst(body, &map, gens, false))
     }
 
     /// The function body a name or expression refers to, in this file.
