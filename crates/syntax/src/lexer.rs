@@ -218,12 +218,18 @@ impl Lexer<'_> {
                 self.read_number(start);
                 NUMBER
             }
-            c if c.is_ascii_alphabetic() || c == b'_' => {
-                while matches!(self.peek(0), b'a'..=b'z' | b'A'..=b'Z' | b'0'..=b'9' | b'_') {
+            c if c.is_ascii_alphabetic() || c == b'_' || c >= 0x80 => {
+                // Non-ASCII characters make a name with an error, as LuaLS reads
+                // them (`UNICODE_NAME`, off with `runtime.unicodeName`).
+                while matches!(self.peek(0), b'a'..=b'z' | b'A'..=b'Z' | b'0'..=b'9' | b'_' | 0x80..=0xff) {
                     self.pos += 1;
                 }
-                // SAFETY of the slice: identifier bytes are ASCII.
-                let text = std::str::from_utf8(&self.src[start..self.pos]).unwrap();
+                // Whole characters: the source is UTF-8 and every byte >= 0x80 was taken.
+                let text = std::str::from_utf8(&self.src[start..self.pos]).unwrap_or("");
+                if !text.is_ascii() {
+                    self.error(start, "UNICODE_NAME", "names with non-ASCII characters are not standard Lua");
+                    return NAME;
+                }
                 SyntaxKind::from_keyword(text).unwrap_or(NAME)
             }
             _ => {

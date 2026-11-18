@@ -3291,7 +3291,10 @@ impl<'a> Infer<'a> {
                     }
                     self.method_info(&callee, m.text())?
                 } else {
-                    self.callee_info(&callee)?
+                    match self.callee_info(&callee) {
+                        Some(info) => info,
+                        None => self.class_overload_info(&callee)?,
+                    }
                 };
                 // Past the listed parameters: the `...` one, for the rest.
                 let vararg = || {
@@ -3366,6 +3369,28 @@ impl<'a> Infer<'a> {
             }
             _ => None,
         }
+    }
+
+    /// A value of a class called: the first `---@overload fun(...)` written in
+    /// the class's doc block (`---@class A` / `---@overload fun(x: T)`).
+    fn class_overload_info(&self, callee: &SyntaxNode) -> Option<Callee> {
+        let T::Name(class) = non_nil(self.expr_type(callee)) else { return None };
+        let mut lines = self.text.lines().map(str::trim_start).skip_while(|l| {
+            l.strip_prefix("---@class").map(str::trim_start).and_then(|r| r.split(|c: char| c.is_whitespace() || c == ':').next()) != Some(class.as_str())
+        });
+        lines.next()?;
+        for l in lines.take_while(|l| l.starts_with("---")) {
+            if let Some(rest) = l.strip_prefix("---@overload") {
+                let (tags, _) = crate::luacats::parse_block(&format!("---@overload {}", rest.trim()), TextSize::from(0));
+                if let Some(T::Fun(f)) = tags.into_iter().find_map(|t| match t.tag {
+                    Tag::Overload(t) => Some(t),
+                    _ => None,
+                }) {
+                    return Some(Callee { params: f.params.iter().map(|p| p.ty.clone()).collect(), rets: Vec::new(), generics: Vec::new(), self_param: None });
+                }
+            }
+        }
+        None
     }
 
     /// A call of a function of the file with `---@overload`s: the returns of
@@ -4523,6 +4548,16 @@ impl<'a> Infer<'a> {
             return rets;
         }
         if let Some(info) = self.callee_info(&callee) {
+            // `f 'A'` for `---@param t `T``: the bare string names the type.
+            if args.is_empty()
+                && !info.generics.is_empty()
+                && let Some(Some(T::Code(c))) = info.params.first()
+                && let Some(t) = call.children().find(|c| c.kind() == ARG_LIST).and_then(|l| l.first_token()).filter(|t| t.kind() == STRING)
+            {
+                let (prefix, g) = c.rsplit_once('`').unwrap_or(("", c.as_str()));
+                let map: HashMap<String, T> = [(g.to_string(), name(&format!("{prefix}{}", crate::util::lua_string(t.text()))))].into();
+                return info.rets.iter().map(|r| subst(r, &map, &info.generics, true)).collect();
+            }
             return self.apply(&info, &args);
         }
         // `---@operator call: A`.
@@ -5173,6 +5208,18 @@ impl<'a> Infer<'a> {
                     let (keys, vals) = self.constructor_kv(a);
                     bind(k, &keys, &info.generics, &mut map);
                     bind(v, &vals, &info.generics, &mut map);
+                    continue;
+                }
+                // `` `T` `` given `'A'`: the type named by the string (`prefix.A`
+                // for ``prefix.`T` ``).
+                if let T::Code(c) = non_nil(p.clone())
+                    && a.kind() == LITERAL_EXPR
+                    && let Some(t) = a.first_token().filter(|t| t.kind() == STRING)
+                {
+                    let (prefix, g) = c.rsplit_once('`').unwrap_or(("", c.as_str()));
+                    if info.generics.iter().any(|x| x == g) {
+                        map.entry(g.to_string()).or_insert_with(|| name(&format!("{prefix}{}", crate::util::lua_string(t.text()))));
+                    }
                     continue;
                 }
                 bind(&p, &self.expr_type(a), &info.generics, &mut map);
