@@ -79,6 +79,83 @@ pub fn classes() -> &'static HashMap<String, Vec<crate::api::ClassDef>> {
     })
 }
 
+/// The `---@version` of a library global none of whose definitions is for
+/// Lua 5.4 (`unpack`: `5.1`); None when one is, or one has no version.
+pub fn other_version(name: &str) -> Option<String> {
+    let items = library().get(name);
+    let mut first = None;
+    for item in items {
+        let doc = &file_text(item.file)[item.doc?];
+        let v = doc.lines().find_map(|l| l.trim().strip_prefix("---@version "))?.trim().to_string();
+        if version_has(&v, (5, 4)) {
+            return None;
+        }
+        first.get_or_insert(v);
+    }
+    first
+}
+
+/// Whether a `---@version` list (`5.1`, `>5.2, JIT`, `<5.2`) takes `want`.
+fn version_has(list: &str, want: (u32, u32)) -> bool {
+    let parse = |s: &str| -> Option<(u32, u32)> {
+        let (a, b) = s.trim().split_once('.')?;
+        Some((a.parse().ok()?, b.parse().ok()?))
+    };
+    list.split(',').map(str::trim).any(|p| {
+        if let Some(v) = p.strip_prefix('>').and_then(parse) {
+            want >= v
+        } else if let Some(v) = p.strip_prefix('<').and_then(parse) {
+            want <= v
+        } else {
+            parse(p) == Some(want)
+        }
+    })
+}
+
+/// The members of a library class that a global module table holds
+/// (`---@class tablelib` above `table = {}`: `insert`, `concat`, ...); None
+/// for any other class.
+pub fn module_members(class: &str) -> Option<&'static std::collections::HashSet<String>> {
+    static MODULES: OnceLock<HashMap<String, std::collections::HashSet<String>>> = OnceLock::new();
+    MODULES
+        .get_or_init(|| {
+            let mut globals: HashMap<String, String> = HashMap::new();
+            for (_, text) in files::FILES {
+                let mut class: Option<&str> = None;
+                for line in text.lines() {
+                    let t = line.trim();
+                    if let Some(c) = t.strip_prefix("---@class ") {
+                        class = c.split_whitespace().next();
+                        continue;
+                    }
+                    if t.starts_with("---") {
+                        continue;
+                    }
+                    if let (Some(c), Some(g)) = (class.take(), t.strip_suffix("= {}").map(str::trim))
+                        && !g.is_empty()
+                        && g.chars().all(|ch| ch.is_alphanumeric() || ch == '_')
+                    {
+                        globals.insert(c.to_string(), g.to_string());
+                    }
+                }
+            }
+            let lib = library();
+            globals
+                .into_iter()
+                .map(|(c, g)| {
+                    let prefix = format!("{g}.");
+                    let mut members: std::collections::HashSet<String> =
+                        lib.names().filter_map(|(n, _)| n.strip_prefix(&prefix)).filter(|m| !m.contains('.')).map(str::to_string).collect();
+                    for def in classes().get(&c).into_iter().flatten() {
+                        members.extend(def.fields.iter().map(|f| f.name.clone()));
+                    }
+                    (c, members)
+                })
+                .collect()
+        })
+        .get(class)
+}
+
 /// Every `---@class`, `---@alias` and `---@enum` name of the library.
 pub fn doc_names() -> &'static std::collections::HashSet<String> {
     static NAMES: OnceLock<std::collections::HashSet<String>> = OnceLock::new();

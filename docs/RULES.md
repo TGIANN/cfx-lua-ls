@@ -39,7 +39,7 @@ Level: E error, W warning, I information, H hint. Fix: the quick fix that
 |---|---|---|---|
 | `undefined-global` | a global no visible file defines, not in the library or `diagnostics.globals` | W | |
 | `lowercase-global` | a global set with a lower-case name no other file of the resource reads (usually a missing `local`) | I | |
-| `unused-local` | a local, local function or parameter never read | H | |
+| `unused-local` | a local, local function or parameter never read; `diagnostics.unusedLocalExclude` globs are skipped | H | |
 | `unused-vararg` | `...` never used | H | |
 | `unused-label` | a label no `goto` jumps to | H | |
 | `redefined-local` | a local hiding an outer local of the same name | H | |
@@ -51,7 +51,7 @@ Level: E error, W warning, I information, H hint. Fix: the quick fix that
 | `duplicate-index` | the same key twice in a table constructor | W | |
 | `newline-call` | a line starting with `(` continues the previous line as a call | W | |
 | `count-down-loop` | `for i = 10, 1` without a negative step | W | |
-| `deprecated` | a field, global or export whose definition in the workspace is marked `---@deprecated`; the message carries the definition's advice (Qbox's qb bridge marks its old API this way) | W | |
+| `deprecated` | a field, global or export whose definition in the workspace is marked `---@deprecated`; the message carries the definition's advice (Qbox's qb bridge marks its old API this way); with `cfx.lualsCompat` also a library global of another Lua version (`unpack`, kept by CfxLua) | W | |
 | `unreachable-code` | statements after an `if` whose every branch (with an `else`) returns or calls `error` / `os.exit`, a `do` / `repeat` block that does, or a `while true` loop without `break`; unlike LuaLS a `return` inside a `for` / `while` loop does not count | H | |
 | `redundant-return` | a `return` without values as the last statement of a function | H | |
 | `unused-function` | a function stored in a local that nothing calls, or that only other unused functions call | H | |
@@ -61,7 +61,7 @@ Level: E error, W warning, I information, H hint. Fix: the quick fix that
 | `undefined-doc-param` | a `---@param` naming no parameter of the function the block sits on (`self` counts for `function t:m()`), or a block on a statement without a function | W | |
 | `doc-field-no-class` | a `---@field` in a doc block without a `---@class` above it | W | |
 | `unknown-cast-variable` | `---@cast x` where no local `x` is visible and no global `x` is known | W | |
-| `unknown-diag-code` | a code in `---@diagnostic` that neither LuaLS nor this server has and that is one or two letters from one of theirs (a typo); unlike LuaLS other codes are left alone, servers run other linters too (Qbox's `unused-argument`) | W | |
+| `unknown-diag-code` | a code in `---@diagnostic` that neither LuaLS nor this server has and that is one or two letters from one of theirs (a typo); unlike LuaLS other codes are left alone, servers run other linters too (Qbox's `unused-argument`); `cfx.lualsCompat` reports every unknown code | W | |
 | `unknown-operator` | a `---@operator` name LuaLS does not know | W | |
 | `duplicate-doc-alias` | a `---@alias` declared twice in the file, or named like a `---@class` of the file | W | |
 | `undefined-doc-class` | a `---@class` parent that no class of the workspace or the library declares; silent where `undefined-doc-name` is | W | |
@@ -69,7 +69,7 @@ Level: E error, W warning, I information, H hint. Fix: the quick fix that
 | `newfield-call` | a call in a table constructor whose arguments start on a later line (`{ print`, then `'a' }` on the next line, is `print('a')`) | W | |
 | `duplicate-set-field` | one function field of one object defined twice in the same branch of the file; other `if` branches and other files are left alone | W | |
 | `close-non-object` | `local x <close> = v` where `v` is a number, string or boolean, or there is no value | W | |
-| `missing-return` | a function with a required `---@return` (not optional, not nil-able, not `any`) whose end can be reached without a `return`; an empty body is a declaration, in every file (LuaLS: `---@meta` files only) | W | |
+| `missing-return` | a function with a required `---@return` (not optional, not nil-able, not `any`) whose end can be reached without a `return`; an empty body is a declaration, in every file (LuaLS: `---@meta` files only; `cfx.lualsCompat` checks it) | W | |
 | `missing-return-value` | a `return` with fewer values than the `---@return` lines require; a call or `...` last counts as enough | W | |
 | `redundant-return-value` | a `return` with more values than the `---@return` lines give | W | |
 | `redundant-parameter` | more arguments than any definition of the function takes (a `:` call counts `self`); functions of the caller's own resource and the Lua library only, silent on `...`, `---@overload`, `---@type`, values that are not plain functions and locals assigned again | W | |
@@ -77,7 +77,7 @@ Level: E error, W warning, I information, H hint. Fix: the quick fix that
 | `discard-returns` | a call statement whose function is `---@nodiscard` (a local function, a workspace function or the library's, such as `string.format(...)` alone) | W | |
 | `param-type-mismatch` | an argument whose type surely does not fit the `---@param` type of a function of the same file; aliases and `---@enum`s of literal values are checked by their members (a table constructor is none of an enum's table values), a literal argument by its value, a `---@generic T: B` parameter by its bound, `C:f()` on `function C.f(a)` passes `C` as `a` (reported at the `:`), `C(x)` on a `---@class C` against its `---@overload`s, table shapes field by field; silent on types declared elsewhere and `fun` shapes | W | |
 | `assign-type-mismatch` | a value given to a `---@type` local where it is declared, a value written to a field of a `---@class` of the same file that surely does not fit its `---@field` type (or the `---@type` written above another assignment of that field), or a table constructor entry that does not fit the type the constructor is declared with (`---@type T[]`, a field's type, `{ x: T, [1]: U }`, a parameter's type); the value must be a literal, constructor, call or fixed `---@type` local, nil is not checked | W | |
-| `cast-local-type` | a local assigned a value that surely does not fit its `---@type` (a parameter: its `---@param`); a `---@type` above the assignment gives the value's type, a literal keeps its value against literal types (`---@type 1\|2`), a fractional number does not fit `integer`, `table<K, V>` compares its arguments; a local typed by its first value is not checked (LuaLS checks it), names and `a or b` values are left alone, nil is not checked, `number` and `integer` fit each other otherwise | W | |
+| `cast-local-type` | a local assigned a value that surely does not fit its `---@type` (a parameter: its `---@param`); a `---@type` above the assignment gives the value's type, a literal keeps its value against literal types (`---@type 1\|2`), a fractional number does not fit `integer`, `table<K, V>` compares its arguments; a local typed by its first value is not checked (LuaLS checks it; so does `cfx.lualsCompat`), names and `a or b` values are left alone (`type.checkTableShape` checks a local table constructor field by field), nil is not checked (unless `type.weakNilCheck` is `false` or `cfx.lualsCompat` is on), `number` and `integer` fit each other otherwise (`type.castNumberToInteger` lets a `number` fit `integer` always; `type.weakUnionCheck` lets a union fit when one member does) | W | |
 | `return-type-mismatch` | a returned literal, table or function that surely does not fit the `---@return` type at that position, or a call returned last whose own `---@return` lines (a function of this file) do not fit the positions from there on; names, calls and `---@overload` functions are left alone, nil is not checked | W | |
 | `missing-fields` | a table constructor where a `---@class` of the same file (or a union of them: the table must fit one) is expected, a `---@type` on a `return` included, that leaves out required `---@field`s (parents included, `---@field [1] T` too); silent when a parent is declared elsewhere or a key is computed | W | |
 | `need-check-nil` | a local used as an object, callee or written key that may still be nil there: its `---@type T?` / `---@param x? T` says so and no check before it rules nil out; upvalues in other functions are not checked; a flag guarding the local (`ok = x and f(x)`, `if ok then x.y`) still warns | W | |

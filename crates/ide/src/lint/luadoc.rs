@@ -173,7 +173,7 @@ fn returns(l: &mut Linter, g: &DocGroup) {
     let Some(block) = body.children().find(|c| c.kind() == BLOCK) else { return };
     // An empty body declares the function (`---@meta` files, ox_lib's `cache`
     // stub filled in later); LuaLS skips these only in meta files.
-    if block.children().all(|s| s.kind() == EMPTY_STAT) {
+    if block.children().all(|s| s.kind() == EMPTY_STAT) && !l.ctx.config.luals_compat {
         return;
     }
     // `---@return ...` (or a `...` last) takes any number.
@@ -501,17 +501,22 @@ fn diagnostic_codes(l: &mut Linter) {
                 break;
             }
             let lead = part.len() - part.trim_start().len();
-            if !code.is_empty()
-                && !known_code(code)
-                && let Some(near) = nearest_code(code)
-            {
-                found.push((TextRange::at(at + TextSize::from(lead as u32), TextSize::of(code)), code.to_string(), near));
+            if !code.is_empty() && !known_code(code) {
+                let near = nearest_code(code);
+                // `cfx.lualsCompat`: every unknown code, as LuaLS reports them.
+                if near.is_some() || l.ctx.config.luals_compat {
+                    found.push((TextRange::at(at + TextSize::from(lead as u32), TextSize::of(code)), code.to_string(), near));
+                }
             }
             at += TextSize::of(part) + TextSize::from(1);
         }
     }
     for (r, code, near) in found {
-        l.push("unknown-diag-code", r, format!("Unknown diagnostic code `{code}`. Did you mean `{near}`?"));
+        let msg = match near {
+            Some(near) => format!("Unknown diagnostic code `{code}`. Did you mean `{near}`?"),
+            None => format!("Unknown diagnostic code `{code}`."),
+        };
+        l.push("unknown-diag-code", r, msg);
     }
 }
 

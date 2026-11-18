@@ -59,6 +59,22 @@ pub(crate) fn apply(d: &mut Diagnostics, v: &Value) {
     if let Some(names) = doc("protectedName") {
         d.lint.protected_names = names;
     }
+    if let Some(b) = get(v, "cfx", "lualsCompat").and_then(Value::as_bool) {
+        d.lint.luals_compat = b;
+    }
+    if let Some(b) = get(v, "type", "weakNilCheck").and_then(Value::as_bool) {
+        d.lint.weak_nil_check = Some(b);
+    }
+    if let Some(b) = get(v, "type", "weakUnionCheck").and_then(Value::as_bool) {
+        d.lint.weak_union_check = b;
+    }
+    if let Some(b) = get(v, "type", "castNumberToInteger").and_then(Value::as_bool) {
+        d.lint.cast_number_to_integer = b;
+    }
+    if let Some(b) = get(v, "type", "checkTableShape").and_then(Value::as_bool) {
+        d.lint.check_table_shape = b;
+    }
+    d.lint.unused_local_exclude.extend(strings("unusedLocalExclude"));
     if let Some(engine) = get(v, "doc", "regengine").and_then(Value::as_str) {
         d.lint.lua_name_patterns = engine.eq_ignore_ascii_case("lua");
     }
@@ -188,6 +204,20 @@ mod tests {
         let client = serde_json::json!({ "diagnostics": { "enable": false } });
         apply(&mut d, &client);
         assert!(!d.enable);
+    }
+
+    #[test]
+    fn type_switches() {
+        let v = serde_json::json!({ "type": { "weakUnionCheck": true, "checkTableShape": true }, "type.weakNilCheck": false, "cfx.lualsCompat": true, "diagnostics.unusedLocalExclude": ["ll_*"] });
+        let mut d = Diagnostics::default();
+        assert!(!d.lint.strict_nil());
+        apply(&mut d, &v);
+        assert!(d.lint.weak_union_check && d.lint.check_table_shape && !d.lint.cast_number_to_integer);
+        assert!(d.lint.luals_compat && d.lint.strict_nil());
+        assert_eq!(d.lint.unused_local_exclude, ["ll_*"]);
+        // `weakNilCheck` set wins over the compat default.
+        apply(&mut d, &serde_json::json!({ "type.weakNilCheck": true }));
+        assert!(!d.lint.strict_nil());
     }
 
     #[test]

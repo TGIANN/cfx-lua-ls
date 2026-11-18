@@ -22,8 +22,9 @@ the workspace for completion after any expression (`ESX.GetPlayerFromId(src).`,
 `invisible`, ...), each kept narrower than LuaLS's where it would guess. Every
 LuaLS diagnostic code is implemented except `codestyle-check`, `name-style-check`,
 `spell-check` and `unnecessary-assert`, which LuaLS ships off (the others it
-ships off stay off here too); it passes 414 of LuaLS's 610 type inference cases and 497 of its 507 diagnostic
-cases. Hover follows LuaLS's layout (`function f(a: any)` with its return lines,
+ships off stay off here too); it passes 414 of LuaLS's 610 type inference cases and all 537 of its diagnostic
+cases (8 of them with `cfx.lualsCompat` on; the Lua 5.5 `global` case is not
+scored, CfxLua is 5.4). Hover follows LuaLS's layout (`function f(a: any)` with its return lines,
 `local x: integer = 1`, a table's or a class's fields) and matches 75 of its 190
 hover cases word for word.
 See [docs/ROADMAP.md](docs/ROADMAP.md).
@@ -60,6 +61,17 @@ in `.luarc.json` with LuaLS's own keys:
 ```
 
 or per line with `---@diagnostic disable-next-line: <code>`.
+
+LuaLS's type switches are read too: `type.weakNilCheck`, `type.weakUnionCheck`,
+`type.castNumberToInteger`, `type.checkTableShape`,
+`diagnostics.unusedLocalExclude`, `doc.privateName` / `doc.protectedName` /
+`doc.regengine`. By default this server is narrower than LuaLS in a few places
+where it would guess on FiveM code; `"cfx.lualsCompat": true` gives LuaLS's own
+behaviour there: nil is checked against declared types (unless
+`type.weakNilCheck` is set), a local keeps the type of its first value
+(`cast-local-type`), library globals of another Lua version (`unpack`) are
+`deprecated`, an empty function body still needs its `---@return` values, and
+every unknown code in `---@diagnostic` is reported.
 
 ### In GitHub Actions
 

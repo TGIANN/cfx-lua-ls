@@ -176,6 +176,13 @@ struct Infer<'a> {
     typed_fields: std::cell::OnceCell<HashMap<String, Vec<(SyntaxNode, T)>>>,
     /// The statement declaring each local asked.
     decl_stats: RefCell<HashMap<usize, Option<SyntaxNode>>>,
+    /// nil is checked against declared types (`Lua.type.weakNilCheck` off).
+    strict_nil: Cell<bool>,
+    /// A local typed by its first value keeps that type.
+    first_value: Cell<bool>,
+    weak_union: Cell<bool>,
+    number_to_integer: Cell<bool>,
+    table_shape: Cell<bool>,
     /// Answers already worked out; `None` while one is being worked out, so a
     /// cycle (`local function f() return f() end`) ends as `unknown`.
     decls: RefCell<HashMap<usize, Option<T>>>,
@@ -229,6 +236,18 @@ impl<'a> FileTypes<'a> {
 
     pub(crate) fn from_root(root: SyntaxNode, names: &'a Names, text: &'a str) -> FileTypes<'a> {
         FileTypes { inf: Infer::new(root, names, text) }
+    }
+
+    /// The type-check settings: nil checked against declared types, a local
+    /// typed by its first value (LuaLS), `weakUnionCheck`,
+    /// `castNumberToInteger`, `checkTableShape`.
+    pub(crate) fn with_config(self, c: &crate::lint::LintConfig) -> FileTypes<'a> {
+        self.inf.strict_nil.set(c.strict_nil());
+        self.inf.first_value.set(c.luals_compat);
+        self.inf.weak_union.set(c.weak_union_check);
+        self.inf.number_to_integer.set(c.cast_number_to_integer);
+        self.inf.table_shape.set(c.check_table_shape);
+        self
     }
 
     /// The expression is a string (`('%s'):`, a local holding one).
@@ -497,6 +516,80 @@ impl<'a> FileTypes<'a> {
         Some(required.into_iter().filter(|r| !given.contains(r)).collect())
     }
 
+    /// `Lua.type.checkTableShape`: a local holding an untyped table
+    /// constructor, given where a `---@class` of this file is expected, that
+    /// lacks a required field or holds one of another type (nested
+    /// constructors checked the same way).
+    pub(crate) fn shape_mismatch(&self, e: &SyntaxNode, want: &T) -> Option<(String, String)> {
+        let inf = &self.inf;
+        if !inf.table_shape.get() || e.kind() != NAME_EXPR {
+            return None;
+        }
+        let T::Name(class) = non_nil(want.clone()) else { return None };
+        inf.classes.get(&class)?;
+        let Target::Decl(d) = inf.ref_at(e.first_token()?.text_range())?.target else { return None };
+        let stat = inf.decl_stat(d)?;
+        if stat_tags(inf.text, &stat).iter().any(|t| matches!(t, Tag::Type { .. } | Tag::Class { .. })) {
+            return None;
+        }
+        let table = first_value_of(inf, d).filter(|t| t.kind() == TABLE_EXPR)?;
+        self.table_misfits(&table, &class, 0).then(|| ("table".to_string(), class))
+    }
+
+    fn table_misfits(&self, table: &SyntaxNode, class: &str, depth: usize) -> bool {
+        let inf = &self.inf;
+        if depth > 8 {
+            return false;
+        }
+        let mut given = Vec::new();
+        let mut values: Vec<(String, SyntaxNode)> = Vec::new();
+        for f in table.children().filter(|f| f.kind() == FIELD_NAMED) {
+            let Some(n) = f.children_with_tokens().filter_map(|x| x.into_token()).find(|t| t.kind() == NAME) else { continue };
+            given.push(n.text().to_string());
+            if let Some(v) = f.first_child() {
+                values.push((n.text().to_string(), v));
+            }
+        }
+        if self.class_missing(class, &given).is_none_or(|m| !m.is_empty()) {
+            return self.class_missing(class, &given).is_some();
+        }
+        for (name, v) in values {
+            let Some(ty) = self.class_field_type(class, &name) else { continue };
+            if v.kind() == TABLE_EXPR
+                && let T::Name(inner) = non_nil(ty.clone())
+                && inf.classes.contains_key(&inner)
+            {
+                if self.table_misfits(&v, &inner, depth + 1) {
+                    return true;
+                }
+                continue;
+            }
+            let got = inf.expr_type(&v);
+            if !has_unknown(&ty) && !mentions_any(&ty) && inf.cast(&got, &ty, 0) == Some(false) {
+                return true;
+            }
+        }
+        false
+    }
+
+    /// The `---@field` type of a class of this file or a parent of it.
+    fn class_field_type(&self, class: &str, field: &str) -> Option<T> {
+        let inf = &self.inf;
+        let mut stack = vec![class.to_string()];
+        let mut seen = std::collections::HashSet::new();
+        while let Some(c) = stack.pop() {
+            if !seen.insert(c.clone()) || seen.len() > 16 {
+                continue;
+            }
+            let def = inf.classes.get(&c)?;
+            if let Some(f) = def.fields.iter().find(|f| f.name == field) {
+                return Some(f.ty.clone());
+            }
+            stack.extend(def.parents.iter().cloned());
+        }
+        None
+    }
+
     /// Fields read (`v.f`, `v:m()`) on a value of a `---@class` of this file
     /// that neither the class (parents included) declares nor any code of the
     /// file writes under that name: (the name's range, the class, its chain).
@@ -507,7 +600,7 @@ impl<'a> FileTypes<'a> {
         let inf = &self.inf;
         let mut out = Vec::new();
         let enums = self.enum_fields();
-        if inf.classes.is_empty() && enums.is_empty() {
+        if inf.classes.is_empty() && enums.is_empty() && !inf.text.contains("@type") {
             return out;
         }
         // Every name the file writes as a field, anywhere, with what it is
@@ -584,6 +677,15 @@ impl<'a> FileTypes<'a> {
                 continue;
             }
             let T::Name(class) = non_nil(inf.expr_type(&object)) else { continue };
+            // A library module's class (`---@type tablelib`): its functions.
+            if !inf.classes.contains_key(&class)
+                && let Some(members) = crate::library::module_members(&class)
+            {
+                if !members.contains(field.text()) && !hidden(field.text(), std::slice::from_ref(&class)) {
+                    out.push((field.text_range(), Vec::new()));
+                }
+                continue;
+            }
             // `---@generic T: A|B`: a field of neither.
             let classes = if inf.classes.contains_key(&class) { vec![class] } else { self.generic_bound_classes(&object, &class) };
             if classes.is_empty() {
@@ -1216,6 +1318,9 @@ impl<'a> FileTypes<'a> {
         if inf.exhausted.get() {
             return None;
         }
+        if let Some(found) = self.shape_mismatch(e, want) {
+            return Some(found);
+        }
         let mut got = inf.expr_type(e);
         // `x = 3` under `---@type 1|2`: the literal, not `integer`.
         if let Some(lit) = literal_type(e).filter(|_| inf.wants_literal(want, 0)) {
@@ -1225,7 +1330,7 @@ impl<'a> FileTypes<'a> {
             return None;
         }
         // `1.5` where only `integer` fits (LuaLS: a float is not an integer).
-        if fractional_literal(e) && float_misfits(want) {
+        if fractional_literal(e) && float_misfits(want) && !inf.number_to_integer.get() {
             return Some(("number".to_string(), crate::luacats::view(want)));
         }
         if inf.cast(&got, want, 0) != Some(false) {
@@ -1258,7 +1363,7 @@ impl<'a> FileTypes<'a> {
                 && let Some(want) = self.declared_local(d)
             {
                 // A declared `number` may be fractional: it does not fit `integer`.
-                let float = is(got, "number") && float_misfits(&want);
+                let float = is(got, "number") && float_misfits(&want) && !inf.number_to_integer.get();
                 if (float || inf.cast(got, &want, 0) == Some(false)) && !inf.exhausted.get() {
                     let (got, want) = (crate::luacats::view(got), crate::luacats::view(&want));
                     out.push((var.text_range(), "cast-local-type", format!("This variable is defined as type `{want}`. Cannot convert its type to `{got}`.")));
@@ -1268,7 +1373,10 @@ impl<'a> FileTypes<'a> {
             // A call last spreads; only plain one-to-one values are checked, and
             // not names or `a or b` (the flow inference may miss a narrowing).
             let Some(value) = values.get(i).filter(|v| !(i + 1 == values.len() && vars.len() > values.len() && matches!(v.kind(), CALL_EXPR | METHOD_CALL_EXPR))) else { continue };
-            if !matches!(value.kind(), LITERAL_EXPR | TABLE_EXPR | FUNCTION_EXPR | CALL_EXPR | METHOD_CALL_EXPR | UNARY_EXPR) && !inf.fixed_doc_local(value) {
+            if !matches!(value.kind(), LITERAL_EXPR | TABLE_EXPR | FUNCTION_EXPR | CALL_EXPR | METHOD_CALL_EXPR | UNARY_EXPR)
+                && !inf.fixed_doc_local(value)
+                && !(inf.table_shape.get() && value.kind() == NAME_EXPR)
+            {
                 continue;
             }
             if inf.exhausted.get() {
@@ -1285,7 +1393,19 @@ impl<'a> FileTypes<'a> {
                         let tagged = inf.decl_stat(d).is_some_and(|st| {
                             stat_tags(inf.text, &st).iter().any(|t| matches!(t, Tag::Type { .. } | Tag::Class { .. }))
                         });
+                        if !tagged && !inf.first_value.get() {
+                            continue;
+                        }
                         if !tagged {
+                            // LuaLS: the type of its first value, widened (`0` is `integer`).
+                            let Some(init) = first_value_of(inf, d) else { continue };
+                            let want = widen_deep(&inf.expr_type(&init));
+                            if has_unknown(&want) || mentions_any(&want) || is(&want, "nil") {
+                                continue;
+                            }
+                            if let Some((got, want)) = self.value_mismatch(value, &want) {
+                                out.push((var.text_range(), "cast-local-type", format!("This variable is defined as type `{want}`. Cannot convert its type to `{got}`.")));
+                            }
                             continue;
                         }
                     } else if decl.kind != DeclKind::Param {
@@ -1336,6 +1456,11 @@ impl<'a> FileTypes<'a> {
             let Some(class) = class else { return out };
             let (Some(target), Some(value)) = (stat.children().find(|c| c.kind() == LOCAL_NAME), stat.children().find(|c| c.kind() == EXPR_LIST).and_then(|l| l.first_child())) else {
                 return out;
+            };
+            // `setmetatable({}, { __index = a })`: what `a` is.
+            let value = match setmetatable_index(inf.text, &value) {
+                Some(index) => index,
+                None => value,
             };
             if !inf.fixed_doc_local(&value) {
                 return out;
@@ -1606,6 +1731,9 @@ impl<'a> FileTypes<'a> {
         {
             return Some(("table".to_string(), n.clone()));
         }
+        if let Some(found) = self.shape_mismatch(arg, &want) {
+            return Some(found);
+        }
         let mut got = inf.expr_type(arg);
         if let Some(lit) = literal_type(arg).filter(|_| inf.wants_literal(&want, 0)) {
             got = lit;
@@ -1747,6 +1875,39 @@ fn enum_aliases(root: &SyntaxNode, text: &str) -> HashMap<String, T> {
         }
     }
     out
+}
+
+/// The value a local is declared with (`local x = v`).
+fn first_value_of(inf: &Infer, d: usize) -> Option<SyntaxNode> {
+    let stat = inf.decl_stat(d).filter(|s| s.kind() == LOCAL_STAT)?;
+    let range = inf.names.decls[d].range;
+    let i = stat.children().filter(|c| c.kind() == LOCAL_NAME).position(|n| n.text_range().contains_range(range))?;
+    stat.children().find(|c| c.kind() == EXPR_LIST)?.children().nth(i)
+}
+
+/// Literal types as their base types, through unions (`'A'|'B'` is `string`).
+fn widen_deep(t: &T) -> T {
+    match t {
+        T::Union(ps) => union(ps.iter().map(widen_deep).collect()),
+        T::Optional(i) => T::Optional(Box::new(widen_deep(i))),
+        t => widen(t),
+    }
+}
+
+/// `x` of `setmetatable({...}, { __index = x })`.
+fn setmetatable_index(text: &str, call: &SyntaxNode) -> Option<SyntaxNode> {
+    if call.kind() != CALL_EXPR || &text[call.first_child()?.text_range()] != "setmetatable" {
+        return None;
+    }
+    let args: Vec<SyntaxNode> = call.children().find(|c| c.kind() == ARG_LIST)?.children().collect();
+    let [first, meta] = args.as_slice() else { return None };
+    if first.kind() != TABLE_EXPR || meta.kind() != TABLE_EXPR {
+        return None;
+    }
+    meta.children()
+        .filter(|f| f.kind() == FIELD_NAMED)
+        .find(|f| f.children_with_tokens().filter_map(|x| x.into_token()).find(|t| t.kind() == NAME).is_some_and(|t| t.text() == "__index"))?
+        .first_child()
 }
 
 /// The literal type of a literal expression (`3`, `'x'`, `true`).
@@ -1922,6 +2083,11 @@ impl<'a> Infer<'a> {
             written: std::cell::OnceCell::new(),
             typed_fields: std::cell::OnceCell::new(),
             decl_stats: RefCell::default(),
+            strict_nil: Cell::new(false),
+            first_value: Cell::new(false),
+            weak_union: Cell::new(false),
+            number_to_integer: Cell::new(false),
+            table_shape: Cell::new(false),
             decls: RefCell::default(),
             globals: RefCell::default(),
             bodies: RefCell::default(),
@@ -2919,12 +3085,22 @@ impl<'a> Infer<'a> {
         // Every member of the value must fit.
         let all = |parts: &[T]| {
             let mut unsure = false;
+            // `Lua.type.weakUnionCheck`: one member that fits is enough.
+            let weak = self.weak_union.get() && parts.len() > 1;
+            let mut any = false;
             for m in parts {
                 match self.cast(m, p, depth + 1) {
-                    Some(false) => return Some(false),
+                    Some(false) if !weak => return Some(false),
+                    Some(false) => {}
                     None => unsure = true,
-                    Some(true) => {}
+                    Some(true) => any = true,
                 }
+            }
+            if weak && any {
+                return Some(true);
+            }
+            if weak && !unsure {
+                return Some(false);
             }
             if unsure { None } else { Some(true) }
         };
@@ -2936,8 +3112,12 @@ impl<'a> Infer<'a> {
         // test for it where the inference does not see.
         match c {
             T::Union(ms) => return all(ms),
+            T::Optional(inner) if self.strict_nil.get() => return all(&[(**inner).clone(), name("nil")]),
             T::Optional(inner) => return self.cast(inner, p, depth + 1),
             _ => {}
+        }
+        if is(c, "nil") && self.strict_nil.get() {
+            return self.takes_nil(p, depth);
         }
         if is(c, "nil") || is(c, "any") {
             return Some(true);
@@ -3034,6 +3214,34 @@ impl<'a> Infer<'a> {
             (Kind::Class(x), Kind::Basic(b)) => self.class_extends(&x, &|n| n == b, 0),
             // `---@class A: string` takes a string.
             (Kind::Basic(a), Kind::Class(y)) => self.class_extends(&y, &|n| n == a, 0),
+        }
+    }
+
+    /// Whether a declared type takes nil (`T?`, `T|nil`, `any`); `None` when
+    /// it cannot be told.
+    fn takes_nil(&self, p: &T, depth: usize) -> Option<bool> {
+        if depth > 8 {
+            return None;
+        }
+        match p {
+            T::Optional(_) => Some(true),
+            T::Union(ps) => {
+                let mut unsure = false;
+                for m in ps {
+                    match self.takes_nil(m, depth + 1) {
+                        Some(true) => return Some(true),
+                        None => unsure = true,
+                        Some(false) => {}
+                    }
+                }
+                if unsure { None } else { Some(false) }
+            }
+            T::Name(n) if matches!(n.as_str(), "nil" | "any" | "unknown") => Some(true),
+            T::Name(n) if let Some(a) = self.aliases.get(n) => self.takes_nil(a, depth + 1),
+            T::Name(n) if BASIC.contains(&n.as_str()) || self.classes.contains_key(n) => Some(false),
+            T::Table(_) | T::Array(_) | T::Tuple(_) | T::Fun(_) | T::Str(_) | T::Int(_) | T::Bool(_) => Some(false),
+            T::Generic(n, _) if n == "table" => Some(false),
+            _ => None,
         }
     }
 
@@ -3427,6 +3635,11 @@ impl<'a> Infer<'a> {
                 (!found.is_empty()).then(|| union(found))
             }
             T::Array(inner) => matches!(key, Key::Index(_)).then(|| (**inner).clone()),
+            // `[A, B]`: `[2]` is `B`.
+            T::Tuple(items) => match key {
+                Key::Index(T::Int(i)) if *i >= 1 => items.get(*i as usize - 1).cloned(),
+                _ => None,
+            },
             T::Generic(n, args) if n == "table" && args.len() == 2 => Some(args[1].clone()),
             T::Table(fields) => fields
                 .iter()
