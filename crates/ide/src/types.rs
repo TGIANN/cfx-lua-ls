@@ -171,6 +171,11 @@ struct Infer<'a> {
     functions: std::cell::OnceCell<HashMap<String, SyntaxNode>>,
     /// Locals written after their declaration.
     written: std::cell::OnceCell<std::collections::HashSet<usize>>,
+    /// Field writes with a `---@type` above them, by field name: (the object
+    /// written to, the type).
+    typed_fields: std::cell::OnceCell<HashMap<String, Vec<(SyntaxNode, T)>>>,
+    /// The statement declaring each local asked.
+    decl_stats: RefCell<HashMap<usize, Option<SyntaxNode>>>,
     /// Answers already worked out; `None` while one is being worked out, so a
     /// cycle (`local function f() return f() end`) ends as `unknown`.
     decls: RefCell<HashMap<usize, Option<T>>>,
@@ -1201,18 +1206,26 @@ impl<'a> FileTypes<'a> {
         if !inf.classes.contains_key(class) {
             return None;
         }
-        inf.root.descendants().filter(|n| n.kind() == ASSIGN_STAT).find_map(|stat| {
-            let var = stat.children().find(|c| c.kind() == VAR_LIST)?.first_child()?;
-            if var.kind() != INDEX_EXPR || crate::lint::field_name(&var)?.text() != field {
-                return None;
+        let typed = inf.typed_fields.get_or_init(|| {
+            let mut out: HashMap<String, Vec<(SyntaxNode, T)>> = HashMap::new();
+            for stat in inf.root.descendants().filter(|n| n.kind() == ASSIGN_STAT) {
+                // Only statements that start with a comment carry a `---@type`.
+                if stat.first_token().is_none_or(|t| t.kind() != COMMENT) {
+                    continue;
+                }
+                let Some(var) = stat.children().find(|c| c.kind() == VAR_LIST).and_then(|v| v.first_child()) else { continue };
+                let (Some(f), Some(object)) = (crate::lint::field_name(&var).filter(|_| var.kind() == INDEX_EXPR), var.first_child()) else { continue };
+                let ty = stat_tags(inf.text, &stat).into_iter().find_map(|t| match t {
+                    Tag::Type { tys } => tys.into_iter().next(),
+                    _ => None,
+                });
+                if let Some(ty) = ty {
+                    out.entry(f.text().to_string()).or_default().push((object, ty));
+                }
             }
-            let ty = stat_tags(inf.text, &stat).into_iter().find_map(|t| match t {
-                Tag::Type { tys } => tys.into_iter().next(),
-                _ => None,
-            })?;
-            let object = var.first_child()?;
-            (non_nil(inf.expr_type(&object)) == T::Name(class.to_string())).then_some(ty)
-        })
+            out
+        });
+        typed.get(field)?.iter().find_map(|(object, ty)| (non_nil(inf.expr_type(object)) == T::Name(class.to_string())).then(|| ty.clone()))
     }
 
     /// The entries of a table constructor whose value surely does not fit the
@@ -1594,6 +1607,8 @@ impl<'a> Infer<'a> {
             exhausted: Cell::new(false),
             functions: std::cell::OnceCell::new(),
             written: std::cell::OnceCell::new(),
+            typed_fields: std::cell::OnceCell::new(),
+            decl_stats: RefCell::default(),
             decls: RefCell::default(),
             globals: RefCell::default(),
             bodies: RefCell::default(),
@@ -3289,9 +3304,15 @@ impl<'a> Infer<'a> {
     }
 
     fn decl_stat(&self, d: usize) -> Option<SyntaxNode> {
+        // Finding the token walks the tree from the top, linear in a long block.
+        if let Some(known) = self.decl_stats.borrow().get(&d) {
+            return known.clone();
+        }
         let decl = &self.names.decls[d];
-        let tok = self.root.token_at_offset(decl.range.start()).right_biased()?;
-        tok.parent_ancestors().find(|a| matches!(a.kind(), LOCAL_STAT | LOCAL_FUNCTION_STAT))
+        let tok = self.root.token_at_offset(decl.range.start()).right_biased();
+        let st = tok.and_then(|t| t.parent_ancestors().find(|a| matches!(a.kind(), LOCAL_STAT | LOCAL_FUNCTION_STAT)));
+        self.decl_stats.borrow_mut().insert(d, st.clone());
+        st
     }
 
     fn body_info(&self, body: &SyntaxNode) -> Callee {
