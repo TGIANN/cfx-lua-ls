@@ -373,7 +373,10 @@ error ("invalid UTF-8 code").
     the slowest editor position is still `exports["tgiann-phone"]:` in
     tgiann-realparking (152 exports): complete + hover + definition about
     85 ms in both builds, 79-138 ms in gate runs depending on machine load, so
-    the 100 ms line is not met there every run.
+    the 100 ms line is not met there every run. After the inference work of
+    2026-11-19, interleaved with the v1.0.0 build: corpus A `check` 3.7-3.9 s in
+    both (the machine is slower than in the earlier lines), gate slowest 96 ms
+    at the same position.
   - Checked against: corpus A (Qbox: qbx_core 1.23 with its qb bridge, ox_lib 3.39),
     corpus B (qb-core). ESX is not modelled beyond what any resource's own code
     shows; no ESX copy was in the corpus.
