@@ -79,6 +79,7 @@ completion common 176
 completion common 177
 completion common 178
 completion common 179
+completion common 18
 completion common 180
 completion common 181
 completion common 182
@@ -130,6 +131,8 @@ completion common 250
 completion common 251
 completion common 254
 completion common 255
+completion common 256
+completion common 257
 completion common 258
 completion common 259
 completion common 26
@@ -138,6 +141,7 @@ completion common 27
 completion common 28
 completion common 29
 completion common 3
+completion common 30
 completion common 31
 completion common 32
 completion common 33
@@ -172,6 +176,7 @@ completion common 66
 completion common 67
 completion common 68
 completion common 69
+completion common 71
 completion common 73
 completion common 74
 completion common 78

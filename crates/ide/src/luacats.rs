@@ -363,6 +363,17 @@ impl<'a> P<'a> {
                 self.i += 1;
                 DocType::Bool(v)
             }
+            // `namespace.`T``: a generic captured with a prefix, kept as
+            // `namespace.`T` in one `Code`.
+            Tok::Name(n)
+                if n.ends_with('.')
+                    && let Some(Tok::Code(c)) = self.peek_at(1)
+                    && self.toks.get(self.i + 1).map(|t| t.1) == self.toks.get(self.i).map(|t| t.2) =>
+            {
+                let code = format!("{n}`{c}");
+                self.i += 2;
+                DocType::Code(code)
+            }
             Tok::Name(n) => {
                 let n = n.clone();
                 self.types.push(self.i);
@@ -1172,8 +1183,10 @@ fn write_view(t: &DocType, s: &mut String, depth: usize) {
         DocType::Int(v) => s.push_str(&v.to_string()),
         DocType::Bool(v) => s.push_str(if *v { "true" } else { "false" }),
         DocType::Code(c) => {
+            let (prefix, g) = c.rsplit_once('`').unwrap_or(("", c));
+            s.push_str(prefix);
             s.push('`');
-            s.push_str(c);
+            s.push_str(g);
             s.push('`');
         }
         DocType::Dots => s.push_str("..."),

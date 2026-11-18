@@ -642,7 +642,8 @@ pub(crate) fn scope(parse: &Parse, d: &crate::names::Decl) -> Option<TextRange> 
 }
 
 fn is_ident(b: u8) -> bool {
-    b.is_ascii_alphanumeric() || b == b'_'
+    // Bytes of non-ASCII characters too: names LuaLS reads with a warning.
+    b.is_ascii_alphanumeric() || b == b'_' || b >= 0x80
 }
 
 fn side_fits(items: &[LibItem], side: FileSide, game: Game) -> bool {
@@ -1019,6 +1020,32 @@ fn complete_triggered(parse: &Parse, names: &Names, text: &str, offset: TextSize
                 }
             }
         }
+    }
+    // An entry of a table constructor: the keys other constructors of the file
+    // use (LuaLS `checkTableField`).
+    let entry = token_at(&parse.syntax(), offset)
+        .left_biased()
+        .filter(|t| t.kind() == NAME)
+        .and_then(|t| t.parent())
+        .filter(|e| e.kind() == NAME_EXPR)
+        .and_then(|e| e.parent())
+        .filter(|f| f.kind() == FIELD_POS && f.parent().is_some_and(|t| t.kind() == TABLE_EXPR));
+    if entry.is_some() {
+        for f in parse.syntax().descendants().filter(|f| f.kind() == FIELD_NAMED) {
+            if let Some(k) = f.children_with_tokens().filter_map(|e| e.into_token()).find(|t| t.kind() == NAME)
+                && matches(k.text())
+            {
+                push(&mut items, Completion { label: k.text().to_string(), kind: CompletionKind::Property, detail: None, deprecated: false, replace: None, insert: None, edits: Vec::new() });
+            }
+        }
+    }
+    // `while x d|`: the loop's `do`, nothing else (LuaLS).
+    let line = &text[text[..start].rfind('\n').map_or(0, |i| i + 1)..start];
+    let head = line.trim_start();
+    if matches("do") && (head.starts_with("while ") || head.starts_with("for ")) && !line.split_whitespace().any(|w| w == "do") {
+        let mut only = vec![Completion { label: "do".into(), kind: CompletionKind::Keyword, detail: None, deprecated: false, replace: None, insert: None, edits: Vec::new() }];
+        only.push(Completion { label: "do .. end".into(), kind: CompletionKind::Snippet, detail: None, deprecated: false, replace: None, insert: Some("do\n\nend".into()), edits: Vec::new() });
+        return Some(Completions { items: only, incomplete: false });
     }
     for k in KEYWORDS.iter().filter(|k| matches(k)) {
         push(&mut items, Completion { label: k.to_string(), kind: CompletionKind::Keyword, detail: None, deprecated: false, replace: None, insert: None, edits: Vec::new() });
