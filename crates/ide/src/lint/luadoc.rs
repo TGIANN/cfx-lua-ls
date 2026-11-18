@@ -205,6 +205,27 @@ fn returns(l: &mut Linter, g: &DocGroup) {
                 l.push("return-type-mismatch", v.text_range(), msg);
             }
         }
+        // `return 1, f()` with `f`'s own `---@return` lines: its values take
+        // the positions from the call on.
+        let last_call = values.last().filter(|_| open && !overloaded).and_then(|v| Some((v, l.types().call_doc_returns(v)?)));
+        if let Some((call, theirs)) = &last_call {
+            for (j, r) in theirs.iter().enumerate() {
+                let Some(want) = rets.get(count - 1 + j) else { break };
+                if vararg(r) || vararg(want) {
+                    break;
+                }
+                if let Some((got, want)) = l.types().type_mismatch(&r.ty, &want.ty) {
+                    let msg = format!("Annotations specify that return value #{} has a type of `{want}`, returning value of type `{got}` here instead.", count + j);
+                    l.push("return-type-mismatch", call.text_range(), msg);
+                    break;
+                }
+            }
+            let at_least = count - 1 + theirs.iter().rposition(required).map_or(0, |i| i + 1);
+            if count <= max && at_least > max && !theirs.iter().any(vararg) {
+                let msg = format!("Annotations specify that at most {max} return value(s) are required, found {at_least} returned here instead.");
+                l.push("redundant-return-value", call.text_range(), msg);
+            }
+        }
         if count < min
             && !open
             && let Some(kw) = ret.children_with_tokens().find(|e| e.kind() == RETURN_KW)
