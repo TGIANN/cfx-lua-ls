@@ -16,6 +16,9 @@ pub(super) fn node(l: &mut Linter, n: &SyntaxNode) {
         BINARY_EXPR => ambiguity(l, n),
         TABLE_EXPR => {
             newfield_call(l, n);
+            for (range, got, want) in l.types().field_mismatches(n) {
+                l.push("assign-type-mismatch", range, format!("Cannot assign `{got}` to `{want}`."));
+            }
             if let Some((class, missing)) = l.types().missing_fields(n) {
                 let list = missing.iter().map(|m| format!("`{m}`")).collect::<Vec<_>>().join(", ");
                 l.push("missing-fields", n.text_range(), format!("Missing required fields in type `{class}`: {list}"));

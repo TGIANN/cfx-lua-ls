@@ -1073,6 +1073,69 @@ impl<'a> FileTypes<'a> {
         out
     }
 
+    /// The entries of a table constructor whose value surely does not fit the
+    /// type the constructor is declared with (`---@type T[]`, a `---@field`,
+    /// `{ x: T, [1]: U }`): (where, its type, the declared one). `{ v }` is
+    /// `[1] = v`; the values checked are those of `assign_mismatches`.
+    pub(crate) fn field_mismatches(&self, table: &SyntaxNode) -> Vec<(TextRange, String, String)> {
+        let inf = &self.inf;
+        let mut out = Vec::new();
+        if inf.exhausted.get() {
+            return out;
+        }
+        let Some(outer) = inf.expected_type(table) else { return out };
+        if has_unknown(&outer) || mentions_any(&outer) {
+            return out;
+        }
+        let mut pos = 0i64;
+        for field in table.children() {
+            let tokens: Vec<SyntaxToken> = field.children_with_tokens().filter_map(|x| x.into_token()).collect();
+            let (key, value, at) = match field.kind() {
+                FIELD_POS => {
+                    pos += 1;
+                    let Some(v) = field.first_child() else { continue };
+                    let at = v.text_range();
+                    (Key::Index(T::Int(pos)), v, at)
+                }
+                FIELD_NAMED => {
+                    let (Some(k), Some(v)) = (tokens.iter().find(|t| t.kind() == NAME), field.first_child()) else { continue };
+                    (Key::Name(k.text().to_string()), v, k.text_range())
+                }
+                FIELD_INDEXED => {
+                    let nodes: Vec<SyntaxNode> = field.children().collect();
+                    let (Some(k), Some(v)) = (nodes.first(), nodes.get(1)) else { continue };
+                    let (Some(open), Some(close)) = (tokens.iter().find(|t| t.kind() == L_BRACK), tokens.iter().find(|t| t.kind() == R_BRACK)) else { continue };
+                    let lit = k.first_token().filter(|_| k.kind() == LITERAL_EXPR);
+                    let key = match lit.as_ref().map(|t| (t.kind(), t.text())) {
+                        Some((NUMBER, n)) => match n.parse::<i64>() {
+                            Ok(i) => Key::Index(T::Int(i)),
+                            Err(_) => continue,
+                        },
+                        Some((STRING, s)) => match crate::util::unquote(s) {
+                            Some(s) if crate::names::is_name(s) => Key::Name(s.to_string()),
+                            _ => continue,
+                        },
+                        Some(_) => continue,
+                        None => Key::Index(inf.expr_type(k)),
+                    };
+                    (key, v.clone(), TextRange::new(open.text_range().start(), close.text_range().end()))
+                }
+                _ => continue,
+            };
+            if !matches!(value.kind(), LITERAL_EXPR | FUNCTION_EXPR | CALL_EXPR | METHOD_CALL_EXPR | UNARY_EXPR) && !inf.fixed_doc_local(&value) {
+                continue;
+            }
+            let Some(want) = inf.member_of_type(&outer, &key) else { continue };
+            if is(&want, "nil") || has_unknown(&want) || mentions_any(&want) {
+                continue;
+            }
+            if let Some((got, want)) = self.value_mismatch(&value, &want) {
+                out.push((at, got, want));
+            }
+        }
+        out
+    }
+
     /// An argument of a call to a function of this file whose parameter type
     /// it surely does not fit: (the argument's type, the parameter's).
     pub(crate) fn param_mismatch(&self, arg: &SyntaxNode) -> Option<(String, String)> {
