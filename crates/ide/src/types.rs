@@ -392,7 +392,17 @@ impl<'a> FileTypes<'a> {
         let want = inf.expand_aliases(&non_nil(want), 0);
         let mut keys: Vec<(String, bool)> = Vec::new();
         match &want {
-            T::Name(class) if inf.classes.contains_key(class) => {
+            // A class of the library (`iolib`).
+            T::Name(class) if !inf.classes.contains_key(class) => {
+                for def in crate::library::classes().get(class).into_iter().flatten() {
+                    for f in def.fields.iter().filter(|f| f.visibility.is_none()) {
+                        if !keys.iter().any(|(n, _)| *n == f.name) {
+                            keys.push((f.name.clone(), matches!(f.ty, T::Optional(_))));
+                        }
+                    }
+                }
+            }
+            T::Name(class) => {
                 let mut stack = vec![class.clone()];
                 let mut seen = Vec::new();
                 while let Some(c) = stack.pop() {
@@ -4512,7 +4522,35 @@ impl<'a> Infer<'a> {
                 {
                     return Some(t);
                 }
-                self.expected_type(e)
+                let method = call.kind() == METHOD_CALL_EXPR;
+                let body = if method {
+                    crate::api::method_name(&call).and_then(|m| self.method_body(&callee, m.text()))
+                } else {
+                    self.function_body(&callee)
+                };
+                let mut all: Vec<T> = self.expected_type(e).into_iter().collect();
+                // `obj:m(|)` with a `fun(self, x: T)` field: its parameter.
+                if all.is_empty()
+                    && method
+                    && body.is_none()
+                    && let Some(m) = crate::api::method_name(&call)
+                    && let Some(T::Fun(f)) = self.member_of_type(&non_nil(self.expr_type(&callee)), &Key::Name(m.text().to_string()))
+                    && let Some(t) = f.params.get(i + 1).and_then(|p| p.ty.clone())
+                {
+                    all.push(t);
+                }
+                // The `---@overload`s of the function: theirs too.
+                if let Some(stat) = body.as_ref().and_then(|b| self.doc_stat_of(b)) {
+                    for t in stat_tags(self.text, &stat) {
+                        if let Tag::Overload(T::Fun(f)) = t {
+                            let skip = usize::from(method && f.params.first().is_some_and(|p| p.name == "self"));
+                            if let Some(ty) = f.params.get(i + skip).and_then(|p| p.ty.clone()) {
+                                all.push(ty);
+                            }
+                        }
+                    }
+                }
+                (!all.is_empty()).then(|| union(all))
             }
             _ => self.expected_type(e),
         }

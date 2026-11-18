@@ -156,7 +156,9 @@ fn capabilities(encoding: Encoding) -> ServerCapabilities {
         document_range_formatting_provider: Some(OneOf::Left(true)),
         hover_provider: Some(lsp_types::HoverProviderCapability::Simple(true)),
         completion_provider: Some(lsp_types::CompletionOptions {
-            trigger_characters: Some(vec![".".into(), ":".into(), "'".into(), "\"".into()]),
+            // `(`, `,`, `{` and a space offer only the literal values and table
+            // keys the position takes (LuaLS).
+            trigger_characters: Some([".", ":", "'", "\"", "(", ",", "{", " "].map(String::from).to_vec()),
             ..Default::default()
         }),
         signature_help_provider: Some(lsp_types::SignatureHelpOptions {
@@ -243,7 +245,10 @@ impl Server<'_> {
                 Err(e) => Response::new_err(req.id, ErrorCode::InvalidParams as i32, e.to_string()),
             },
             Completion::METHOD => match serde_json::from_value::<lsp_types::CompletionParams>(req.params) {
-                Ok(p) => Response::new_ok(req.id, self.completion(&p.text_document_position)),
+                Ok(p) => {
+                    let trigger = p.context.as_ref().and_then(|c| c.trigger_character.as_deref()).and_then(|t| t.chars().next());
+                    Response::new_ok(req.id, self.completion(&p.text_document_position, trigger))
+                }
                 Err(e) => Response::new_err(req.id, ErrorCode::InvalidParams as i32, e.to_string()),
             },
             SignatureHelpRequest::METHOD => match serde_json::from_value::<lsp_types::SignatureHelpParams>(req.params) {
@@ -413,14 +418,14 @@ impl Server<'_> {
         })
     }
 
-    fn completion(&self, p: &lsp_types::TextDocumentPositionParams) -> Option<lsp_types::CompletionResponse> {
+    fn completion(&self, p: &lsp_types::TextDocumentPositionParams, trigger: Option<char>) -> Option<lsp_types::CompletionResponse> {
         let (doc, offset) = self.at(p)?;
         let path = format::file_path(&p.text_document.uri);
         let cx = self.ide_context(&p.text_document.uri, path.as_deref());
         if let Some(ev) = cfx_lua_ide::event_at(doc.parse.as_ref()?, &doc.text, offset) {
             return Some(self.event_completion(doc, &ev, offset));
         }
-        let c = cfx_lua_ide::complete(doc.parse.as_ref()?, doc.names()?, &doc.text, offset, cx)?;
+        let c = cfx_lua_ide::complete_triggered(doc.parse.as_ref()?, doc.names()?, &doc.text, offset, cx, trigger)?;
         use cfx_lua_ide::CompletionKind as K;
         let items = c
             .items
