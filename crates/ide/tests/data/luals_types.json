@@ -1,0 +1,3662 @@
+[
+ {
+  "file": "common",
+  "n": 1,
+  "want": "nil",
+  "script": "local <?t?> = nil\n"
+ },
+ {
+  "file": "common",
+  "n": 2,
+  "want": "string",
+  "script": "local <?var?> = '111'\n"
+ },
+ {
+  "file": "common",
+  "n": 3,
+  "want": "boolean",
+  "script": "local <?var?> = true\n"
+ },
+ {
+  "file": "common",
+  "n": 4,
+  "want": "integer",
+  "script": "local <?var?> = 1\n"
+ },
+ {
+  "file": "common",
+  "n": 5,
+  "want": "number",
+  "script": "local <?var?> = 1.0\n"
+ },
+ {
+  "file": "common",
+  "n": 6,
+  "want": "unknown",
+  "script": "local <?var?>\n"
+ },
+ {
+  "file": "common",
+  "n": 7,
+  "want": "unknown",
+  "script": "local <?var?>\nvar = y\n"
+ },
+ {
+  "file": "common",
+  "n": 8,
+  "want": "any",
+  "script": "function f(<?x?>)\n    \nend\n"
+ },
+ {
+  "file": "common",
+  "n": 9,
+  "want": "any",
+  "script": "function f(<?x?>)\n    x = 1\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 10,
+  "want": "string",
+  "script": "local var = '111'\nt.<?x?> = var\n"
+ },
+ {
+  "file": "common",
+  "n": 11,
+  "want": "string",
+  "script": "local <?var?>\nvar = '111'\n"
+ },
+ {
+  "file": "common",
+  "n": 12,
+  "want": "string",
+  "script": "local var\n<?var?> = '111'\n"
+ },
+ {
+  "file": "common",
+  "n": 13,
+  "want": "string",
+  "script": "local var\nvar = '111'\nprint(<?var?>)\n"
+ },
+ {
+  "file": "common",
+  "n": 14,
+  "want": "function",
+  "script": "function <?xx?>()\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 15,
+  "want": "function",
+  "script": "local function <?xx?>()\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 16,
+  "want": "function",
+  "script": "local xx\n<?xx?> = function ()\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 17,
+  "want": "table",
+  "script": "local <?t?> = {}\n"
+ },
+ {
+  "file": "common",
+  "n": 18,
+  "want": "unknown",
+  "script": "<?x?>()\n"
+ },
+ {
+  "file": "common",
+  "n": 19,
+  "want": "boolean",
+  "script": "<?x?> = not y\n"
+ },
+ {
+  "file": "common",
+  "n": 20,
+  "want": "integer",
+  "script": "<?x?> = #y\n"
+ },
+ {
+  "file": "common",
+  "n": 21,
+  "want": "integer",
+  "script": "<?x?> = #'aaaa'\n"
+ },
+ {
+  "file": "common",
+  "n": 22,
+  "want": "integer",
+  "script": "<?x?> = #{}\n"
+ },
+ {
+  "file": "common",
+  "n": 23,
+  "want": "number",
+  "script": "<?x?> = - y\n"
+ },
+ {
+  "file": "common",
+  "n": 24,
+  "want": "number",
+  "script": "<?x?> = - 1.0\n"
+ },
+ {
+  "file": "common",
+  "n": 25,
+  "want": "integer",
+  "script": "<?x?> = ~ y\n"
+ },
+ {
+  "file": "common",
+  "n": 26,
+  "want": "integer",
+  "script": "<?x?> = ~ 1\n"
+ },
+ {
+  "file": "common",
+  "n": 27,
+  "want": "boolean",
+  "script": "<?x?> = 1 < 2\n"
+ },
+ {
+  "file": "common",
+  "n": 28,
+  "want": "integer",
+  "script": "local a = true\nlocal b = 1\n<?x?> = a and b\n"
+ },
+ {
+  "file": "common",
+  "n": 29,
+  "want": "integer",
+  "script": "local a = false\nlocal b = 1\n<?x?> = a or b\n"
+ },
+ {
+  "file": "common",
+  "n": 30,
+  "want": "boolean",
+  "script": "<?x?> = a == b\n"
+ },
+ {
+  "file": "common",
+  "n": 31,
+  "want": "unknown",
+  "script": "<?x?> = a << b\n"
+ },
+ {
+  "file": "common",
+  "n": 32,
+  "want": "integer",
+  "script": "<?x?> = 1 << 2\n"
+ },
+ {
+  "file": "common",
+  "n": 33,
+  "want": "integer",
+  "script": "local a = 1 << 20\nlocal <?b?> = a << 1\n"
+ },
+ {
+  "file": "common",
+  "n": 34,
+  "want": "integer",
+  "script": "local a = 1 << 20\nlocal <?b?> = (a << 1) - 1\n"
+ },
+ {
+  "file": "common",
+  "n": 35,
+  "want": "unknown",
+  "script": "<?x?> = a .. b\n"
+ },
+ {
+  "file": "common",
+  "n": 36,
+  "want": "string",
+  "script": "<?x?> = 'a' .. 'b'\n"
+ },
+ {
+  "file": "common",
+  "n": 37,
+  "want": "string",
+  "script": "<?x?> = 'a' .. 1\n"
+ },
+ {
+  "file": "common",
+  "n": 38,
+  "want": "string",
+  "script": "<?x?> = 'a' .. 1.0\n"
+ },
+ {
+  "file": "common",
+  "n": 39,
+  "want": "unknown",
+  "script": "<?x?> = a + b\n"
+ },
+ {
+  "file": "common",
+  "n": 40,
+  "want": "number",
+  "script": "<?x?> = 1 + 2.0\n"
+ },
+ {
+  "file": "common",
+  "n": 41,
+  "want": "integer",
+  "script": "<?x?> = 1 + 2\n"
+ },
+ {
+  "file": "common",
+  "n": 42,
+  "want": "integer",
+  "script": "---@type integer\nlocal a\n\n<?x?> = - a\n"
+ },
+ {
+  "file": "common",
+  "n": 43,
+  "want": "number",
+  "script": "local a\n\n<?x?> = - a\n"
+ },
+ {
+  "file": "common",
+  "n": 44,
+  "want": "unknown",
+  "script": "<?x?> = 1 + X\n"
+ },
+ {
+  "file": "common",
+  "n": 45,
+  "want": "unknown",
+  "script": "<?x?> = 1.0 + X\n"
+ },
+ {
+  "file": "common",
+  "n": 46,
+  "want": "tablelib",
+  "script": "---@class tablelib\ntable = {}\n\n<?table?>()\n"
+ },
+ {
+  "file": "common",
+  "n": 47,
+  "want": "string",
+  "script": "_VERSION = 'Lua 5.4'\n\n<?x?> = _VERSION\n"
+ },
+ {
+  "file": "common",
+  "n": 48,
+  "want": "function",
+  "script": "---@class stringlib\nlocal string\n\nstring.xxx = function () end\n\nreturn ('x').<?xxx?>\n"
+ },
+ {
+  "file": "common",
+  "n": 49,
+  "want": "function",
+  "script": "---@class stringlib\nString = {}\n\nString.xxx = function () end\n\nreturn ('x').<?xxx?>\n"
+ },
+ {
+  "file": "common",
+  "n": 50,
+  "want": "function",
+  "script": "---@class stringlib\nlocal string\n\nstring.xxx = function () end\n\n<?x?> = ('x').xxx\n"
+ },
+ {
+  "file": "common",
+  "n": 51,
+  "want": "function",
+  "script": "---@class stringlib\nlocal string\n\nstring.xxx = function () end\n\n_VERSION = 'Lua 5.4'\n\n<?x?> = _VERSION.xxx\n"
+ },
+ {
+  "file": "common",
+  "n": 52,
+  "want": "table",
+  "script": "<?x?> = setmetatable({})\n"
+ },
+ {
+  "file": "common",
+  "n": 53,
+  "want": "integer",
+  "script": "local function x()\n    return 1\nend\n<?y?> = x()\n"
+ },
+ {
+  "file": "common",
+  "n": 54,
+  "want": "integer|nil",
+  "script": "local function x()\n    return 1\n    return nil\nend\n<?y?> = x()\n"
+ },
+ {
+  "file": "common",
+  "n": 55,
+  "want": "unknown|nil",
+  "script": "local function x()\n    return a\n    return nil\nend\n<?y?> = x()\n"
+ },
+ {
+  "file": "common",
+  "n": 56,
+  "want": "unknown|nil",
+  "script": "local function x()\n    return nil\n    return f()\nend\n<?y?> = x()\n"
+ },
+ {
+  "file": "common",
+  "n": 57,
+  "want": "unknown|nil",
+  "script": "local function x()\n    return nil\n    return f()\nend\n_, <?y?> = x()\n"
+ },
+ {
+  "file": "common",
+  "n": 58,
+  "want": "integer",
+  "script": "local function x()\n    return 1\nend\n_, <?y?> = pcall(x)\n"
+ },
+ {
+  "file": "common",
+  "n": 59,
+  "want": "integer",
+  "script": "function x()\n    return 1\nend\n_, <?y?> = pcall(x)\n"
+ },
+ {
+  "file": "common",
+  "n": 60,
+  "want": "integer",
+  "script": "local function x()\n    return 1\nend\n_, <?y?> = xpcall(x)\n"
+ },
+ {
+  "file": "common",
+  "n": 61,
+  "want": "any",
+  "script": "---@type fun()\nlocal x\n_, <?y?> = pcall(x)\n"
+ },
+ {
+  "file": "common",
+  "n": 62,
+  "want": "any",
+  "script": "---@type fun()\nlocal x\n_, <?y?> = xpcall(x, debug.traceback)\n"
+ },
+ {
+  "file": "common",
+  "n": 63,
+  "want": "any",
+  "script": "---@class Storage<T>\n---@field Value T\n\n---@type Storage\nlocal storage\nlocal value = storage.Value\nprint(<?value?>)\n"
+ },
+ {
+  "file": "common",
+  "n": 64,
+  "want": "string",
+  "script": "---@class Storage2<T>\n---@field Value T\n\n---@type Storage2<string>\nlocal storage\nlocal value = storage.Value\nprint(<?value?>)\n"
+ },
+ {
+  "file": "common",
+  "n": 65,
+  "want": "A",
+  "script": "---@class A\n\n---@return A\nlocal function f2() end\n\nlocal function f()\n    return f2()\nend\n\nlocal <?x?> = f()\n"
+ },
+ {
+  "file": "common",
+  "n": 66,
+  "want": "unknown",
+  "script": "local function x(a)\n    _ = a + 1\nend\nlocal b\nx(<?b?>)\n"
+ },
+ {
+  "file": "common",
+  "n": 67,
+  "want": "unknown",
+  "script": "local function x(a, ...)\n    local _, <?b?>, _ = ...\nend\nx(nil, 'xx', 1, true)\n"
+ },
+ {
+  "file": "common",
+  "n": 68,
+  "want": "unknown",
+  "script": "local function x(a, ...)\n    return true, 'ss', ...\nend\nlocal _, _, _, <?b?>, _ = x(nil, true, 1, 'yy')\n"
+ },
+ {
+  "file": "common",
+  "n": 69,
+  "want": "nil",
+  "script": "local <?k?>, <?v?> = next()\nlocal <?k?>, <?v?> = next({})\n"
+ },
+ {
+  "file": "common",
+  "n": 70,
+  "want": "integer?",
+  "script": "local <?k?>, <?v?> = next({1})\n"
+ },
+ {
+  "file": "common",
+  "n": 71,
+  "want": "integer?",
+  "script": "local a\nlocal <?k?>, v = next({a})\n"
+ },
+ {
+  "file": "common",
+  "n": 72,
+  "want": "nil",
+  "script": "local a\nlocal k, <?v?> = next({a})\n"
+ },
+ {
+  "file": "common",
+  "n": 73,
+  "want": "unknown",
+  "script": "---@generic T\n---@param t T?\n---@return T\nlocal function F(t) end\nlocal <?x?> = F()\n"
+ },
+ {
+  "file": "common",
+  "n": 74,
+  "want": "unknown",
+  "script": "local a, b\nfunction a()\n    return b()\nend\nfunction b()\n    return a()\nend\nlocal <?x?> = a()\n"
+ },
+ {
+  "file": "common",
+  "n": 75,
+  "want": "class",
+  "script": "---@class class\nlocal <?x?>\n"
+ },
+ {
+  "file": "common",
+  "n": 76,
+  "want": "string",
+  "script": "---@class string\n\n---@type string\nlocal <?x?>\n"
+ },
+ {
+  "file": "common",
+  "n": 77,
+  "want": "1",
+  "script": "---@type 1\nlocal <?v?>\n"
+ },
+ {
+  "file": "common",
+  "n": 78,
+  "want": "string[]",
+  "script": "---@class string\n\n---@type string[]\nlocal <?x?>\n"
+ },
+ {
+  "file": "common",
+  "n": 79,
+  "want": "string|table",
+  "script": "---@class string\n---@class table\n\n---@type string | table\nlocal <?x?>\n"
+ },
+ {
+  "file": "common",
+  "n": 80,
+  "want": "'enum1'|'enum2'",
+  "script": "---@type 'enum1' | 'enum2'\nlocal <?x?>\n"
+ },
+ {
+  "file": "common",
+  "n": 81,
+  "want": "\"enum1\"|\"enum2\"",
+  "script": "---@type \"enum1\" | \"enum2\"\nlocal <?x?>\n"
+ },
+ {
+  "file": "common",
+  "n": 82,
+  "want": "A",
+  "script": "---@alias A 'enum1' | 'enum2'\n\n---@type A\nlocal <?x?>\n"
+ },
+ {
+  "file": "common",
+  "n": 83,
+  "want": "A",
+  "script": "---@alias A 'enum1' | 'enum2' | A\n\n---@type A\nlocal <?x?>\n"
+ },
+ {
+  "file": "common",
+  "n": 84,
+  "want": "A",
+  "script": "---@alias A 'enum1' | 'enum2' | B\n\n---@type A\nlocal <?x?>\n"
+ },
+ {
+  "file": "common",
+  "n": 85,
+  "want": "'enum1'|'enum2'",
+  "script": "---@alias A 'enum1' | 'enum2'\n\n---@type A\nlocal <?x?>\n"
+ },
+ {
+  "file": "common",
+  "n": 86,
+  "want": "'enum1'|'enum2'",
+  "script": "---@alias A 'enum1' | 'enum2' | A\n\n---@type A\nlocal <?x?>\n"
+ },
+ {
+  "file": "common",
+  "n": 87,
+  "want": "'enum1'|'enum2'|B",
+  "script": "---@alias A 'enum1' | 'enum2' | B\n\n---@type A\nlocal <?x?>\n"
+ },
+ {
+  "file": "common",
+  "n": 88,
+  "want": "1|true",
+  "script": "---@alias A 1 | true\n\n---@type A\nlocal <?x?>\n"
+ },
+ {
+  "file": "common",
+  "n": 89,
+  "want": "fun()",
+  "script": "---@type fun()\nlocal <?x?>\n"
+ },
+ {
+  "file": "common",
+  "n": 90,
+  "want": "fun(a: string, b: any, ...any)",
+  "script": "---@type fun(a: string, b, ...)\nlocal <?x?>\n"
+ },
+ {
+  "file": "common",
+  "n": 91,
+  "want": "fun(a: string, b: any, c?: boolean, ...any):c, d?, ...unknown",
+  "script": "---@type fun(a: string, b, c?: boolean, ...):c, d?, ...\nlocal <?x?>\n"
+ },
+ {
+  "file": "common",
+  "n": 92,
+  "want": "{ [string]: string }",
+  "script": "---@type { [string]: string }\nlocal <?x?>\n"
+ },
+ {
+  "file": "common",
+  "n": 93,
+  "want": "table<string, number>",
+  "script": "---@class string\n---@class number\n\n---@type table<string, number>\nlocal <?x?>\n"
+ },
+ {
+  "file": "common",
+  "n": 94,
+  "want": "A<string, number>",
+  "script": "---@class A\n\n---@type A<string, number>\nlocal <?x?>\n"
+ },
+ {
+  "file": "common",
+  "n": 95,
+  "want": "string",
+  "script": "---@class string\n\n---@type string[]\nlocal x\nlocal <?y?> = x[1]\n"
+ },
+ {
+  "file": "common",
+  "n": 96,
+  "want": "string",
+  "script": "---@class string\n\n---@return string[]\nlocal function f() end\nlocal x = f()\nlocal <?y?> = x[1]\n"
+ },
+ {
+  "file": "common",
+  "n": 97,
+  "want": "table",
+  "script": "local t = {}\nlocal <?v?> = setmetatable(t)\n"
+ },
+ {
+  "file": "common",
+  "n": 98,
+  "want": "CCC",
+  "script": "---@class CCC\n\n---@type table<string, CCC>\nlocal t = {}\n\nprint(t.<?a?>)\n"
+ },
+ {
+  "file": "common",
+  "n": 99,
+  "want": "'aaa'|'bbb'",
+  "script": "---@type table<string, 'aaa'|'bbb'>\nlocal t = {}\n\nprint(t.<?a?>)\n"
+ },
+ {
+  "file": "common",
+  "n": 100,
+  "want": "integer",
+  "script": "---@generic K\n---@type fun(a?: K):K\nlocal f\n\nlocal <?n?> = f(1)\n"
+ },
+ {
+  "file": "common",
+  "n": 101,
+  "want": "unknown",
+  "script": "---@generic K\n---@type fun(a?: K):K\nlocal f\n\nlocal <?n?> = f(nil)\n"
+ },
+ {
+  "file": "common",
+  "n": 102,
+  "want": "unknown",
+  "script": "---@generic K\n---@type fun(a: K|integer):K\nlocal f\n\nlocal <?n?> = f(1)\n"
+ },
+ {
+  "file": "common",
+  "n": 103,
+  "want": "integer",
+  "script": "---@class integer\n\n---@generic T: table, V\n---@param t T\n---@return fun(table: V[], i?: integer):integer, V\n---@return T\n---@return integer i\nlocal function ipairs() end\n\nfor <?i?> in ipairs() do\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 104,
+  "want": "table<string, boolean>",
+  "script": "---@generic K, V\n---@param t table<K, V>\n---@return K\n---@return V\nlocal function next(t) end\n\n---@type table<string, boolean>\nlocal t\nlocal k, v = next(<?t?>)\n"
+ },
+ {
+  "file": "common",
+  "n": 105,
+  "want": "string",
+  "script": "---@class string\n\n---@generic K, V\n---@param t table<K, V>\n---@return K\n---@return V\nlocal function next(t) end\n\n---@type table<string, boolean>\nlocal t\nlocal <?k?>, v = next(t)\n"
+ },
+ {
+  "file": "common",
+  "n": 106,
+  "want": "boolean",
+  "script": "---@class boolean\n\n---@generic K, V\n---@param t table<K, V>\n---@return K\n---@return V\nlocal function next(t) end\n\n---@type table<string, boolean>\nlocal t\nlocal k, <?v?> = next(t)\n"
+ },
+ {
+  "file": "common",
+  "n": 107,
+  "want": "boolean",
+  "script": "---@generic K\n---@type fun(arg: K):K\nlocal f\n\nlocal <?r?> = f(true)\n"
+ },
+ {
+  "file": "common",
+  "n": 108,
+  "want": "string",
+  "script": "---@class string\n\n---@generic K, V\n---@type fun(arg: table<K, V>):K, V\nlocal f\n\n---@type table<string, boolean>\nlocal t\n\nlocal <?k?>, v = f(t)\n"
+ },
+ {
+  "file": "common",
+  "n": 109,
+  "want": "boolean",
+  "script": "---@class boolean\n\n---@generic K, V\n---@type fun(arg: table<K, V>):K, V\nlocal f\n\n---@type table<string, boolean>\nlocal t\n\nlocal k, <?v?> = f(t)\n"
+ },
+ {
+  "file": "common",
+  "n": 110,
+  "want": "fun()",
+  "script": "---@return fun()\nlocal function f() end\n\nlocal <?r?> = f()\n"
+ },
+ {
+  "file": "common",
+  "n": 111,
+  "want": "table<string, boolean>",
+  "script": "---@return table<string, boolean>\nlocal function f() end\n\nlocal <?r?> = f()\n"
+ },
+ {
+  "file": "common",
+  "n": 112,
+  "want": "string",
+  "script": "---@class string\n\n---@generic K, V\n---@return fun(arg: table<K, V>):K, V\nlocal function f() end\n\nlocal f2 = f()\n\n---@type table<string, boolean>\nlocal t\n\nlocal <?k?>, v = f2(t)\n"
+ },
+ {
+  "file": "common",
+  "n": 113,
+  "want": "fun(a: <V>):integer, <V>",
+  "script": "---@generic K, V\n---@param a K\n---@return fun(a: V):K, V\nlocal function f(a) end\n\nlocal <?f2?> = f(1)\n"
+ },
+ {
+  "file": "common",
+  "n": 114,
+  "want": "integer",
+  "script": "---@generic K, V\n---@param a K\n---@return fun(a: V):K, V\nlocal function f(a) end\n\nlocal f2 = f(1)\nlocal <?i?>, v = f2(true)\n"
+ },
+ {
+  "file": "common",
+  "n": 115,
+  "want": "boolean",
+  "script": "---@generic K, V\n---@param a K\n---@return fun(a: V):K, V\nlocal function f(a) end\n\nlocal f2 = f(1)\nlocal i, <?v?> = f2(true)\n"
+ },
+ {
+  "file": "common",
+  "n": 116,
+  "want": "fun(table: table<K, V>, index?: <K>):<K>, <V>",
+  "script": "---@generic T: table, K, V\n---@param t T\n---@return fun(table: table<K, V>, index?: K):K, V\n---@return T\n---@return nil\nlocal function pairs(t) end\n\nlocal <?next?> = pairs(dummy)\n"
+ },
+ {
+  "file": "common",
+  "n": 117,
+  "want": "string",
+  "script": "---@generic T: table, K, V\n---@param t T\n---@return fun(table: table<K, V>, index?: K):K, V\n---@return T\n---@return nil\nlocal function pairs(t) end\n\nlocal next = pairs(dummy)\n\n---@type table<string, boolean>\nlocal t\nlocal <?k?>, v = next(t)\n"
+ },
+ {
+  "file": "common",
+  "n": 118,
+  "want": "boolean",
+  "script": "---@generic T: table, K, V\n---@param t T\n---@return fun(table: table<K, V>, index?: K):K, V\n---@return T\n---@return nil\nlocal function pairs(t) end\n\nlocal next = pairs(dummy)\n\n---@type table<string, boolean>\nlocal t\nlocal k, <?v?> = next(t)\n"
+ },
+ {
+  "file": "common",
+  "n": 119,
+  "want": "string",
+  "script": "---@generic T: table, K, V\n---@param t T\n---@return fun(table: table<K, V>, index?: K):K, V\n---@return T\n---@return nil\nlocal function pairs(t) end\n\nlocal next = pairs(dummy)\n\n---@type table<string, boolean>\nlocal t\nlocal <?k?>, v = next(t, nil)\n"
+ },
+ {
+  "file": "common",
+  "n": 120,
+  "want": "boolean",
+  "script": "---@generic T: table, K, V\n---@param t T\n---@return fun(table: table<K, V>, index?: K):K, V\n---@return T\n---@return nil\nlocal function pairs(t) end\n\nlocal next = pairs(dummy)\n\n---@type table<string, boolean>\nlocal t\nlocal k, <?v?> = next(t, nil)\n"
+ },
+ {
+  "file": "common",
+  "n": 121,
+  "want": "string",
+  "script": "---@generic T: table, K, V\n---@param t T\n---@return fun(table: table<K, V>, index?: K):K, V\n---@return T\n---@return nil\nlocal function pairs(t) end\n\nlocal next = pairs(dummy)\n\n---@type table<string, boolean>\nlocal t\n\nfor <?k?>, v in next, t do\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 122,
+  "want": "boolean",
+  "script": "---@class boolean\n\n---@generic T: table, K, V\n---@param t T\n---@return fun(table: table<K, V>, index?: K):K, V\n---@return T\nlocal function pairs(t) end\n\nlocal f = pairs(t)\n\n---@type table<string, boolean>\nlocal t\n\nfor k, <?v?> in f, t do\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 123,
+  "want": "string",
+  "script": "---@generic T: table, K, V\n---@param t T\n---@return fun(table: table<K, V>, index?: K):K, V\n---@return T\nlocal function pairs(t) end\n\n---@type table<string, boolean>\nlocal t\n\nfor <?k?>, v in pairs(t) do\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 124,
+  "want": "boolean",
+  "script": "---@generic T: table, K, V\n---@param t T\n---@return fun(table: table<K, V>, index: K):K, V\n---@return T\n---@return nil\nlocal function pairs(t) end\n\n---@type table<string, boolean>\nlocal t\n\nfor k, <?v?> in pairs(t) do\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 125,
+  "want": "boolean",
+  "script": "---@generic T: table, V\n---@param t T\n---@return fun(table: V[], i?: integer):integer, V\n---@return T\n---@return integer i\nlocal function ipairs(t) end\n\n---@type boolean[]\nlocal t\n\nfor _, <?v?> in ipairs(t) do\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 126,
+  "want": "boolean",
+  "script": "---@generic T: table, V\n---@param t T\n---@return fun(table: V[], i?: integer):integer, V\n---@return T\n---@return integer i\nlocal function ipairs(t) end\n\n---@type table<integer, boolean>\nlocal t\n\nfor _, <?v?> in ipairs(t) do\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 127,
+  "want": "boolean",
+  "script": "---@generic T: table, V\n---@param t T\n---@return fun(table: V[], i?: integer):integer, V\n---@return T\n---@return integer i\nlocal function ipairs(t) end\n\n---@class MyClass\n---@field [integer] boolean\nlocal t\n\nfor _, <?v?> in ipairs(t) do\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 128,
+  "want": "<T>",
+  "script": "---@generic T: table, V\n---@param t T\n---@return fun(table: V[], i?: integer):integer, V\n---@return T\n---@return integer i\nlocal function ipairs(t) end\n\n---@class list<T>\n---@field [integer] T\n\n---@generic T\n---@param self list<T>\nfunction list:foo()\n    for _, <?v?> in ipairs(self) do\n    end\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 129,
+  "want": "<T>",
+  "script": "---@generic T: table, V\n---@param t T\n---@return fun(table: V[], i?: integer):integer, V\n---@return T\n---@return integer i\nlocal function ipairs(t) end\n\n---@class listB<T>: {[integer]:T}\n\n---@generic T\n---@param self listB<T>\nfunction listB:foo()\n    for _, <?v?> in ipairs(self) do\n    end\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 130,
+  "want": "boolean",
+  "script": "---@generic T: table, K, V\n---@param t T\n---@return fun(table: table<K, V>, index: K):K, V\n---@return T\n---@return nil\nlocal function pairs(t) end\n\n---@type boolean[]\nlocal t\n\nfor k, <?v?> in pairs(t) do\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 131,
+  "want": "integer",
+  "script": "---@generic T: table, K, V\n---@param t T\n---@return fun(table: table<K, V>, index?: K):K, V\n---@return T\nlocal function pairs(t) end\n\n---@type boolean[]\nlocal t\n\nfor <?k?>, v in pairs(t) do\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 132,
+  "want": "E",
+  "script": "---@class A\n---@class B: A\n---@class C: B\n---@class D: C\n\n---@class E: D\nlocal m\n\nfunction m:f()\n    return <?self?>\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 133,
+  "want": "Cls",
+  "script": "---@class Cls\nlocal Cls = {}\n\n---@generic T\n---@param self T\n---@return T\nfunction Cls.new(self) return self end\n\nlocal <?test?> = Cls:new()\n"
+ },
+ {
+  "file": "common",
+  "n": 134,
+  "want": "Cls",
+  "script": "---@class Cls\nlocal Cls = {}\n\n---@generic T\n---@param self T\n---@return T\nfunction Cls:new() return self end\n\nlocal <?test?> = Cls:new()\n"
+ },
+ {
+  "file": "common",
+  "n": 135,
+  "want": "Cls",
+  "script": "---@class Cls\nlocal Cls = {}\n\n---@generic T\n---@param self T\n---@return T\nfunction Cls.new(self) return self end\n\nlocal <?test?> = Cls.new(Cls)\n"
+ },
+ {
+  "file": "common",
+  "n": 136,
+  "want": "Cls",
+  "script": "---@class Cls\nlocal Cls = {}\n\n---@generic T\n---@param self T\n---@return T\nfunction Cls:new() return self end\n\nlocal <?test?> = Cls.new(Cls)\n"
+ },
+ {
+  "file": "common",
+  "n": 137,
+  "want": "Rct",
+  "script": "---@class Obj\nlocal Obj = {}\n\n---@generic T\n---@param self T\n---@return T\nfunction Obj.new(self) return self end\n\n\n---@class Pnt:Obj\nlocal Pnt = {x = 0, y = 0}\n\n\n---@class Rct:Pnt\nlocal Rct = {w = 0, h = 0}\n\n\nlocal <?test?> = Rct.new(Rct)\n\n-- local test = Rct:new()\n\nreturn test\n"
+ },
+ {
+  "file": "common",
+  "n": 138,
+  "want": "function",
+  "script": "string.gsub():gsub():<?gsub?>()\n"
+ },
+ {
+  "file": "common",
+  "n": 139,
+  "want": "'a'|'b'|'c'|'d'|'e'...(+5)",
+  "script": "---@type 'a'|'b'|'c'|'d'|'e'|'f'|'g'|'h'|'i'|'j'\nlocal <?t?>\n"
+ },
+ {
+  "file": "common",
+  "n": 140,
+  "want": "'a'...(+9)",
+  "script": "---@type 'a'|'b'|'c'|'d'|'e'|'f'|'g'|'h'|'i'|'j'\nlocal <?t?>\n"
+ },
+ {
+  "file": "common",
+  "n": 141,
+  "want": "...(+10)",
+  "script": "---@type 'a'|'b'|'c'|'d'|'e'|'f'|'g'|'h'|'i'|'j'\nlocal <?t?>\n"
+ },
+ {
+  "file": "common",
+  "n": 142,
+  "want": "string|fun():string",
+  "script": "---@type string | fun(): string\nlocal <?t?>\n"
+ },
+ {
+  "file": "common",
+  "n": 143,
+  "want": "string",
+  "script": "local valids = {\n    ['Lua 5.1'] = false,\n    ['Lua 5.2'] = false,\n    ['Lua 5.3'] = false,\n    ['Lua 5.4'] = false,\n    ['LuaJIT']  = false,\n}\n\nfor <?k?>, v in pairs(valids) do\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 144,
+  "want": "boolean",
+  "script": "local valids = {\n    ['Lua 5.1'] = false,\n    ['Lua 5.2'] = false,\n    ['Lua 5.3'] = false,\n    ['Lua 5.4'] = false,\n    ['LuaJIT']  = false,\n}\n\nfor k, <?v?> in pairs(valids) do\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 145,
+  "want": "string",
+  "script": "local t = {\n    a = 1,\n    b = 1,\n}\n\nfor <?k?>, v in pairs(t) do\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 146,
+  "want": "integer",
+  "script": "local t = {'a', 'b'}\n\nfor <?k?>, v in pairs(t) do\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 147,
+  "want": "string",
+  "script": "local t = {'a', 'b'}\n\nfor k, <?v?> in pairs(t) do\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 148,
+  "want": "fun():number, boolean",
+  "script": "---@type fun():number, boolean\nlocal <?t?>\n"
+ },
+ {
+  "file": "common",
+  "n": 149,
+  "want": "fun(value: Class)",
+  "script": "---@class Class\n\n---@param callback fun(value: Class)\nfunction work(callback)\nend\n\nwork(<?function?> (value)\nend)\n"
+ },
+ {
+  "file": "common",
+  "n": 150,
+  "want": "Class",
+  "script": "---@class Class\n\n---@param callback fun(value: Class)\nfunction work(callback)\nend\n\nwork(function (<?value?>)\nend)\n"
+ },
+ {
+  "file": "common",
+  "n": 151,
+  "want": "fun(value: Class)",
+  "script": "---@class Class\n\n---@param callback fun(value: Class)\nfunction work(callback)\nend\n\npcall(work, <?function?> (value)\nend)\n"
+ },
+ {
+  "file": "common",
+  "n": 152,
+  "want": "Class",
+  "script": "---@class Class\n\n---@param callback fun(value: Class)\nfunction work(callback)\nend\n\nxpcall(work, debug.traceback, function (<?value?>)\nend)\n"
+ },
+ {
+  "file": "common",
+  "n": 153,
+  "want": "Class",
+  "script": "---@class Class\n\n---@param callback fun(value: Class)\nfunction work(callback) end\n\nlocal function cb(<?value?>) end\nwork(cb)\n"
+ },
+ {
+  "file": "common",
+  "n": 154,
+  "want": "any",
+  "script": "---@class Class\n\n---@param callback fun(value: Class)\nfunction work(callback) end\n\n---@param value any\nlocal function cb(<?value?>) end\nwork(cb)\n"
+ },
+ {
+  "file": "common",
+  "n": 155,
+  "want": "any",
+  "script": "---@class Class\n\nfunction work(callback) end\n\nlocal function cb(<?value?>) end\nwork(cb)\n"
+ },
+ {
+  "file": "common",
+  "n": 156,
+  "want": "string",
+  "script": "---@class Class\n\nfunction work(callback) end\n\n---@param value string\nlocal function cb(<?value?>) end\nwork(cb)\n"
+ },
+ {
+  "file": "common",
+  "n": 157,
+  "want": "Parent",
+  "script": "---@class Parent\nlocal Parent\n\n---@generic T\n---@param self T\n---@param callback fun(self: T)\nfunction Parent:work(callback) end\n\nlocal function cb(<?self?>) end\nParent:work(cb)\n"
+ },
+ {
+  "file": "common",
+  "n": 158,
+  "want": "Child",
+  "script": "---@class Parent\nlocal Parent\n\n---@generic T\n---@param self T\n---@param callback fun(self: T)\nfunction Parent:work(callback) end\n\n---@class Child: Parent\nlocal Child\n\nlocal function cb(<?self?>) end\nChild:work(cb)\n"
+ },
+ {
+  "file": "common",
+  "n": 159,
+  "want": "string",
+  "script": "---@generic T\n---@param x T\n---@return { x: T }\nlocal function f(x) end\n\nlocal t = f('')\n\nprint(t.<?x?>)\n"
+ },
+ {
+  "file": "common",
+  "n": 160,
+  "want": "string",
+  "script": "---@generic T\n---@param t T[]\n---@param callback fun(v: T)\nlocal function f(t, callback) end\n\n---@type string[]\nlocal t\n\nf(t, function (<?v?>) end)\n"
+ },
+ {
+  "file": "common",
+  "n": 161,
+  "want": "unknown",
+  "script": "---@generic T\n---@param t T[]\n---@param callback fun(v: T)\nlocal function f(t, callback) end\n\nlocal t = {}\n\nf(t, function (<?v?>) end)\n"
+ },
+ {
+  "file": "common",
+  "n": 162,
+  "want": "table",
+  "script": "local <?t?> = setmetatable({}, { __index = function () end })\n"
+ },
+ {
+  "file": "common",
+  "n": 163,
+  "want": "player",
+  "script": "---@class player\nlocal t\n\n<?t?>:getOwner()\n"
+ },
+ {
+  "file": "common",
+  "n": 164,
+  "want": "string[][]",
+  "script": "---@type string[][]\nlocal <?t?>\n"
+ },
+ {
+  "file": "common",
+  "n": 165,
+  "want": "table",
+  "script": "---@type {}[]\nlocal t\n\nlocal <?v?> = t[1]\n"
+ },
+ {
+  "file": "common",
+  "n": 166,
+  "want": "string",
+  "script": "---@type string[][]\nlocal v = {}\n\nfor _, a in ipairs(v) do\n    for i, <?b?> in ipairs(a) do\n    end\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 167,
+  "want": "fun(i: integer)",
+  "script": "--- @class Emit\n--- @field on fun(eventName: string, cb: function)\n--- @field on fun(eventName: 'died', cb: fun(i: integer))\n--- @field on fun(eventName: 'won', cb: fun(s: string))\nlocal emit = {}\n\nemit.on(\"died\", <?function?> (i)\nend)\n"
+ },
+ {
+  "file": "common",
+  "n": 168,
+  "want": "integer",
+  "script": "--- @class Emit\n--- @field on fun(eventName: string, cb: function)\n--- @field on fun(eventName: 'died', cb: fun(i: integer))\n--- @field on fun(eventName: 'won', cb: fun(s: string))\nlocal emit = {}\n\nemit.on(\"died\", function (<?i?>)\nend)\n"
+ },
+ {
+  "file": "common",
+  "n": 169,
+  "want": "integer",
+  "script": "--- @class Emit\n--- @field on fun(self: Emit, eventName: string, cb: function)\n--- @field on fun(self: Emit, eventName: 'died', cb: fun(i: integer))\n--- @field on fun(self: Emit, eventName: 'won', cb: fun(s: string))\nlocal emit = {}\n\nemit:on(\"died\", function (<?i?>)\nend)\n"
+ },
+ {
+  "file": "common",
+  "n": 170,
+  "want": "integer",
+  "script": "--- @class Emit\n--- @field on fun(self: Emit, eventName: string, cb: function)\n--- @field on fun(self: Emit, eventName: '\"died\"', cb: fun(i: integer))\n--- @field on fun(self: Emit, eventName: '\"won\"', cb: fun(s: string))\nlocal emit = {}\n\nemit.on(self, \"died\", function (<?i?>)\nend)\n"
+ },
+ {
+  "file": "common",
+  "n": 171,
+  "want": "👍",
+  "script": "---@class 👍\nlocal <?x?>\n"
+ },
+ {
+  "file": "common",
+  "n": 172,
+  "want": "integer",
+  "script": "---@type boolean\nlocal x\n\n<?x?> = 1\n"
+ },
+ {
+  "file": "common",
+  "n": 173,
+  "want": "integer",
+  "script": "---@class Class\nlocal x\n\n<?x?> = 1\n"
+ },
+ {
+  "file": "common",
+  "n": 174,
+  "want": "unknown",
+  "script": "---@return number\nlocal function f(x)\n    local <?y?> = x()\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 175,
+  "want": "unknown",
+  "script": "local mt\n\n---@return number\nfunction mt:f() end\n\nlocal <?v?> = mt()\n"
+ },
+ {
+  "file": "common",
+  "n": 176,
+  "want": "unknown",
+  "script": "local <?mt?>\n\n---@class X\nfunction mt:f(x) end\n"
+ },
+ {
+  "file": "common",
+  "n": 177,
+  "want": "any",
+  "script": "local mt\n\n---@class X\nfunction mt:f(<?x?>) end\n"
+ },
+ {
+  "file": "common",
+  "n": 178,
+  "want": "unknown",
+  "script": "local <?mt?>\n\n---@type number\nfunction mt:f(x) end\n"
+ },
+ {
+  "file": "common",
+  "n": 179,
+  "want": "any",
+  "script": "local mt\n\n---@type number\nfunction mt:f(<?x?>) end\n"
+ },
+ {
+  "file": "common",
+  "n": 180,
+  "want": "Test",
+  "script": "---@class Test\n_G.<?Test?> = {}\n"
+ },
+ {
+  "file": "common",
+  "n": 181,
+  "want": "integer",
+  "script": "rawset(_G, 'Test', 1)\nprint(<?Test?>)\n"
+ },
+ {
+  "file": "common",
+  "n": 182,
+  "want": "string",
+  "script": "rawset(_G, 'Test', '')\nprint(<?Test?>)\n"
+ },
+ {
+  "file": "common",
+  "n": 183,
+  "want": "boolean",
+  "script": "rawset(_G, 'Test', true)\nprint(<?Test?>)\n"
+ },
+ {
+  "file": "common",
+  "n": 184,
+  "want": "table",
+  "script": "rawset(_G, 'Test', {})\nprint(<?Test?>)\n"
+ },
+ {
+  "file": "common",
+  "n": 185,
+  "want": "Test",
+  "script": "---@class Test\nrawset(_G, 'Test', {})\nprint(<?Test?>)\n"
+ },
+ {
+  "file": "common",
+  "n": 186,
+  "want": "integer",
+  "script": "local mt = {}\n\n---@param callback fun(i: integer)\nfunction mt:loop(callback) end\n\nmt:loop(function (<?i?>)\n    \nend)\n"
+ },
+ {
+  "file": "common",
+  "n": 187,
+  "want": "C",
+  "script": "---@class D\n---@field y integer # D comment\n\n---@class C\n---@field x integer # C comment\n---@field d D\n\n---@param c C\nlocal function f(c) end\n\nf <?{?>\n    x = ,\n}\n"
+ },
+ {
+  "file": "common",
+  "n": 188,
+  "want": "integer",
+  "script": "---@class D\n---@field y integer # D comment\n\n---@class C\n---@field x integer # C comment\n---@field d D\n\n---@param c C\nlocal function f(c) end\n\nf {\n    <?x?> = ,\n}\n"
+ },
+ {
+  "file": "common",
+  "n": 189,
+  "want": "integer",
+  "script": "---@class D\n---@field y integer # D comment\n\n---@class C\n---@field x integer # C comment\n---@field d D\n\n---@param c C\nlocal function f(c) end\n\nf {\n    d = {\n        <?y?> = ,\n    }\n}\n"
+ },
+ {
+  "file": "common",
+  "n": 190,
+  "want": "integer",
+  "script": "for <?i?> = a, b, c do end\n"
+ },
+ {
+  "file": "common",
+  "n": 191,
+  "want": "number",
+  "script": "---@param x number\nfunction F(<?x?>) end\n\n---@param x boolean\nfunction F(x) end\n"
+ },
+ {
+  "file": "common",
+  "n": 192,
+  "want": "B",
+  "script": "---@class A\nlocal A\n\n---@return A\nfunction A:x() end\n\n---@class B: A\nlocal B\n\n---@return B\nfunction B:x() end\n\n---@type B\nlocal t\n\nlocal <?v?> = t.x()\n"
+ },
+ {
+  "file": "common",
+  "n": 193,
+  "want": "function",
+  "script": "---@overload fun()\nfunction <?f?>() end\n"
+ },
+ {
+  "file": "common",
+  "n": 194,
+  "want": "integer",
+  "script": "---@type table<string, integer>\nlocal t\n\nt.<?a?>\n"
+ },
+ {
+  "file": "common",
+  "n": 195,
+  "want": "\"a\"|\"b\"|\"c\"",
+  "script": "---@type table<string, \"a\"|\"b\"|\"c\">\nlocal t\n\nt.<?a?>\n"
+ },
+ {
+  "file": "common",
+  "n": 196,
+  "want": "integer",
+  "script": "---@class A\n---@field x integer\n\n---@type A\nlocal t\nt.<?x?>\n"
+ },
+ {
+  "file": "common",
+  "n": 197,
+  "want": "boolean",
+  "script": "local <?var?> = true\nvar = 1\nvar = 1.0\n"
+ },
+ {
+  "file": "common",
+  "n": 198,
+  "want": "unknown",
+  "script": "---@return ...\nlocal function f() end\n\nlocal <?x?> = f()\n"
+ },
+ {
+  "file": "common",
+  "n": 199,
+  "want": "unknown",
+  "script": "---@return ...\nlocal function f() end\n\nlocal _, <?x?> = f()\n"
+ },
+ {
+  "file": "common",
+  "n": 200,
+  "want": "unknown",
+  "script": "local t = {\n    x = 1,\n    y = 2,\n}\n\nlocal <?x?> = t[#t]\n"
+ },
+ {
+  "file": "common",
+  "n": 201,
+  "want": "string",
+  "script": "local t = {\n    x   = 1,\n    [1] = 'x',\n}\n\nlocal <?x?> = t[#t]\n"
+ },
+ {
+  "file": "common",
+  "n": 202,
+  "want": "string",
+  "script": "local t = { 'x' }\n\nlocal <?x?> = t[#t]\n"
+ },
+ {
+  "file": "common",
+  "n": 203,
+  "want": "(string|integer)[]",
+  "script": "---@type (string|integer)[]\nlocal <?x?>\n"
+ },
+ {
+  "file": "common",
+  "n": 204,
+  "want": "boolean",
+  "script": "---@type table<string, boolean>\nlocal t\n\n---@alias uri string\n\n---@type string\nlocal uri\n\nlocal <?v?> = t[uri]\n"
+ },
+ {
+  "file": "common",
+  "n": 205,
+  "want": "A",
+  "script": "---@class A\nG = {}\n\n<?G?>:A()\n"
+ },
+ {
+  "file": "common",
+  "n": 206,
+  "want": "A",
+  "script": "---@type A\nlocal <?x?> = nil\n"
+ },
+ {
+  "file": "common",
+  "n": 207,
+  "want": "A",
+  "script": "---@class A\n---@field b B\nlocal mt\n\nfunction mt:f()\n    self.b:x()\n    print(<?self?>)\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 208,
+  "want": "string?",
+  "script": "---@return string?\nlocal function f() end\n\nlocal <?x?> = f()\n"
+ },
+ {
+  "file": "common",
+  "n": 209,
+  "want": "AA",
+  "script": "---@class AA\n---@overload fun():AA\nlocal AAA\n\n\nlocal <?x?> = AAA()\n"
+ },
+ {
+  "file": "common",
+  "n": 210,
+  "want": "AA",
+  "script": "---@class AA\n---@overload fun():AA\nAAA = {}\n\n\nlocal <?x?> = AAA()\n"
+ },
+ {
+  "file": "common",
+  "n": 211,
+  "want": "string",
+  "script": "local <?x?>\nx = '1'\nx = 1\n"
+ },
+ {
+  "file": "common",
+  "n": 212,
+  "want": "string",
+  "script": "local x\n<?x?> = '1'\nx = 1\n"
+ },
+ {
+  "file": "common",
+  "n": 213,
+  "want": "integer",
+  "script": "local x\nx = '1'\n<?x?> = 1\n"
+ },
+ {
+  "file": "common",
+  "n": 214,
+  "want": "unknown",
+  "script": "local x\nprint(<?x?>)\nx = '1'\nx = 1\n"
+ },
+ {
+  "file": "common",
+  "n": 215,
+  "want": "string",
+  "script": "local x\nx = '1'\nprint(<?x?>)\nx = 1\n"
+ },
+ {
+  "file": "common",
+  "n": 216,
+  "want": "integer",
+  "script": "local x\nx = '1'\nx = 1\nprint(<?x?>)\n"
+ },
+ {
+  "file": "common",
+  "n": 217,
+  "want": "unknown",
+  "script": "local x\n\nfunction A()\n    print(<?x?>)\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 218,
+  "want": "string",
+  "script": "local x\n\nfunction A()\n    print(<?x?>)\nend\n\nx = '1'\nx = 1\n"
+ },
+ {
+  "file": "common",
+  "n": 219,
+  "want": "string",
+  "script": "local x\n\nx = '1'\n\nfunction A()\n    print(<?x?>)\nend\n\nx = 1\n"
+ },
+ {
+  "file": "common",
+  "n": 220,
+  "want": "integer",
+  "script": "local x\n\nx = '1'\nx = 1\n\nfunction A()\n    print(<?x?>)\nend\n\n"
+ },
+ {
+  "file": "common",
+  "n": 221,
+  "want": "boolean",
+  "script": "local x\n\nfunction A()\n    x = true\n    print(<?x?>)\nend\n\nx = '1'\nx = 1\n"
+ },
+ {
+  "file": "common",
+  "n": 222,
+  "want": "unknown",
+  "script": "local x\n\nfunction A()\n    x = true\nend\n\nprint(<?x?>)\nx = '1'\nx = 1\n"
+ },
+ {
+  "file": "common",
+  "n": 223,
+  "want": "boolean",
+  "script": "local x\n\nfunction A()\n    x = true\n    function B()\n        print(<?x?>)\n    end\nend\n\nx = '1'\nx = 1\n"
+ },
+ {
+  "file": "common",
+  "n": 224,
+  "want": "table",
+  "script": "local x\n\nfunction A()\n    x = true\n    function B()\n        x = {}\n        print(<?x?>)\n    end\nend\n\nx = '1'\nx = 1\n"
+ },
+ {
+  "file": "common",
+  "n": 225,
+  "want": "boolean",
+  "script": "local x\n\nfunction A()\n    x = true\n    function B()\n        x = {}\n    end\n    print(<?x?>)\nend\n\nx = '1'\nx = 1\n"
+ },
+ {
+  "file": "common",
+  "n": 226,
+  "want": "unknown",
+  "script": "local x\n\nfunction A()\n    x = true\n    function B()\n        x = {}\n    end\nend\n\nfunction C()\n    print(<?x?>)\nend\n\nx = '1'\nx = 1\n"
+ },
+ {
+  "file": "common",
+  "n": 227,
+  "want": "integer",
+  "script": "local x\nx = true\ndo\n    x = 1\nend\nprint(<?x?>)\n"
+ },
+ {
+  "file": "common",
+  "n": 228,
+  "want": "boolean",
+  "script": "local x\nx = true\nfunction XX()\n    do\n        x = 1\n    end\nend\nprint(<?x?>)\n"
+ },
+ {
+  "file": "common",
+  "n": 229,
+  "want": "integer?",
+  "script": "---@type integer?\nlocal <?x?>\n"
+ },
+ {
+  "file": "common",
+  "n": 230,
+  "want": "integer?",
+  "script": "---@type integer?\nlocal x\n\nif <?x?> then\n    print(x)\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 231,
+  "want": "integer",
+  "script": "---@type integer?\nlocal x\n\nif x then\n    print(<?x?>)\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 232,
+  "want": "integer?",
+  "script": "---@type integer?\nlocal x\n\nif x then\n    print(x)\nend\n\nprint(<?x?>)\n"
+ },
+ {
+  "file": "common",
+  "n": 233,
+  "want": "nil",
+  "script": "---@type integer?\nlocal x\n\nif not x then\n    print(<?x?>)\nend\n\nprint(x)\n"
+ },
+ {
+  "file": "common",
+  "n": 234,
+  "want": "integer",
+  "script": "---@type integer?\nlocal x\n\nif not x then\n    x = 1\nend\n\nprint(<?x?>)\n"
+ },
+ {
+  "file": "common",
+  "n": 235,
+  "want": "integer",
+  "script": "---@type integer?\nlocal x\n\nif not x then\n    return\nend\n\nprint(<?x?>)\n"
+ },
+ {
+  "file": "common",
+  "n": 236,
+  "want": "integer",
+  "script": "---@type integer?\nlocal x\n\nif xxx and x then\n    print(<?x?>)\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 237,
+  "want": "unknown",
+  "script": "---@type integer?\nlocal x\n\nif not x and x then\n    print(<?x?>)\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 238,
+  "want": "integer",
+  "script": "---@type integer?\nlocal x\n\nif x and not mark[x] then\n    print(<?x?>)\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 239,
+  "want": "integer?",
+  "script": "---@type integer?\nlocal x\n\nif xxx and x then\nend\n\nprint(<?x?>)\n"
+ },
+ {
+  "file": "common",
+  "n": 240,
+  "want": "integer?",
+  "script": "---@type integer?\nlocal x\n\nif xxx and x then\n    return\nend\n\nprint(<?x?>)\n"
+ },
+ {
+  "file": "common",
+  "n": 241,
+  "want": "integer",
+  "script": "---@type integer?\nlocal x\n\nif x ~= nil then\n    print(<?x?>)\nend\n\nprint(x)\n"
+ },
+ {
+  "file": "common",
+  "n": 242,
+  "want": "integer|nil",
+  "script": "---@type integer?\nlocal x\n\nif x ~= nil then\n    print(x)\nend\n\nprint(<?x?>)\n"
+ },
+ {
+  "file": "common",
+  "n": 243,
+  "want": "nil",
+  "script": "---@type integer?\nlocal x\n\nif x == nil then\n    print(<?x?>)\nend\n\nprint(x)\n"
+ },
+ {
+  "file": "common",
+  "n": 244,
+  "want": "integer|nil",
+  "script": "---@type integer?\nlocal x\n\nif x == nil then\n    print(x)\nend\n\nprint(<?x?>)\n"
+ },
+ {
+  "file": "common",
+  "n": 245,
+  "want": "integer",
+  "script": "---@type integer?\nlocal x\n\n<?x?> = x or 1\n"
+ },
+ {
+  "file": "common",
+  "n": 246,
+  "want": "integer",
+  "script": "---@type integer?\nlocal x\n\n<?x?> = x or y\n"
+ },
+ {
+  "file": "common",
+  "n": 247,
+  "want": "integer",
+  "script": "---@type integer?\nlocal x\n\nif not x then\n    return\nend\n\nprint(<?x?>)\n"
+ },
+ {
+  "file": "common",
+  "n": 248,
+  "want": "integer",
+  "script": "---@type integer?\nlocal x\n\nif not x then\n    goto ANYWHERE\nend\n\nprint(<?x?>)\n"
+ },
+ {
+  "file": "common",
+  "n": 249,
+  "want": "integer",
+  "script": "local x\n\nprint(<?x?>--[[@as integer]])\n"
+ },
+ {
+  "file": "common",
+  "n": 250,
+  "want": "integer",
+  "script": "print(<?io?>--[[@as integer]])\n"
+ },
+ {
+  "file": "common",
+  "n": 251,
+  "want": "integer",
+  "script": "print(io.<?open?>--[[@as integer]])\n"
+ },
+ {
+  "file": "common",
+  "n": 252,
+  "want": "integer",
+  "script": "local <?x?> = io['open']--[[@as integer]])\n"
+ },
+ {
+  "file": "common",
+  "n": 253,
+  "want": "integer",
+  "script": "local <?x?> = 1 + 1--[[@as integer]])\n"
+ },
+ {
+  "file": "common",
+  "n": 254,
+  "want": "integer",
+  "script": "local <?x?> = not 1--[[@as integer]])\n"
+ },
+ {
+  "file": "common",
+  "n": 255,
+  "want": "integer",
+  "script": "local <?x?> = ()--[[@as integer]])\n"
+ },
+ {
+  "file": "common",
+  "n": 256,
+  "want": "integer?",
+  "script": "---@param x? integer\nlocal function f(<?x?>)\n\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 257,
+  "want": "integer",
+  "script": "local x = 1\nx = <?x?>\n"
+ },
+ {
+  "file": "common",
+  "n": 258,
+  "want": "integer?",
+  "script": "---@class A\n---@field x? integer\nlocal t\n\nt.<?x?>\n"
+ },
+ {
+  "file": "common",
+  "n": 259,
+  "want": "integer?",
+  "script": "---@type { x?: integer }\nlocal t\n\nt.<?x?>\n"
+ },
+ {
+  "file": "common",
+  "n": 260,
+  "want": "boolean",
+  "script": "---@class A\n---@field [integer] boolean\nlocal t\n\nlocal <?x?> = t[1]\n"
+ },
+ {
+  "file": "common",
+  "n": 261,
+  "want": "unknown",
+  "script": "local <?x?> = y and z\n"
+ },
+ {
+  "file": "common",
+  "n": 262,
+  "want": "integer",
+  "script": "---@type integer?\nlocal x\n\nassert(x)\n\nprint(<?x?>)\n"
+ },
+ {
+  "file": "common",
+  "n": 263,
+  "want": "integer",
+  "script": "---@type integer?\nlocal x\n\nassert(x ~= nil)\n\nprint(<?x?>)\n"
+ },
+ {
+  "file": "common",
+  "n": 264,
+  "want": "integer",
+  "script": "---@type integer | nil\nlocal x\n\nassert(x)\n\nprint(<?x?>)\n"
+ },
+ {
+  "file": "common",
+  "n": 265,
+  "want": "integer",
+  "script": "---@type integer | nil\nlocal x\n\nassert(x ~= nil)\n\nprint(<?x?>)\n"
+ },
+ {
+  "file": "common",
+  "n": 266,
+  "want": "integer",
+  "script": "local x\n\nassert(x == 1)\n\nprint(<?x?>)\n"
+ },
+ {
+  "file": "common",
+  "n": 267,
+  "want": "integer",
+  "script": "---@type integer?\nlocal x\n\nif x and <?x?>.y then\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 268,
+  "want": "integer?",
+  "script": "---@type integer?\nlocal x\n\nif x and x.y then\nend\n\nprint(<?x?>)\n"
+ },
+ {
+  "file": "common",
+  "n": 269,
+  "want": "integer?",
+  "script": "---@type integer?\nlocal x\n\nif x and x.y then\n    return\nend\n\nprint(<?x?>)\n"
+ },
+ {
+  "file": "common",
+  "n": 270,
+  "want": "integer",
+  "script": "---@type integer?\nlocal x\n\nif not x or <?x?>.y then\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 271,
+  "want": "integer?",
+  "script": "---@type integer?\nlocal x\n\nif not x or x.y then\n    print(<?x?>)\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 272,
+  "want": "integer?",
+  "script": "---@type integer?\nlocal x\n\nif x or x.y then\n    print(<?x?>)\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 273,
+  "want": "integer?",
+  "script": "---@type integer?\nlocal x\n\nif x.y or x then\n    print(<?x?>)\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 274,
+  "want": "integer?",
+  "script": "---@type integer?\nlocal x\n\nif x.y or not x then\n    print(<?x?>)\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 275,
+  "want": "integer",
+  "script": "---@type integer?\nlocal x\n\nif not x or not y then\n    return\nend\n\nprint(<?x?>)\n"
+ },
+ {
+  "file": "common",
+  "n": 276,
+  "want": "integer",
+  "script": "---@type integer?\nlocal x\n\nif not y or not x then\n    return\nend\n\nprint(<?x?>)\n"
+ },
+ {
+  "file": "common",
+  "n": 277,
+  "want": "integer",
+  "script": "---@type integer?\nlocal x\n\nwhile true do\n    if not x then\n        break\n    end\n    print(<?x?>)\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 278,
+  "want": "integer?",
+  "script": "---@type integer?\nlocal x\n\nwhile true do\n    if not x then\n        break\n    end\nend\n\nprint(<?x?>)\n"
+ },
+ {
+  "file": "common",
+  "n": 279,
+  "want": "integer",
+  "script": "---@type integer?\nlocal x\n\nwhile x do\n    print(<?x?>)\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 280,
+  "want": "integer",
+  "script": "---@type fun():integer?\nlocal iter\n\nfor <?x?> in iter do\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 281,
+  "want": "integer",
+  "script": "local x\n\n---@type integer\n<?x?> = XXX\n"
+ },
+ {
+  "file": "common",
+  "n": 282,
+  "want": "unknown",
+  "script": "for _ = 1, 999 do\n    local <?x?>\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 283,
+  "want": "integer",
+  "script": "local x\n\n---@cast x integer\n\nprint(<?x?>)\n"
+ },
+ {
+  "file": "common",
+  "n": 284,
+  "want": "unknown",
+  "script": "local x\n\n---@cast x integer\n\nlocal x\nprint(<?x?>)\n"
+ },
+ {
+  "file": "common",
+  "n": 285,
+  "want": "unknown",
+  "script": "local x\n\nif true then\n    local x\n    ---@cast x integer\n    print(x)\nend\n\nprint(<?x?>)\n"
+ },
+ {
+  "file": "common",
+  "n": 286,
+  "want": "boolean|integer",
+  "script": "local x = 1\n\n---@cast x +boolean\n\nprint(<?x?>)\n"
+ },
+ {
+  "file": "common",
+  "n": 287,
+  "want": "boolean",
+  "script": "---@type integer|boolean\nlocal x\n\n---@cast x -integer\n\nprint(<?x?>)\n"
+ },
+ {
+  "file": "common",
+  "n": 288,
+  "want": "boolean?",
+  "script": "---@type boolean\nlocal x\n\n---@cast x +?\n\nprint(<?x?>)\n"
+ },
+ {
+  "file": "common",
+  "n": 289,
+  "want": "boolean",
+  "script": "---@type boolean?\nlocal x\n\n---@cast x -?\n\nprint(<?x?>)\n"
+ },
+ {
+  "file": "common",
+  "n": 290,
+  "want": "nil",
+  "script": "---@type string?\nlocal x\n\nif x then\n    return\nelse\n    print(<?x?>)\nend\n\nprint(x)\n"
+ },
+ {
+  "file": "common",
+  "n": 291,
+  "want": "string",
+  "script": "---@type string?\nlocal x\n\nif not x then\n    return\nelse\n    print(<?x?>)\nend\n\nprint(x)\n"
+ },
+ {
+  "file": "common",
+  "n": 292,
+  "want": "string",
+  "script": "---@type string?\nlocal x\n\nif not x then\n    return\nelse\n    print(x)\nend\n\nprint(<?x?>)\n"
+ },
+ {
+  "file": "common",
+  "n": 293,
+  "want": "true",
+  "script": "---@type boolean | nil\nlocal x\n\nif not x then\n    return\nend\n\nprint(<?x?>)\n"
+ },
+ {
+  "file": "common",
+  "n": 294,
+  "want": "true",
+  "script": "---@type boolean\nlocal t\n\nif t then\n    print(<?t?>)\n    return\nend\n\nprint(t)\n"
+ },
+ {
+  "file": "common",
+  "n": 295,
+  "want": "false",
+  "script": "---@type boolean\nlocal t\n\nif t then\n    print(t)\n    return\nend\n\nprint(<?t?>)\n"
+ },
+ {
+  "file": "common",
+  "n": 296,
+  "want": "nil",
+  "script": "---@type integer?\nlocal t\n\nif t then\nelse\n    print(<?t?>)\nend\n\nprint(t)\n"
+ },
+ {
+  "file": "common",
+  "n": 297,
+  "want": "table",
+  "script": "local function f()\n    if x then\n        return y\n    end\n    return {}\nend\n\nlocal <?z?> = f()\n"
+ },
+ {
+  "file": "common",
+  "n": 298,
+  "want": "integer|table",
+  "script": "local function returnI()\n    return 1\nend\n\nlocal function f()\n    if x then\n        return returnI()\n    end\n    return {}\nend\n\nlocal <?z?> = f()\n"
+ },
+ {
+  "file": "common",
+  "n": 299,
+  "want": "number",
+  "script": "for _ in _ do\n    ---@type number\n    local <?x?>\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 300,
+  "want": "unknown",
+  "script": "for _ in _ do\n    ---@param x number\n    local <?x?>\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 301,
+  "want": "unknown",
+  "script": "---@type number\nfor <?x?> in _ do\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 302,
+  "want": "number",
+  "script": "---@param x number\nfor <?x?> in _ do\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 303,
+  "want": "table",
+  "script": "---@alias tp table\n\n---@type tp\nlocal <?x?>\n"
+ },
+ {
+  "file": "common",
+  "n": 304,
+  "want": "{ name: boolean }",
+  "script": "---@alias tp {name: boolean}\n\n---@type tp\nlocal <?x?>\n"
+ },
+ {
+  "file": "common",
+  "n": 305,
+  "want": "boolean|{ name: boolean }",
+  "script": "---@alias tp boolean | {name: boolean}\n\n---@type tp\nlocal <?x?>\n"
+ },
+ {
+  "file": "common",
+  "n": 306,
+  "want": "`1`|`true`",
+  "script": "---@type `1` | `true`\nlocal <?x?>\n"
+ },
+ {
+  "file": "common",
+  "n": 307,
+  "want": "function",
+  "script": "local x\n\nfunction x() end\n\nprint(<?x?>)\n"
+ },
+ {
+  "file": "common",
+  "n": 308,
+  "want": "unknown",
+  "script": "local x\n\nif x.field == 'haha' then\n    print(<?x?>)\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 309,
+  "want": "string",
+  "script": "---@type string?\nlocal t\n\nif not t or xxx then\n    return\nend\n\nprint(<?t?>)\n"
+ },
+ {
+  "file": "common",
+  "n": 310,
+  "want": "table",
+  "script": "---@type table|nil\nlocal t\n\nreturn function ()\n    if not t then\n        return\n    end\n    \n    print(<?t?>)\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 311,
+  "want": "table",
+  "script": "---@type table|nil\nlocal t\n\nf(function ()\n    if not t then\n        return\n    end\n    \n    print(<?t?>)\nend)\n"
+ },
+ {
+  "file": "common",
+  "n": 312,
+  "want": "table",
+  "script": "---@type table?\nlocal t\n\nt = t or {}\n\nprint(<?t?>)\n"
+ },
+ {
+  "file": "common",
+  "n": 313,
+  "want": "unknown|nil",
+  "script": "local x\n\nif x == nil then\nend\n\nprint(<?x?>)\n"
+ },
+ {
+  "file": "common",
+  "n": 314,
+  "want": "table<xxx, true>",
+  "script": "---@alias xxx table<xxx, true>\n\n---@type xxx\nlocal <?t?>\n"
+ },
+ {
+  "file": "common",
+  "n": 315,
+  "want": "xxx[][]",
+  "script": "---@alias xxx xxx[]\n\n---@type xxx\nlocal <?t?>\n"
+ },
+ {
+  "file": "common",
+  "n": 316,
+  "want": "fun(x: fun(x: xxx))",
+  "script": "---@alias xxx fun(x: xxx)\n\n---@type xxx\nlocal <?t?>\n"
+ },
+ {
+  "file": "common",
+  "n": 317,
+  "want": "table",
+  "script": "---@type table|nil\nlocal t\n\nwhile t do\n    print(<?t?>)\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 318,
+  "want": "table|nil",
+  "script": "---@type table|nil\nlocal t\n\nwhile <?t?> do\n    print(t)\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 319,
+  "want": "table",
+  "script": "---@type table|nil\nlocal t\n\nwhile t ~= nil do\n    print(<?t?>)\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 320,
+  "want": "table|nil",
+  "script": "---@type table|nil\nlocal t\n\nwhile <?t?> ~= nil do\n    print(t)\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 321,
+  "want": "integer",
+  "script": "---@type integer?\nlocal n\n\nif not n then\n    error('n is nil')\nend\n\nprint(<?n?>)\n"
+ },
+ {
+  "file": "common",
+  "n": 322,
+  "want": "integer",
+  "script": "---@type integer?\nlocal n\n\nif not n then\n    os.exit()\nend\n\nprint(<?n?>)\n"
+ },
+ {
+  "file": "common",
+  "n": 323,
+  "want": "table",
+  "script": "---@type table?\nlocal n\n\nprint((n and <?n?>.x))\n"
+ },
+ {
+  "file": "common",
+  "n": 324,
+  "want": "table",
+  "script": "---@type table?\nlocal n\n\nn = n and <?n?>.x or 1\n"
+ },
+ {
+  "file": "common",
+  "n": 325,
+  "want": "table",
+  "script": "---@type table?\nlocal n\n\nn = ff[n and <?n?>.x]\n"
+ },
+ {
+  "file": "common",
+  "n": 326,
+  "want": "integer",
+  "script": "local x\n\nif type(x) == 'integer' then\n    print(<?x?>)\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 327,
+  "want": "boolean|integer",
+  "script": "local x\n\nif type(x) == 'integer'\nor type(x) == 'boolean' then\n    print(<?x?>)\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 328,
+  "want": "fun()",
+  "script": "---@type fun()?\nlocal x\n\nif type(x) == 'function' then\n    print(<?x?>)\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 329,
+  "want": "function",
+  "script": "local x\n\nif type(x) == 'function' then\n    print(<?x?>)\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 330,
+  "want": "integer",
+  "script": "local x\nlocal tp = type(x)\n\nif tp == 'integer' then\n    print(<?x?>)\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 331,
+  "want": "integer",
+  "script": "---@type integer?\nlocal x\n\nif (x == nil) then\nelse\n    print(<?x?>)\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 332,
+  "want": "B",
+  "script": "---@class A\n---@class B\n\n---@type A\nlocal x\n\n---@type B\nx = call(x)\n\nprint(<?x?>)\n"
+ },
+ {
+  "file": "common",
+  "n": 333,
+  "want": "nil",
+  "script": "local function f()\nend\n\nlocal <?x?> = f()\n"
+ },
+ {
+  "file": "common",
+  "n": 334,
+  "want": "integer[]",
+  "script": "---@type integer[]\nlocal x\nif not x then\n    return\nend\n\nprint(<?x?>)\n"
+ },
+ {
+  "file": "common",
+  "n": 335,
+  "want": "unknown",
+  "script": "---@type string[]\nlocal t\n\nlocal <?x?> = t.x\n"
+ },
+ {
+  "file": "common",
+  "n": 336,
+  "want": "integer|unknown",
+  "script": "local function f()\n    return GG\nend\n\nlocal t\n\nt.x = 1\nt.x = f()\n\nprint(t.<?x?>)\n"
+ },
+ {
+  "file": "common",
+  "n": 337,
+  "want": "integer",
+  "script": "local function f()\n    if X then\n        return X\n    else\n        return 1\n    end\nend\n\nlocal <?n?> = f()\n"
+ },
+ {
+  "file": "common",
+  "n": 338,
+  "want": "unknown",
+  "script": "local function f()\n    return t[k]\nend\n\nlocal <?n?> = f()\n"
+ },
+ {
+  "file": "common",
+  "n": 339,
+  "want": "integer|nil",
+  "script": "local function f()\n    if x then\n        return\n    else\n        return 1\n    end\nend\n\nlocal <?n?> = f()\n"
+ },
+ {
+  "file": "common",
+  "n": 340,
+  "want": "integer",
+  "script": "---@class A\n---@field x integer\nlocal m\n\nm.<?x?> = true\n\nprint(m.x)\n"
+ },
+ {
+  "file": "common",
+  "n": 341,
+  "want": "integer",
+  "script": "---@class A\n---@field x integer\nlocal m\n\nm.x = true\n\nprint(m.<?x?>)\n"
+ },
+ {
+  "file": "common",
+  "n": 342,
+  "want": "integer",
+  "script": "---@class A\n---@field x integer --> 1st\nlocal m = {\n    x = '' --> 2nd\n}\n\n---@type boolean\nm.x = true --> 3rd (with ---@type above)\n\nm.x = {} --> 4th\n\nprint(m.<?x?>)\n"
+ },
+ {
+  "file": "common",
+  "n": 343,
+  "want": "string",
+  "script": "---@class A\n----@field x integer --> 1st\nlocal m = {\n    x = '' --> 2nd\n}\n\n---@type boolean\nm.x = true --> 3rd (with ---@type above)\n\nm.x = {} --> 4th\n\nprint(m.<?x?>)\n"
+ },
+ {
+  "file": "common",
+  "n": 344,
+  "want": "boolean",
+  "script": "---@class A\n----@field x integer --> 1st\nlocal m = {\n    --x = '' --> 2nd\n}\n\n---@type boolean\nm.x = true --> 3rd (with ---@type above)\n\nm.x = {} --> 4th\n\nprint(m.<?x?>)\n"
+ },
+ {
+  "file": "common",
+  "n": 345,
+  "want": "table",
+  "script": "---@class A\n----@field x integer --> 1st\nlocal m = {\n    --x = '' --> 2nd\n}\n\n---@type boolean\n--m.x = true --> 3rd (with ---@type above)\n\nm.x = {} --> 4th\n\nprint(m.<?x?>)\n"
+ },
+ {
+  "file": "common",
+  "n": 346,
+  "want": "boolean?",
+  "script": "---@generic T\n---@param x T\n---@return T\nlocal function echo(x) end\n\n---@type boolean?\nlocal b\n\nlocal <?x?> = echo(b)\n"
+ },
+ {
+  "file": "common",
+  "n": 347,
+  "want": "boolean",
+  "script": "---@generic T\n---@param x T?\n---@return T\nlocal function echo(x) end\n\n---@type boolean?\nlocal b\n\nlocal <?x?> = echo(b)\n"
+ },
+ {
+  "file": "common",
+  "n": 348,
+  "want": "boolean",
+  "script": "---@generic T\n---@param x? T\n---@return T\nlocal function echo(x) end\n\n---@type boolean?\nlocal b\n\nlocal <?x?> = echo(b)\n"
+ },
+ {
+  "file": "common",
+  "n": 349,
+  "want": "boolean",
+  "script": "---@type {[integer]: boolean, xx: integer}\nlocal t\n\nlocal <?n?> = t[1]\n"
+ },
+ {
+  "file": "common",
+  "n": 350,
+  "want": "boolean",
+  "script": "---@type integer\nlocal i\n\n---@type {[integer]: boolean, xx: integer}\nlocal t\n\nlocal <?n?> = t[i]\n"
+ },
+ {
+  "file": "common",
+  "n": 351,
+  "want": "string",
+  "script": "local x = true\nlocal y = x--[[@as integer]] --is `integer` here\nlocal z = <?x?>--[[@as string]] --is `true` here\n"
+ },
+ {
+  "file": "common",
+  "n": 352,
+  "want": "integer",
+  "script": "---@type integer\nlocal x\n\nif type(x) == 'number' then\n    print(<?x?>)\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 353,
+  "want": "boolean",
+  "script": "---@class A\n---@field [integer] boolean\nlocal mt\n\nfunction mt:f()\n    ---@type integer\n    local index\n    local <?x?> = self[index]\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 354,
+  "want": "boolean",
+  "script": "---@class A\n---@field [B] boolean\n\n---@class B\n\n---@type A\nlocal a\n\n---@type B\nlocal b\n\nlocal <?x?> = a[b]\n"
+ },
+ {
+  "file": "common",
+  "n": 355,
+  "want": "number",
+  "script": "---@type {x: string ; y: boolean; z: number}\nlocal t\n\nlocal <?z?> = t.z\n"
+ },
+ {
+  "file": "common",
+  "n": 356,
+  "want": "fun():number, boolean",
+  "script": "---@type {f: fun():number, boolean}\nlocal t\n\nlocal <?f?> = t.f\n"
+ },
+ {
+  "file": "common",
+  "n": 357,
+  "want": "fun():number",
+  "script": "---@type {(f: fun():number), x: boolean}\nlocal t\n\nlocal <?f?> = t.f\n"
+ },
+ {
+  "file": "common",
+  "n": 358,
+  "want": "boolean",
+  "script": "---@param ... boolean\nlocal function f(...)\n    local <?n?> = ...\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 359,
+  "want": "boolean",
+  "script": "---@param ... boolean\nlocal function f(...)\n    local _, <?n?> = ...\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 360,
+  "want": "boolean",
+  "script": "---@return boolean ...\nlocal function f() end\n\nlocal <?n?> = f()\n"
+ },
+ {
+  "file": "common",
+  "n": 361,
+  "want": "boolean",
+  "script": "---@return boolean ...\nlocal function f() end\n\nlocal _, <?n?> = f()\n"
+ },
+ {
+  "file": "common",
+  "n": 362,
+  "want": "boolean",
+  "script": "---@type fun():name1: boolean, name2:number\nlocal f\n\nlocal <?n?> = f()\n"
+ },
+ {
+  "file": "common",
+  "n": 363,
+  "want": "number",
+  "script": "---@type fun():name1: boolean, name2:number\nlocal f\n\nlocal _, <?n?> = f()\n"
+ },
+ {
+  "file": "common",
+  "n": 364,
+  "want": "boolean",
+  "script": "---@type fun():(name1: boolean, name2:number)\nlocal f\n\nlocal <?n?> = f()\n"
+ },
+ {
+  "file": "common",
+  "n": 365,
+  "want": "number",
+  "script": "---@type fun():(name1: boolean, name2:number)\nlocal f\n\nlocal _, <?n?> = f()\n"
+ },
+ {
+  "file": "common",
+  "n": 366,
+  "want": "boolean",
+  "script": "---@type fun():...: boolean\nlocal f\n\nlocal _, <?n?> = f()\n"
+ },
+ {
+  "file": "common",
+  "n": 367,
+  "want": "string",
+  "script": "local s\nwhile true do\n    s = ''\nend\nprint(<?s?>)\n"
+ },
+ {
+  "file": "common",
+  "n": 368,
+  "want": "string",
+  "script": "local s\nfor _ in _ do\n    s = ''\nend\nprint(<?s?>)\n"
+ },
+ {
+  "file": "common",
+  "n": 369,
+  "want": "A",
+  "script": "---@class A: string\n\n---@type A\nlocal <?s?> = ''\n"
+ },
+ {
+  "file": "common",
+  "n": 370,
+  "want": "number",
+  "script": "---@return number\nlocal function f() end\nlocal x, <?y?> = 1, f()\n"
+ },
+ {
+  "file": "common",
+  "n": 371,
+  "want": "boolean",
+  "script": "---@return number, boolean\nlocal function f() end\nlocal x, y, <?z?> = 1, f()\n"
+ },
+ {
+  "file": "common",
+  "n": 372,
+  "want": "number",
+  "script": "---@return number, boolean\nlocal function f() end\nlocal x, y, <?z?> = 1, 2, f()\n"
+ },
+ {
+  "file": "common",
+  "n": 373,
+  "want": "unknown",
+  "script": "local f\n\nprint(<?f?>)\n\nfunction f() end\n"
+ },
+ {
+  "file": "common",
+  "n": 374,
+  "want": "unknown",
+  "script": "local f\n\ndo\n    print(<?f?>)\nend\n\nfunction f() end\n"
+ },
+ {
+  "file": "common",
+  "n": 375,
+  "want": "function",
+  "script": "local f\n\nfunction A()\n    print(<?f?>)\nend\n\nfunction f() end\n"
+ },
+ {
+  "file": "common",
+  "n": 376,
+  "want": "number",
+  "script": "---@type number|nil\nlocal n\n\nlocal t = {\n    x = n and <?n?>,\n}\n"
+ },
+ {
+  "file": "common",
+  "n": 377,
+  "want": "table",
+  "script": "---@type table?\nlocal n\n\nif not n or not <?n?>.x then\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 378,
+  "want": "table",
+  "script": "---@type table?\nlocal n\n\nif not n or not <?n?>[1] then\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 379,
+  "want": "number",
+  "script": "---@type number|false\nlocal n\n\n---@cast n -false\n\nprint(<?n?>)\n"
+ },
+ {
+  "file": "common",
+  "n": 380,
+  "want": "table",
+  "script": "---@type number|table\nlocal n\n\nif  n\n---@cast n table\nand <?n?>.type == 'xxx' then\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 381,
+  "want": "integer",
+  "script": "---@type integer?\nlocal n\nif true then\n    n = 0\nend\nlocal <?x?> = n or 0\n"
+ },
+ {
+  "file": "common",
+  "n": 382,
+  "want": "integer",
+  "script": "---@type integer?\nlocal foo = 1\nlocal <?bar?> = foo ?? 2\n"
+ },
+ {
+  "file": "common",
+  "n": 383,
+  "want": "number",
+  "script": "local <?x?> = F()--[[@as number]]\n"
+ },
+ {
+  "file": "common",
+  "n": 384,
+  "want": "number",
+  "script": "local function f()\n    return F()--[[@as number]]\nend\n\nlocal <?x?> = f()\n"
+ },
+ {
+  "file": "common",
+  "n": 385,
+  "want": "number",
+  "script": "local <?x?> = X --[[@as number]]\n"
+ },
+ {
+  "file": "common",
+  "n": 386,
+  "want": "number",
+  "script": "---@return number?, number?\nlocal function f() end\n\nfor <?x?>, y in f do\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 387,
+  "want": "number",
+  "script": "---@return number?, number?\nlocal function f() end\n\nfor x, <?y?> in f do\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 388,
+  "want": "number|nil",
+  "script": "---@type table|nil\nlocal a\n\n---@type number|nil\nlocal b\n\nlocal <?c?> = a and b\n"
+ },
+ {
+  "file": "common",
+  "n": 389,
+  "want": "number|table|nil",
+  "script": "---@type table|nil\nlocal a\n\n---@type number|nil\nlocal b\n\nlocal <?c?> = a or b\n"
+ },
+ {
+  "file": "common",
+  "n": 390,
+  "want": "number|table|nil",
+  "script": "---@type table|nil\nlocal a\n\n---@type number|nil\nlocal b\n\nlocal c = a and b\nlocal <?d?> = a or b\n"
+ },
+ {
+  "file": "common",
+  "n": 391,
+  "want": "number",
+  "script": "local x\n\n---@return number\nlocal function f()\nend\n\nx = f()\n\nprint(<?x?>)\n"
+ },
+ {
+  "file": "common",
+  "n": 392,
+  "want": "number",
+  "script": "local x\n\n---@return number\nlocal function f()\nend\n\n_, x = pcall(f)\n\nprint(<?x?>)\n"
+ },
+ {
+  "file": "common",
+  "n": 393,
+  "want": "string",
+  "script": "---@type table<string|number, string>\nlocal t\n\n---@type number\nlocal n\n---@type string\nlocal s\n\nlocal <?test?>  = t[n] \nlocal test2 = t[s] --test and test2 are unknow\n"
+ },
+ {
+  "file": "common",
+  "n": 394,
+  "want": "string",
+  "script": "---@type table<string|number, string>\nlocal t\n\n---@type number\nlocal n\n---@type string\nlocal s\n\nlocal test  = t[n] \nlocal <?test2?> = t[s] --test and test2 are unknow\n"
+ },
+ {
+  "file": "common",
+  "n": 395,
+  "want": "table<number, boolean>",
+  "script": "---@type table<number, boolean>\nlocal t\n\n<?t?> = {}\n"
+ },
+ {
+  "file": "common",
+  "n": 396,
+  "want": "integer",
+  "script": "---@type integer[]|A\nlocal t\n\nlocal <?x?> = t[1]\n"
+ },
+ {
+  "file": "common",
+  "n": 397,
+  "want": "integer",
+  "script": "---@type integer\n---@diagnostic disable\nlocal <?t?>\n"
+ },
+ {
+  "file": "common",
+  "n": 398,
+  "want": "A",
+  "script": "---@class A\n---@diagnostic disable\nlocal <?t?>\n"
+ },
+ {
+  "file": "common",
+  "n": 399,
+  "want": "{ [string]: number, [true]: string, [1]: boolean, tag: integer }",
+  "script": "---@type {[string]: number, [true]: string, [1]: boolean, tag: integer}\nlocal <?t?>\n"
+ },
+ {
+  "file": "common",
+  "n": 400,
+  "want": "unknown",
+  "script": "local mt = {}\nmt.<?x?> = nil\n"
+ },
+ {
+  "file": "common",
+  "n": 401,
+  "want": "unknown",
+  "script": "mt = {}\nmt.<?x?> = nil\n"
+ },
+ {
+  "file": "common",
+  "n": 402,
+  "want": "A",
+  "script": "---@class A\n---@operator unm: A\n\n---@type A\nlocal a\nlocal <?b?> = -a\n"
+ },
+ {
+  "file": "common",
+  "n": 403,
+  "want": "A",
+  "script": "---@class A\n---@operator bnot: A\n\n---@type A\nlocal a\nlocal <?b?> = ~a\n"
+ },
+ {
+  "file": "common",
+  "n": 404,
+  "want": "A",
+  "script": "---@class A\n---@operator len: A\n\n---@type A\nlocal a\nlocal <?b?> = #a\n"
+ },
+ {
+  "file": "common",
+  "n": 405,
+  "want": "A",
+  "script": "---@class A\n---@operator add: A\n\n---@type A\nlocal a\nlocal <?b?> = a + 1\n"
+ },
+ {
+  "file": "common",
+  "n": 406,
+  "want": "A",
+  "script": "---@class A\n---@operator sub: A\n\n---@type A\nlocal a\nlocal <?b?> = a - 1\n"
+ },
+ {
+  "file": "common",
+  "n": 407,
+  "want": "A",
+  "script": "---@class A\n---@operator mul: A\n\n---@type A\nlocal a\nlocal <?b?> = a * 1\n"
+ },
+ {
+  "file": "common",
+  "n": 408,
+  "want": "A",
+  "script": "---@class A\n---@operator div: A\n\n---@type A\nlocal a\nlocal <?b?> = a / 1\n"
+ },
+ {
+  "file": "common",
+  "n": 409,
+  "want": "A",
+  "script": "---@class A\n---@operator mod: A\n\n---@type A\nlocal a\nlocal <?b?> = a % 1\n"
+ },
+ {
+  "file": "common",
+  "n": 410,
+  "want": "A",
+  "script": "---@class A\n---@operator pow: A\n\n---@type A\nlocal a\nlocal <?b?> = a ^ 1\n"
+ },
+ {
+  "file": "common",
+  "n": 411,
+  "want": "A",
+  "script": "---@class A\n---@operator idiv: A\n\n---@type A\nlocal a\nlocal <?b?> = a // 1\n"
+ },
+ {
+  "file": "common",
+  "n": 412,
+  "want": "A",
+  "script": "---@class A\n---@operator band: A\n\n---@type A\nlocal a\nlocal <?b?> = a & 1\n"
+ },
+ {
+  "file": "common",
+  "n": 413,
+  "want": "A",
+  "script": "---@class A\n---@operator bor: A\n\n---@type A\nlocal a\nlocal <?b?> = a | 1\n"
+ },
+ {
+  "file": "common",
+  "n": 414,
+  "want": "A",
+  "script": "---@class A\n---@operator bxor: A\n\n---@type A\nlocal a\nlocal <?b?> = a ~ 1\n"
+ },
+ {
+  "file": "common",
+  "n": 415,
+  "want": "A",
+  "script": "---@class A\n---@operator shl: A\n\n---@type A\nlocal a\nlocal <?b?> = a << 1\n"
+ },
+ {
+  "file": "common",
+  "n": 416,
+  "want": "A",
+  "script": "---@class A\n---@operator shr: A\n\n---@type A\nlocal a\nlocal <?b?> = a >> 1\n"
+ },
+ {
+  "file": "common",
+  "n": 417,
+  "want": "A",
+  "script": "---@class A\n---@operator concat: A\n\n---@type A\nlocal a\nlocal <?b?> = a .. 1\n"
+ },
+ {
+  "file": "common",
+  "n": 418,
+  "want": "A",
+  "script": "---@class A\n---@operator add(boolean): boolean\n---@operator add(integer): A\n\n---@type A\nlocal a\nlocal <?b?> = a + 1\n"
+ },
+ {
+  "file": "common",
+  "n": 419,
+  "want": "boolean",
+  "script": "---@class A\n---@operator add(boolean): boolean\n---@operator add(integer): A\n\n---@type A\nlocal a\nlocal <?b?> = a + true\n"
+ },
+ {
+  "file": "common",
+  "n": 420,
+  "want": "A",
+  "script": "---@class A\n---@operator call: A\n\n---@type A\nlocal a\nlocal <?b?> = a()\n"
+ },
+ {
+  "file": "common",
+  "n": 421,
+  "want": "A",
+  "script": "---@class A\n---@operator call: A\n\n---@type A\nlocal a\n\nlocal t = {\n    <?x?> = a(),\n}\n"
+ },
+ {
+  "file": "common",
+  "n": 422,
+  "want": "boolean",
+  "script": "---@class A\n---@field n number\n---@field [string] boolean\nlocal t\n\nlocal <?x?> = t.xx\n"
+ },
+ {
+  "file": "common",
+  "n": 423,
+  "want": "number",
+  "script": "---@class A\n---@field n number\n---@field [string] boolean\nlocal t\n\nlocal <?x?> = t.n\n"
+ },
+ {
+  "file": "common",
+  "n": 424,
+  "want": "function",
+  "script": "---@class A\n---@field [string] boolean\nlocal t\nfunction t.f() end\n\nlocal <?f?> = t.f\n"
+ },
+ {
+  "file": "common",
+  "n": 425,
+  "want": "function",
+  "script": "---@class A\n---@field [string] boolean\nlocal t = {\n    f = function () end\n}\n\nlocal <?f?> = t.f\n"
+ },
+ {
+  "file": "common",
+  "n": 426,
+  "want": "string",
+  "script": "---@class string\n---@operator mod: string\n\nlocal <?b?> = '' % 1\n"
+ },
+ {
+  "file": "common",
+  "n": 427,
+  "want": "string|integer",
+  "script": "---@type boolean\nlocal bool\n\nlocal <?x?> = bool and '' or 0\n"
+ },
+ {
+  "file": "common",
+  "n": 428,
+  "want": "string|integer",
+  "script": "local bool\n\nif X then\n    bool = true\nelse\n    bool = false\nend\n\nlocal <?x?> = bool and '' or 0\n"
+ },
+ {
+  "file": "common",
+  "n": 429,
+  "want": "boolean",
+  "script": "---@type boolean|true|false\nlocal <?b?>\n"
+ },
+ {
+  "file": "common",
+  "n": 430,
+  "want": "integer|false",
+  "script": "local <?b?> = X == 1 and X == 1 and 1\n"
+ },
+ {
+  "file": "common",
+  "n": 431,
+  "want": "unknown|nil",
+  "script": "local function f()\n    if X then\n        return ({})[1]\n    end\n    return nil\nend\n\nlocal <?n?> = f()\n"
+ },
+ {
+  "file": "common",
+  "n": 432,
+  "want": "integer",
+  "script": "---@generic T\n---@vararg T # ERROR\n---@return T\nlocal function test(...)\n    return ...\nend\n\nlocal <?n?> = test(1)\n"
+ },
+ {
+  "file": "common",
+  "n": 433,
+  "want": "boolean",
+  "script": "---@type boolean, number\nlocal <?x?>, y\n"
+ },
+ {
+  "file": "common",
+  "n": 434,
+  "want": "number",
+  "script": "---@type boolean, number\nlocal x, <?y?>\n"
+ },
+ {
+  "file": "common",
+  "n": 435,
+  "want": "unknown",
+  "script": "---@type _, number\nlocal <?x?>, y\n"
+ },
+ {
+  "file": "common",
+  "n": 436,
+  "want": "number[]",
+  "script": "local t\n---@cast t number[]?\n\nlocal x = t and <?t?>[i]\n"
+ },
+ {
+  "file": "common",
+  "n": 437,
+  "want": "number?",
+  "script": "---@type number[]?\nlocal t\n\nlocal <?x?> = t and t[i]\n"
+ },
+ {
+  "file": "common",
+  "n": 438,
+  "want": "number",
+  "script": "---@type number\nlocal x\n\nif not <?x?>.y then\n    x = nil\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 439,
+  "want": "number",
+  "script": "---@type number|nil\nlocal x\nwhile x == nil do\n    if x == nil then\n        return\n    end\n\n    x = nil\nend\n\nprint(<?x?>)\n"
+ },
+ {
+  "file": "common",
+  "n": 440,
+  "want": "integer",
+  "script": "local A = {\n    ---@class XXX\n    B = {}\n}\n\nA.B.C = 1\n\nprint(A.B.<?C?>)\n"
+ },
+ {
+  "file": "common",
+  "n": 441,
+  "want": "-2|-3|1",
+  "script": "---@type 1|-2|-3\nlocal <?n?>\n"
+ },
+ {
+  "file": "common",
+  "n": 442,
+  "want": "enum A",
+  "script": "---@enum A\nlocal m = {}\n\nprint(<?m?>)\n"
+ },
+ {
+  "file": "common",
+  "n": 443,
+  "want": "A",
+  "script": "---@class A\n---@overload fun():A\nlocal m = {}\n\n---@return A\nfunction m:init()\n    return <?self?>\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 444,
+  "want": "string",
+  "script": "---@vararg string\nfunction F(...)\n    local t = {...}\n    for k, <?v?> in pairs(t) do\n    end\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 445,
+  "want": "string",
+  "script": "---@vararg string\nfunction F(...)\n    local t = {...}\n    for k, <?v?> in ipairs(t) do\n    end\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 446,
+  "want": "integerA",
+  "script": "---@type integerA\nfor <?i?> = 1, 10 do\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 447,
+  "want": "string",
+  "script": "---@class A\n---@field x string\n\n---@class B : A\nlocal t = {}\n\nt.x = t.x\n\nprint(t.<?x?>)\n"
+ },
+ {
+  "file": "common",
+  "n": 448,
+  "want": "unknown",
+  "script": "local t = {\n    x = 1,\n}\n\nlocal x\n\nlocal <?v?> = t[x]\n"
+ },
+ {
+  "file": "common",
+  "n": 449,
+  "want": "A|B",
+  "script": "---@class A\n---@class B: A\n\n---@type A|B\nlocal <?t?>\n"
+ },
+ {
+  "file": "common",
+  "n": 450,
+  "want": "function",
+  "script": "---@class myClass\nlocal myClass = { has = { nested = {} } }\n\nfunction myClass.has.nested.fn() end\n\n---@type myClass\nlocal class\n\nclass.has.nested.<?fn?>()\n"
+ },
+ {
+  "file": "common",
+  "n": 451,
+  "want": "integer[]",
+  "script": "---@generic T\n---@param f fun(x: T)\n---@return T[]\nlocal function x(f) end\n\n---@param x integer\nlocal <?arr?> = x(function (x) end)\n"
+ },
+ {
+  "file": "common",
+  "n": 452,
+  "want": "integer[]",
+  "script": "---@generic T\n---@param f fun():T\n---@return T[]\nlocal function x(f) end\n\nlocal <?arr?> = x(function ()\n    return 1\nend)\n"
+ },
+ {
+  "file": "common",
+  "n": 453,
+  "want": "integer[]",
+  "script": "---@generic T\n---@param f fun():T\n---@return T[]\nlocal function x(f) end\n\n---@return integer\nlocal <?arr?> = x(function () end)\n"
+ },
+ {
+  "file": "common",
+  "n": 454,
+  "want": "integer[]",
+  "script": "---@generic T\n---@param f fun(x: T)\n---@return T[]\nlocal function x(f) end\n\n---@type fun(x: integer)\nlocal cb\n\nlocal <?arr?> = x(cb)\n"
+ },
+ {
+  "file": "common",
+  "n": 455,
+  "want": "integer[]",
+  "script": "---@generic T\n---@param f fun():T\n---@return T[]\nlocal function x(f) end\n\n---@type fun(): integer\nlocal cb\n\nlocal <?arr?> = x(cb)\n"
+ },
+ {
+  "file": "common",
+  "n": 456,
+  "want": "integer",
+  "script": "---@return fun(x: integer)\nlocal function f()\n    return function (<?x?>)\n    end\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 457,
+  "want": "string",
+  "script": "---@class A\n---@field f fun(x: string)\n\n---@type A\nlocal t = {\n    f = function (<?x?>) end\n}\n"
+ },
+ {
+  "file": "common",
+  "n": 458,
+  "want": "number",
+  "script": "---@type number?\nlocal t\n\nxx.assert(t)\n\nprint(<?t?>)\n"
+ },
+ {
+  "file": "common",
+  "n": 459,
+  "want": "A",
+  "script": "---@class A\nlocal mt\n\n---@return <?self?>\nfunction mt:init()\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 460,
+  "want": "A",
+  "script": "---@class A\nlocal mt\n\n---@return self\nfunction mt:init()\nend\n\nlocal <?o?> = mt:init()\n"
+ },
+ {
+  "file": "common",
+  "n": 461,
+  "want": "A",
+  "script": "---@class A\n---@field x <?self?>\n"
+ },
+ {
+  "file": "common",
+  "n": 462,
+  "want": "A",
+  "script": "---@class A\n---@field x self\n\n---@type A\nlocal o\n\nprint(o.<?x?>)\n"
+ },
+ {
+  "file": "common",
+  "n": 463,
+  "want": "A",
+  "script": "---@class A\n---@overload fun(): self\nlocal A\n\nlocal <?o?> = A()\n"
+ },
+ {
+  "file": "common",
+  "n": 464,
+  "want": "number",
+  "script": "---@type table<'Test1', fun(x: number)>\nlocal t = {\n    [\"Test1\"] = function(<?x?>) end,\n}\n"
+ },
+ {
+  "file": "common",
+  "n": 465,
+  "want": "number",
+  "script": "---@type table<5, fun(x: number)>\nlocal t = {\n    [5] = function(<?x?>) end,\n}\n"
+ },
+ {
+  "file": "common",
+  "n": 466,
+  "want": "number",
+  "script": "---@type fun(x: number)\nlocal function f(<?x?>) end\n"
+ },
+ {
+  "file": "common",
+  "n": 467,
+  "want": "number",
+  "script": "---@type fun(x:number)[]\nlocal t = {\n    function (<?x?>) end,\n}\n"
+ },
+ {
+  "file": "common",
+  "n": 468,
+  "want": "number",
+  "script": "---@type fun(x:number)[]\nlocal t = {\n    [1] = function (<?x?>) end,\n}\n"
+ },
+ {
+  "file": "common",
+  "n": 469,
+  "want": "number",
+  "script": "---@type {[integer]: fun(x:number)}\nlocal t = {\n    function (<?x?>) end,\n}\n"
+ },
+ {
+  "file": "common",
+  "n": 470,
+  "want": "number",
+  "script": "---@type {[integer]: fun(x:number)}\nlocal t = {\n    [1] = function (<?x?>) end,\n}\n"
+ },
+ {
+  "file": "common",
+  "n": 471,
+  "want": "boolean",
+  "script": "---@generic T: string | boolean | table\n---@param x T\n---@return T\nlocal function f(x)\n    return x\nend\n\nlocal <?x?> = f(true)\n"
+ },
+ {
+  "file": "common",
+  "n": 472,
+  "want": "number",
+  "script": "---@class A\n---@field [1] number\n---@field [2] boolean\nlocal t\n\nlocal <?n?> = t[1]\n"
+ },
+ {
+  "file": "common",
+  "n": 473,
+  "want": "boolean",
+  "script": "---@class A\n---@field [1] number\n---@field [2] boolean\nlocal t\n\nlocal <?n?> = t[2]\n"
+ },
+ {
+  "file": "common",
+  "n": 474,
+  "want": "N",
+  "script": "---@class N: number\nlocal x\n\nif x == 0.1 then\n    print(<?x?>)\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 475,
+  "want": "vec3",
+  "script": "---@class mat4\n---@operator mul(vec3): vec3 -- matrix * vector\n---@operator mul(number): mat4 -- matrix * constant\n\n---@class vec3: number\n\n---@type mat4, vec3\nlocal m, v\n\nlocal <?r?> = m * v\n"
+ },
+ {
+  "file": "common",
+  "n": 476,
+  "want": "mat4",
+  "script": "---@class mat4\n---@operator mul(number): mat4 -- matrix * constant\n---@operator mul(vec3): vec3 -- matrix * vector\n\n---@class vec3: number\n\n---@type mat4, vec3\nlocal m, v\n\nlocal <?r?> = m * v\n"
+ },
+ {
+  "file": "common",
+  "n": 477,
+  "want": "A|B",
+  "script": "---@class A\n---@class B\n\n---@type A|B\nlocal t\n\nif x then\n    ---@cast t A\nelse\n    print(<?t?>)\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 478,
+  "want": "A|B",
+  "script": "---@class A\n---@class B\n\n---@type A|B\nlocal t\n\nif x then\n    ---@cast t A\nelseif <?t?> then\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 479,
+  "want": "A|B",
+  "script": "---@class A\n---@class B\n\n---@type A|B\nlocal t\n\nif x then\n    ---@cast t A\n    print(t)\nelseif <?t?> then\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 480,
+  "want": "A|B",
+  "script": "---@class A\n---@class B\n\n---@type A|B\nlocal t\n\nif x then\n    ---@cast t A\n    print(t)\nelseif <?t?> then\n    ---@cast t A\n    print(t)\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 481,
+  "want": "function",
+  "script": "local function x()\n    print(<?x?>)\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 482,
+  "want": "number",
+  "script": "---@type number?\nlocal x\n\ndo\n    if not x then\n        return\n    end\nend\n\nprint(<?x?>)\n"
+ },
+ {
+  "file": "common",
+  "n": 483,
+  "want": "number",
+  "script": "---@type number[]\nlocal xs\n\n---@type fun(x): number?\nlocal f\n\nfor _, <?x?> in ipairs(xs) do\n    x = f(x)\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 484,
+  "want": "number",
+  "script": "---@type number?\nX = Y\n\nif X then\n    print(<?X?>)\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 485,
+  "want": "number",
+  "script": "---@type number|boolean\nX = Y\n\nif type(X) == 'number' then\n    print(<?X?>)\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 486,
+  "want": "boolean",
+  "script": "---@type number|boolean\nX = Y\n\nif type(X) ~= 'number' then\n    print(<?X?>)\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 487,
+  "want": "boolean",
+  "script": "---@type number\nX = Y\n\n---@cast X boolean\n\nprint(<?X?>)\n"
+ },
+ {
+  "file": "common",
+  "n": 488,
+  "want": "number",
+  "script": "---@type number\nlocal t\n\nif xxx == <?t?> then\n    print(t)\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 489,
+  "want": "V",
+  "script": "---@class V\nX = 1\n\nprint(<?X?>)\n"
+ },
+ {
+  "file": "common",
+  "n": 490,
+  "want": "V",
+  "script": "---@class V\nX.Y = 1\n\nprint(X.<?Y?>)\n"
+ },
+ {
+  "file": "common",
+  "n": 491,
+  "want": "integer",
+  "script": "local x = {}\n\nx.y = 1\nlocal y = x.y\nx.y = nil\n\nprint(<?y?>)\n"
+ },
+ {
+  "file": "common",
+  "n": 492,
+  "want": "function",
+  "script": "function X()\n    <?Y?>()\nend\n\nfunction Y()\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 493,
+  "want": "A_Class",
+  "script": "---@class A_Class\nlocal A = { x = 5 }\n\nfunction A:func()\n    for i = 1, <?self?>.x do\n        print(i)\n    end\n\n    self.y = 3\n    self.y = self.y + 3\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 494,
+  "want": "number",
+  "script": "---@type number?\nlocal n\nlocal <?v?> = n or error('')\n"
+ },
+ {
+  "file": "common",
+  "n": 495,
+  "want": "Foo",
+  "script": "---@class Foo\n---@operator mul(Foo): Foo\n---@operator mul(Bar): Foo\n---@class Bar\n\n---@type Foo\nlocal foo\n\n---@type Foo|Bar\nlocal fooOrBar\n\nlocal <?b?> = foo * fooOrBar\n"
+ },
+ {
+  "file": "common",
+  "n": 496,
+  "want": "number",
+  "script": "local a = 4;\nlocal b = 2;\n\nlocal <?c?> = a / b;\n"
+ },
+ {
+  "file": "common",
+  "n": 497,
+  "want": "string",
+  "script": "local a = '4';\nlocal b = '2';\n\nlocal <?c?> = a .. b;\n"
+ },
+ {
+  "file": "common",
+  "n": 498,
+  "want": "number|{ [1]: string }",
+  "script": "---@alias Some\n---| { [1]: string }\n---| number\n\nlocal x ---@type Some\n\nprint(<?x?>)\n"
+ },
+ {
+  "file": "common",
+  "n": 499,
+  "want": "integer",
+  "script": "---@class metatable : table\n---@field __index table\n\n---@param table      table\n---@param metatable? metatable\n---@return table\nfunction setmetatable(table, metatable) end\n\nlocal m = setmetatable({},{ __index = { a = 1 } })\n\nm.<?a?>\n"
+ },
+ {
+  "file": "common",
+  "n": 500,
+  "want": "integer",
+  "script": "---@class metatable : table\n---@field __index table\n\n---@param table      table\n---@param metatable? metatable\n---@return table\nfunction setmetatable(table, metatable) end\n\nlocal mt = {a = 1 }\nlocal m = setmetatable({},{ __index = mt })\n\nm.<?a?>\n"
+ },
+ {
+  "file": "common",
+  "n": 501,
+  "want": "integer",
+  "script": "local x = 1\nrepeat\nuntil <?x?>\n"
+ },
+ {
+  "file": "common",
+  "n": 502,
+  "want": "A",
+  "script": "local function f()\n    return {} --[[@as A]]\nend\n\nlocal <?x?> = f()\n"
+ },
+ {
+  "file": "common",
+  "n": 503,
+  "want": "A",
+  "script": "local function f()\n    ---@type A\n    return {}\nend\n\nlocal <?x?> = f()\n"
+ },
+ {
+  "file": "common",
+  "n": 504,
+  "want": "boolean|number",
+  "script": "---@alias A number\n---@alias(partial) A boolean\n\n---@type A\nlocal <?x?>\n"
+ },
+ {
+  "file": "common",
+  "n": 505,
+  "want": "A",
+  "script": "---@class A\n---@operator add(number): A\n\n---@type A\nlocal x\nlocal <?y?> = x + 1\n"
+ },
+ {
+  "file": "common",
+  "n": 506,
+  "want": "A",
+  "script": "---@class A\n---@operator add(number): A\n\n---@type A\nlocal x\nlocal <?y?> = 1 + x\n"
+ },
+ {
+  "file": "common",
+  "n": 507,
+  "want": "A",
+  "script": "---@class A\n---@operator sub(number): A\n\n---@type A\nlocal x\nlocal <?y?> = x - 1\n"
+ },
+ {
+  "file": "common",
+  "n": 508,
+  "want": "A",
+  "script": "---@class A\n---@operator sub(number): A\n\n---@type A\nlocal x\nlocal <?y?> = 1 - x\n"
+ },
+ {
+  "file": "common",
+  "n": 509,
+  "want": "A",
+  "script": "---@class A\n---@operator mul(number): A\n\n---@type A\nlocal x\nlocal <?y?> = x * 1\n"
+ },
+ {
+  "file": "common",
+  "n": 510,
+  "want": "A",
+  "script": "---@class A\n---@operator mul(number): A\n\n---@type A\nlocal x\nlocal <?y?> = 1 * x\n"
+ },
+ {
+  "file": "common",
+  "n": 511,
+  "want": "A",
+  "script": "---@class A\n---@operator div(number): A\n\n---@type A\nlocal x\nlocal <?y?> = x / 1\n"
+ },
+ {
+  "file": "common",
+  "n": 512,
+  "want": "A",
+  "script": "---@class A\n---@operator div(number): A\n\n---@type A\nlocal x\nlocal <?y?> = 1 / x\n"
+ },
+ {
+  "file": "common",
+  "n": 513,
+  "want": "A",
+  "script": "---@class A\n---@operator idiv(number): A\n\n---@type A\nlocal x\nlocal <?y?> = x // 1\n"
+ },
+ {
+  "file": "common",
+  "n": 514,
+  "want": "A",
+  "script": "---@class A\n---@operator idiv(number): A\n\n---@type A\nlocal x\nlocal <?y?> = 1 // x\n"
+ },
+ {
+  "file": "common",
+  "n": 515,
+  "want": "A",
+  "script": "---@class A\n---@operator mod(number): A\n\n---@type A\nlocal x\nlocal <?y?> = x % 1\n"
+ },
+ {
+  "file": "common",
+  "n": 516,
+  "want": "A",
+  "script": "---@class A\n---@operator mod(number): A\n\n---@type A\nlocal x\nlocal <?y?> = 1 % x\n"
+ },
+ {
+  "file": "common",
+  "n": 517,
+  "want": "A",
+  "script": "---@class A\n---@operator pow(number): A\n\n---@type A\nlocal x\nlocal <?y?> = x ^ 1\n"
+ },
+ {
+  "file": "common",
+  "n": 518,
+  "want": "A",
+  "script": "---@class A\n---@operator pow(number): A\n\n---@type A\nlocal x\nlocal <?y?> = 1 ^ x\n"
+ },
+ {
+  "file": "common",
+  "n": 519,
+  "want": "A",
+  "script": "---@class A\n---@operator concat(number): A\n\n---@type A\nlocal x\nlocal <?y?> = x .. 1\n"
+ },
+ {
+  "file": "common",
+  "n": 520,
+  "want": "A",
+  "script": "---@class A\n---@operator concat(number): A\n\n---@type A\nlocal x\nlocal <?y?> = 1 .. x\n"
+ },
+ {
+  "file": "common",
+  "n": 521,
+  "want": "A",
+  "script": "---@class A\n---@operator band(number): A\n\n---@type A\nlocal x\nlocal <?y?> = x & 1\n"
+ },
+ {
+  "file": "common",
+  "n": 522,
+  "want": "A",
+  "script": "---@class A\n---@operator band(number): A\n\n---@type A\nlocal x\nlocal <?y?> = 1 & x\n"
+ },
+ {
+  "file": "common",
+  "n": 523,
+  "want": "A",
+  "script": "---@class A\n---@operator bor(number): A\n\n---@type A\nlocal x\nlocal <?y?> = x | 1\n"
+ },
+ {
+  "file": "common",
+  "n": 524,
+  "want": "A",
+  "script": "---@class A\n---@operator bor(number): A\n\n---@type A\nlocal x\nlocal <?y?> = 1 | x\n"
+ },
+ {
+  "file": "common",
+  "n": 525,
+  "want": "A",
+  "script": "---@class A\n---@operator bxor(number): A\n\n---@type A\nlocal x\nlocal <?y?> = x ~ 1\n"
+ },
+ {
+  "file": "common",
+  "n": 526,
+  "want": "A",
+  "script": "---@class A\n---@operator bxor(number): A\n\n---@type A\nlocal x\nlocal <?y?> = 1 ~ x\n"
+ },
+ {
+  "file": "common",
+  "n": 527,
+  "want": "A",
+  "script": "---@class A\n---@operator shl(number): A\n\n---@type A\nlocal x\nlocal <?y?> = x << 1\n"
+ },
+ {
+  "file": "common",
+  "n": 528,
+  "want": "A",
+  "script": "---@class A\n---@operator shl(number): A\n\n---@type A\nlocal x\nlocal <?y?> = 1 << x\n"
+ },
+ {
+  "file": "common",
+  "n": 529,
+  "want": "A",
+  "script": "---@class A\n---@operator shr(number): A\n\n---@type A\nlocal x\nlocal <?y?> = x >> 1\n"
+ },
+ {
+  "file": "common",
+  "n": 530,
+  "want": "A",
+  "script": "---@class A\n---@operator shr(number): A\n\n---@type A\nlocal x\nlocal <?y?> = 1 >> x\n"
+ },
+ {
+  "file": "common",
+  "n": 531,
+  "want": "number",
+  "script": "---@class A\nlocal A = {}\n\n---@param x number\nfunction A:func(x) end\n\n---@class B: A\nlocal B = {}\n\nfunction B:func(<?x?>) end\n"
+ },
+ {
+  "file": "common",
+  "n": 532,
+  "want": "number",
+  "script": "---@class A\nlocal A = {}\n\n---@param x number\nfunction A:func(x) end\n\n---@type A\nlocal a = {}\nfunction a:func(<?x?>) end\n"
+ },
+ {
+  "file": "common",
+  "n": 533,
+  "want": "fun(x: number, y: number)",
+  "script": "---@class Person\n---@field age? number\n---@field foo fun(x: number, y: number)\n\n---@param person Person\nlocal function test(person)\n    if person.foo ~= nil then\n        local <?b?> = person.foo\n    end\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 534,
+  "want": "A",
+  "script": "---@class A\n---@field b {[C]:D}\nlocal A\n\nif A.b ~= {} then\n    local C = <?A?>\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 535,
+  "want": "A",
+  "script": "---@class A\n---@field type 'a'\n---@field field1 integer\n\n---@class B\n---@field type 'b'\n\nlocal obj --- @type A|B\n\nif obj.type == 'a' and obj.field1 > 0 then\n    local <?r?> = obj\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 536,
+  "want": "B",
+  "script": "---@class A\n---@field type 'a'\n\n---@class B\n---@field type 'b'\n\nlocal obj --- @type A|B\n\nif obj.type == 'a' then\n    ---\nelse\n    local <?r?> = obj\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 537,
+  "want": "A",
+  "script": "---@class A\n---@field type 'a'\n\n---@class B\n---@field type 'b'\n\n---@class C\n---@field type 'c'\n\n---@alias AB A|B\n\nlocal obj --- @type C|AB\n\nif obj.type == 'a' then\n    local <?r?> = obj\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 538,
+  "want": "A|B",
+  "script": "--- @class A\n--- @field mode? 'a' | 'b'\n\n--- @class B\n\nlocal a --- @type A | B\n\nif a.mode == 'a' then\n    local b = a\nelse\n    local <?b?> = a\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 539,
+  "want": "A|B",
+  "script": "--- @class A\n--- @field mode? 'a' | 'b'\n\n--- @class B\n\nlocal a --- @type A | B\n\nif a.mode ~= 'a' then\n    local <?b?> = a\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 540,
+  "want": "A",
+  "script": "--- @class A\n--- @field mode? 'a' | 'b'\n\n--- @class B\n\nlocal a --- @type A | B\n\nif a.mode ~= 'a' then\nelse\n    local <?b?> = a\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 541,
+  "want": "nil",
+  "script": "---@generic T\n---@param v T\n---@return T\n---@overload fun(): nil\nlocal function f(v) end\n\nlocal <?r?> = f()\n"
+ },
+ {
+  "file": "common",
+  "n": 542,
+  "want": "string",
+  "script": "---@generic T\n---@param v T\n---@return T\n---@overload fun(): nil\nlocal function f(v) end\n\nlocal <?r?> = f('')\n"
+ },
+ {
+  "file": "common",
+  "n": 543,
+  "want": "A",
+  "script": "---@class A\nlocal A = {}\n\n---@generic T\n---@param self T\n---@param s string\n---@return T\nfunction A:f(s) end\n\n---@generic T\n---@param self T\n---@param i integer\n---@return T\nfunction A:f(i) end\n\nlocal <?r?> = A:f('')\n"
+ },
+ {
+  "file": "common",
+  "n": 544,
+  "want": "B",
+  "script": "---@class A\nlocal A = {}\n\n---@generic T\n---@param self T\n---@param s string\n---@return T\nfunction A:f(s) end\n\n---@generic T\n---@param self T\n---@param i integer\n---@return T\nfunction A:f(i) end\n\n---@class B: A\nlocal B = {}\nlocal <?r?> = B:f('')\n"
+ },
+ {
+  "file": "common",
+  "n": 545,
+  "want": "integer",
+  "script": "local function F(...)\n    local t = {...}\n    for <?k?> in pairs(t) do\n    end\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 546,
+  "want": "1",
+  "script": "---@type [1, 2, 3]\nlocal t\n\n---@generic T1, T2, T3, T4, T5, T6, T7, T8, T9, T10\n---@param arr {\n--- [1]?: T1,\n--- [2]?: T2,\n--- [3]?: T3,\n--- [4]?: T4,\n--- [5]?: T5,\n--- [6]?: T6,\n--- [7]?: T7,\n--- [8]?: T8,\n--- [9]?: T9,\n--- [10]?: T10,\n---}\n---@return T1, T2, T3, T4, T5, T6, T7, T8, T9, T10\nlocal function unpack(arr)\nend\n\nlocal <?a?>, b, c, d = unpack(t)\n"
+ },
+ {
+  "file": "common",
+  "n": 547,
+  "want": "2",
+  "script": "---@type [1, 2, 3]\nlocal t\n\n---@generic T1, T2, T3, T4, T5, T6, T7, T8, T9, T10\n---@param arr {\n--- [1]?: T1,\n--- [2]?: T2,\n--- [3]?: T3,\n--- [4]?: T4,\n--- [5]?: T5,\n--- [6]?: T6,\n--- [7]?: T7,\n--- [8]?: T8,\n--- [9]?: T9,\n--- [10]?: T10,\n---}\n---@return T1, T2, T3, T4, T5, T6, T7, T8, T9, T10\nlocal function unpack(arr)\nend\n\nlocal a, <?b?>, c, d = unpack(t)\n"
+ },
+ {
+  "file": "common",
+  "n": 548,
+  "want": "3",
+  "script": "---@type [1, 2, 3]\nlocal t\n\n---@generic T1, T2, T3, T4, T5, T6, T7, T8, T9, T10\n---@param arr {\n--- [1]?: T1,\n--- [2]?: T2,\n--- [3]?: T3,\n--- [4]?: T4,\n--- [5]?: T5,\n--- [6]?: T6,\n--- [7]?: T7,\n--- [8]?: T8,\n--- [9]?: T9,\n--- [10]?: T10,\n---}\n---@return T1, T2, T3, T4, T5, T6, T7, T8, T9, T10\nlocal function unpack(arr)\nend\n\nlocal a, b, <?c?>, d = unpack(t)\n"
+ },
+ {
+  "file": "common",
+  "n": 549,
+  "want": "Callback<string>",
+  "script": "--- @alias Success fun(): Success\n--- @alias Callback<T> fun(): Success, T\n\n--- @return Success\nlocal function success()\n    return success\nend\n\n--- @generic T\n--- @param callback Callback<T>\n--- @return Callback<T>\nlocal function make_callback(callback)\n    return callback\nend\n\nlocal <?callback?> = make_callback(function()\n    return success, \"\"\nend)\n"
+ },
+ {
+  "file": "common",
+  "n": 550,
+  "want": "table",
+  "script": "function f(...args)\n    print(<?args?>)\nend\n"
+ },
+ {
+  "file": "common",
+  "n": 551,
+  "want": "integer",
+  "script": "---@class Foo<T>\n---@field a T\n\n---@class Bar: Foo<integer>\n\n---@type Bar\nlocal x\nlocal <?what?> = x.a\n"
+ },
+ {
+  "file": "common",
+  "n": 552,
+  "want": "string",
+  "script": "---@class GenericBase<T>\n---@field value T\n\n---@class StringHolder: GenericBase<string>\n\n---@type StringHolder\nlocal holder\nlocal <?v?> = holder.value\n"
+ },
+ {
+  "file": "common",
+  "n": 553,
+  "want": "boolean",
+  "script": "---@class Container<K, V>\n---@field key K\n---@field val V\n\n---@class BoolContainer: Container<string, boolean>\n\n---@type BoolContainer\nlocal c\nlocal <?b?> = c.val\n"
+ },
+ {
+  "file": "common",
+  "n": 554,
+  "want": "string",
+  "script": "---@class Container<K, V>\n---@field key K\n---@field val V\n\n---@class BoolContainer: Container<string, boolean>\n\n---@type BoolContainer\nlocal c\nlocal <?k?> = c.key\n"
+ },
+ {
+  "file": "common",
+  "n": 555,
+  "want": "string",
+  "script": "---@class Box<T>\n---@field value T\nlocal Box = {}\n\n---@return T\nfunction Box:getValue()\n    return self.value\nend\n\n---@type Box<string>\nlocal b\n\nlocal <?v?> = b:getValue()\n"
+ },
+ {
+  "file": "common",
+  "n": 556,
+  "want": "integer",
+  "script": "---@class Wrapper<V>\n---@field item V\nlocal Wrapper = {}\n\n---@return V\nfunction Wrapper:unwrap()\n    return self.item\nend\n\n---@type Wrapper<integer>\nlocal w\n\nlocal <?result?> = w:unwrap()\n"
+ },
+ {
+  "file": "common",
+  "n": 557,
+  "want": "list<string>|{ [integer]: string }",
+  "script": "---@class list<T>: {[integer]:T}\n\n---@generic T\n---@param class `T`\n---@return list<T>\nlocal function new_list(class)\n    return {}\nend\n\nlocal <?strings?> = new_list('string')\n"
+ },
+ {
+  "file": "common",
+  "n": 558,
+  "want": "store<string>",
+  "script": "---@class store<T>: {set:fun(self:store<T>, key:integer, value:T), get:fun(self:store<T>, key:integer):T}\n\nlocal <?string_store?> ---@type store<string>\n"
+ },
+ {
+  "file": "common",
+  "n": 559,
+  "want": "string[]",
+  "script": "---@class Container<T>\nlocal Container = {}\n\n---@return T[]\nfunction Container:getAll()\n    return {}\nend\n\n---@type Container<string>\nlocal c\n\nlocal <?items?> = c:getAll()\n"
+ },
+ {
+  "file": "common",
+  "n": 560,
+  "want": "Wrapper<string>",
+  "script": "---@class Wrapper<V>\n---@field value V\n\n---@class Factory<T>\nlocal Factory = {}\n\n---@return Wrapper<T>\nfunction Factory:wrap()\n    return {}\nend\n\n---@type Factory<string>\nlocal f\n\nlocal <?wrapped?> = f:wrap()\n"
+ },
+ {
+  "file": "common",
+  "n": 561,
+  "want": "string",
+  "script": "---@generic T\n---@param x T\n---@return T\n---@overload fun(x: T): T\nlocal function identity(x)\n    return x\nend\n\nlocal <?result?> = identity(\"hello\")\n"
+ },
+ {
+  "file": "common",
+  "n": 562,
+  "want": "integer",
+  "script": "---@generic K, V\n---@param k K\n---@param v V\n---@return V\n---@overload fun(k: K, v: V): V\nlocal function getValue(k, v)\n    return v\nend\n\nlocal <?result?> = getValue(\"key\", 42)\n"
+ },
+ {
+  "file": "common",
+  "n": 563,
+  "want": "string",
+  "script": "---@type fun<T>(x: T): T\nlocal identity\n\nlocal <?result?> = identity(\"hello\")\n"
+ },
+ {
+  "file": "common",
+  "n": 564,
+  "want": "boolean",
+  "script": "---@type fun<K, V>(k: K, v: V): V\nlocal getSecond\n\nlocal <?result?> = getSecond(\"key\", true)\n"
+ },
+ {
+  "file": "common",
+  "n": 565,
+  "want": "integer",
+  "script": "---@class Mapper\n---@field transform fun<T, U>(input: T, fn: fun(x: T): U): U\n\n---@type Mapper\nlocal m\n\nlocal <?result?> = m.transform(\"hello\", function(x) return #x end)\n"
+ },
+ {
+  "file": "common",
+  "n": 566,
+  "want": "string",
+  "script": "---@class Promise<T>\n---@field value T\nlocal Promise = {}\n\n---@return Promise<T>\nfunction Promise:next(fn)\n    return self\nend\n\n---@return T\nfunction Promise:await()\n    return self.value\nend\n\n---@type Promise<string>\nlocal p\n\nlocal <?result?> = p:next(function() end):await()\n"
+ },
+ {
+  "file": "common",
+  "n": 567,
+  "want": "number",
+  "script": "---@class Chain<V>\nlocal Chain = {}\n\n---@return Chain<V>\nfunction Chain:map(fn)\n    return self\nend\n\n---@return Chain<V>\nfunction Chain:filter(fn)\n    return self\nend\n\n---@return V\nfunction Chain:first()\n    return nil\nend\n\n---@type Chain<number>\nlocal c\n\nlocal <?result?> = c:map(function() end):filter(function() end):first()\n"
+ },
+ {
+  "file": "common",
+  "n": 568,
+  "want": "List<number>",
+  "script": "---@class List<V>\nlocal List = {}\n\n---@generic T\n---@param self T\n---@return T\nfunction List:identity()\n    return self\nend\n\n---@type List<number>\nlocal mylist\n\nlocal <?result?> = mylist:identity()\n"
+ },
+ {
+  "file": "common",
+  "n": 569,
+  "want": "integer",
+  "script": "---@class MyClass<T>\nlocal MyClass = {}\n\n---@generic R\n---@param val R\n---@return R\nfunction MyClass:pass(val) return val end\n\n---@type MyClass<string>\nlocal myClass\n\nlocal <?result?> = myClass:pass(42)\n"
+ },
+ {
+  "file": "param_match",
+  "n": 1,
+  "want": "boolean",
+  "script": "---@overload fun(x: number, y: number):string\n---@overload fun(x: number):number\n---@return boolean\nlocal function f() end\n\nlocal <?n1?> = f()\nlocal n2 = f(0)\nlocal n3 = f(0, 0)\n"
+ },
+ {
+  "file": "param_match",
+  "n": 2,
+  "want": "number",
+  "script": "---@overload fun(x: number, y: number):string\n---@overload fun(x: number):number\n---@return boolean\nlocal function f() end\n\nlocal n1 = f()\nlocal <?n2?> = f(0)\nlocal n3 = f(0, 0)\n"
+ },
+ {
+  "file": "param_match",
+  "n": 3,
+  "want": "string",
+  "script": "---@overload fun(x: number, y: number):string\n---@overload fun(x: number):number\n---@return boolean\nlocal function f() end\n\nlocal n1 = f()\nlocal n2 = f(0)\nlocal <?n3?> = f(0, 0)\n"
+ },
+ {
+  "file": "param_match",
+  "n": 4,
+  "want": "boolean",
+  "script": "---@overload fun():boolean\n---@param x integer\n---@return number\nfunction f(x)\nend\n\nlocal <?x?> = f()\n"
+ },
+ {
+  "file": "param_match",
+  "n": 5,
+  "want": "number",
+  "script": "---@overload fun():boolean\n---@param x integer\n---@return number\nfunction f(x)\nend\n\nlocal <?x?> = f(1)\n"
+ },
+ {
+  "file": "param_match",
+  "n": 6,
+  "want": "boolean",
+  "script": "---@overload fun():boolean\n---@param x integer\n---@return number\nfunction f(x)\nend\n\nfunction r0()\n    return\nend\n\nlocal <?x?> = f(r0())\n"
+ },
+ {
+  "file": "param_match",
+  "n": 7,
+  "want": "number",
+  "script": "---@overload fun():boolean\n---@param x integer\n---@return number\nfunction f(x)\nend\n\nfunction r1()\n    return 1\nend\n\nlocal <?x?> = f(r1())\n"
+ },
+ {
+  "file": "param_match",
+  "n": 8,
+  "want": "boolean",
+  "script": "---@overload fun():boolean\n---@param x integer\n---@return number\nfunction f(x)\nend\n\n---@type fun()\nlocal r0\n\nlocal <?x?> = f(r0())\n"
+ },
+ {
+  "file": "param_match",
+  "n": 9,
+  "want": "number",
+  "script": "---@overload fun():boolean\n---@param x integer\n---@return number\nfunction f(x)\nend\n\n---@type fun():integer\nlocal r1\n\nlocal <?x?> = f(r1())\n"
+ },
+ {
+  "file": "param_match",
+  "n": 10,
+  "want": "1",
+  "script": "---@overload fun(a: 'x'): 1\n---@overload fun(a: 'y'): 2\nlocal function f(...) end\n\nlocal <?r?> = f('x')\n"
+ },
+ {
+  "file": "param_match",
+  "n": 11,
+  "want": "2",
+  "script": "---@overload fun(a: 'x'): 1\n---@overload fun(a: 'y'): 2\nlocal function f(...) end\n\nlocal <?r?> = f('y')\n"
+ },
+ {
+  "file": "param_match",
+  "n": 12,
+  "want": "1",
+  "script": "---@overload fun(a: boolean): 1\n---@overload fun(a: number): 2\nlocal function f(...) end\n\nlocal <?r?> = f(true)\n"
+ },
+ {
+  "file": "param_match",
+  "n": 13,
+  "want": "2",
+  "script": "---@overload fun(a: boolean): 1\n---@overload fun(a: number): 2\nlocal function f(...) end\n\nlocal <?r?> = f(10)\n"
+ },
+ {
+  "file": "param_match",
+  "n": 14,
+  "want": "1",
+  "script": "---@overload fun(a: string): 1\n---@overload fun(a: 'y'): 2\nlocal function f(...) end\n\nlocal <?r?> = f('x')\n"
+ },
+ {
+  "file": "param_match",
+  "n": 15,
+  "want": "2",
+  "script": "---@overload fun(a: string): 1\n---@overload fun(a: 'y'): 2\nlocal function f(...) end\n\nlocal <?r?> = f('y')\n"
+ },
+ {
+  "file": "param_match",
+  "n": 16,
+  "want": "1",
+  "script": "---@overload fun(a: string): 1\n---@overload fun(a: 'y'): 2\nlocal function f(...) end\n\nlocal v = 'x'\nlocal <?r?> = f(v)\n"
+ },
+ {
+  "file": "param_match",
+  "n": 17,
+  "want": "2",
+  "script": "---@overload fun(a: string): 1\n---@overload fun(a: 'y'): 2\nlocal function f(...) end\n\nlocal v = 'y'\nlocal <?r?> = f(v)\n"
+ },
+ {
+  "file": "param_match",
+  "n": 18,
+  "want": "string|number",
+  "script": "---@overload fun(a: string)\n---@overload fun(a: number)\nlocal function f(<?a?>) end\n"
+ },
+ {
+  "file": "param_match",
+  "n": 19,
+  "want": "1|2",
+  "script": "---@overload fun(a: 1)\n---@overload fun(a: 2)\nlocal function f(<?a?>) end\n"
+ },
+ {
+  "file": "param_match",
+  "n": 20,
+  "want": "string",
+  "script": "---@overload fun(a: 1): string\n---@overload fun(a: 2): number\nlocal function f(a) end\n\nlocal <?r?> = f(1)\n"
+ },
+ {
+  "file": "param_match",
+  "n": 21,
+  "want": "number",
+  "script": "---@overload fun(a: 1): string\n---@overload fun(a: 2): number\nlocal function f(a) end\n\nlocal <?r?> = f(2)\n"
+ },
+ {
+  "file": "param_match",
+  "n": 22,
+  "want": "string|number",
+  "script": "---@overload fun(a: 1): string\n---@overload fun(a: 2): number\nlocal function f(a) end\n\n---@type number\nlocal v\nlocal <?r?> = f(v)\n"
+ },
+ {
+  "file": "param_match",
+  "n": 23,
+  "want": "number",
+  "script": "---@overload fun(a: 1, c: fun(x: number))\n---@overload fun(a: 2, c: fun(x: string))\nlocal function f(...) end\n\nf(1, function (<?a?>) end)\n"
+ },
+ {
+  "file": "param_match",
+  "n": 24,
+  "want": "string",
+  "script": "---@overload fun(a: 1, c: fun(x: number))\n---@overload fun(a: 2, c: fun(x: string))\nlocal function f(...) end\n\nf(2, function (<?a?>) end)\n"
+ },
+ {
+  "file": "param_match",
+  "n": 25,
+  "want": "any",
+  "script": "---@overload fun(a: 1)\n---@overload fun(a: 2)\nlocal function f(...) end\n\nf(1, function (<?a?>) end)\n"
+ },
+ {
+  "file": "field_override",
+  "n": 1,
+  "want": "Buff",
+  "script": "---@class Buff\nlocal mt = {}\n---@type (fun(self: Buff, target: Buff): boolean)?\nmt.on_cover = nil\n\n---@class Buff.CommandAura : Buff\nlocal tpl = {}\nfunction tpl:on_cover(<?target?>)\n    return true\nend\n"
+ },
+ {
+  "file": "field_override",
+  "n": 2,
+  "want": "Animal",
+  "script": "---@class Animal\n---@field can_eat (fun(self: Animal, other: Animal): boolean)?\nlocal base = {}\n\n---@class Dog : Animal\nlocal dog = {}\nfunction dog:can_eat(<?other?>)\n    return true\nend\n"
+ },
+ {
+  "file": "field_override",
+  "n": 3,
+  "want": "string",
+  "script": "---@class Base\nlocal base = {}\n---@type (fun(self: Base, x: string): number)?\nbase.callback = nil\n\n---@class Child : Base\nlocal child = {}\nfunction child:callback(<?x?>)\n    return 1\nend\n"
+ },
+ {
+  "file": "field_override",
+  "n": 4,
+  "want": "number",
+  "script": "---@class Handler\n---@field process fun(self: Handler, value: number): string\nlocal handler = {}\n\n---@class CustomHandler : Handler\nlocal custom = {}\nfunction custom:process(<?value?>)\n    return tostring(value)\nend\n"
+ },
+ {
+  "file": "field_override",
+  "n": 5,
+  "want": "string",
+  "script": "---@class Processor\nlocal proc = {}\n---@type fun(self: Processor, a: number, b: string): boolean\nproc.handle = nil\n\n---@class MyProcessor : Processor\nlocal my = {}\nfunction my:handle(a, <?b?>)\n    return true\nend\n"
+ },
+ {
+  "file": "generic_operator",
+  "n": 1,
+  "want": "string",
+  "script": "---@class Caller\n---@operator call(): string\nlocal c\n\nlocal <?v?> = c()\n"
+ },
+ {
+  "file": "generic_operator",
+  "n": 2,
+  "want": "string?",
+  "script": "---@class Box<T>\n---@operator call(): T?\nlocal box\n\n---@type Box<string>\nlocal b\n\nlocal <?v?> = b()\n"
+ },
+ {
+  "file": "generic_operator",
+  "n": 3,
+  "want": "string?",
+  "script": "---@class Box<T>\n---@operator call(): T?\n\n---@generic T\n---@param items T[]\n---@return Box<T>\nlocal function make(items) end\n\nlocal test = {} ---@type string[]\nlocal b = make(test)\nlocal <?v?> = b()\n"
+ },
+ {
+  "file": "generic_operator",
+  "n": 4,
+  "want": "string",
+  "script": "---@class Box<T>\n---@operator add(Box): T\nlocal box\n\n---@type Box<string>\nlocal b\n\nlocal <?v?> = b + b\n"
+ },
+ {
+  "file": "generic_operator",
+  "n": 5,
+  "want": "integer",
+  "script": "---@class Pair<K, V>\n---@operator call(): V\nlocal pair\n\n---@type Pair<string, integer>\nlocal p\n\nlocal <?v?> = p()\n"
+ },
+ {
+  "file": "generic_operator",
+  "n": 6,
+  "want": "Box<string>?",
+  "script": "---@class Box<T>\n---@operator call(): T?\nlocal box\n\n---@type Box<Box<string>>\nlocal b\n\nlocal <?outer?> = b()\n"
+ },
+ {
+  "file": "generic_operator",
+  "n": 7,
+  "want": "string?",
+  "script": "---@class Box<T>\n---@operator call(): T?\nlocal box\n\n---@type Box<Box<string>>\nlocal b\n\nlocal outer = b()\nlocal <?v?> = outer()\n"
+ },
+ {
+  "file": "generic_operator",
+  "n": 8,
+  "want": "string",
+  "script": "---@class Box<T>\n---@operator add(Box<T>): T\nlocal box\n\n---@type Box<string>\nlocal b\n\nlocal <?v?> = b + b\n"
+ },
+ {
+  "file": "generic_operator",
+  "n": 9,
+  "want": "integer",
+  "script": "---@class Plain\n---@operator call(): integer\nlocal plain\n\n---@type Plain<string>\nlocal p\n\nlocal <?v?> = p()\n"
+ },
+ {
+  "file": "generic_operator",
+  "n": 10,
+  "want": "string?",
+  "script": "---@class UIObject\n\n---@class SingleSelector<T> : UIObject\n---@operator call(): T?\nlocal SingleSelector\n\n---@generic T\n---@param items T[]\n---@return SingleSelector<T>\nlocal function AddSingleSelector(items) end\n\nlocal test = {} ---@type string[]\nlocal Items = AddSingleSelector(test)\nlocal <?val?> = Items()\n"
+ },
+ {
+  "file": "generic_operator",
+  "n": 11,
+  "want": "<T>?",
+  "script": "---@class Box<T>\n---@operator call(): T?\nlocal box\n\n---@type Box\nlocal b\n\nlocal <?v?> = b()\n"
+ }
+]

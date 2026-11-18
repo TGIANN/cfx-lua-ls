@@ -1,0 +1,22 @@
+cfx-lua-ls ports behaviour, tests and library definitions from the following
+projects, all under the MIT License:
+
+lua-language-server
+  https://github.com/LuaLS/lua-language-server
+  Copyright (c) 2018 最萌小汐
+  Behaviour and tests; the Lua 5.4 standard library definitions (meta/template),
+  embedded in crates/ide/library/lua54 with their LICENSE.
+
+EmmyLuaCodeStyle
+  https://github.com/CppCXY/EmmyLuaCodeStyle
+  Copyright (c) 2022 CppCXY
+  The formatter (crates/fmt) and its test cases.
+
+fivem-lls-addon
+  https://github.com/overextended/fivem-lls-addon
+  Copyright (c) 2022 Overextended
+  FiveM native and runtime definitions, embedded in crates/ide/library/fivem
+  with their LICENSE.
+
+The CfxLua grammar follows citizenfx/lua (branch luaglm-dev/cfx), which is under
+the MIT License (Lua: Copyright (c) 1994-2024 Lua.org, PUC-Rio).

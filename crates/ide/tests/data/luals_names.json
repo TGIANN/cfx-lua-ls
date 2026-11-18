@@ -1,0 +1,878 @@
+[
+ {
+  "suite": "definition",
+  "file": "local",
+  "n": 1,
+  "script": "local <!x!>\n<?x?>()\n"
+ },
+ {
+  "suite": "definition",
+  "file": "local",
+  "n": 2,
+  "script": "local z, y, <!x!>\n<?x?>()\n"
+ },
+ {
+  "suite": "definition",
+  "file": "local",
+  "n": 3,
+  "script": "local <!x!> = 1\n<?x?>()\n"
+ },
+ {
+  "suite": "definition",
+  "file": "local",
+  "n": 4,
+  "script": "local z, y, <!x!> = 1\n<?x?>()\n"
+ },
+ {
+  "suite": "definition",
+  "file": "local",
+  "n": 5,
+  "script": "local x\nlocal <!x!>\n<?x?>()\n"
+ },
+ {
+  "suite": "definition",
+  "file": "local",
+  "n": 6,
+  "script": "local <!x!>\ndo\n    <?x?>()\nend\n"
+ },
+ {
+  "suite": "definition",
+  "file": "local",
+  "n": 7,
+  "script": "local <!x!>\ndo\n    local x\nend\n<?x?>()\n"
+ },
+ {
+  "suite": "definition",
+  "file": "local",
+  "n": 8,
+  "script": "local <!x!>\nif <?x?> then\n    local x\nend\n"
+ },
+ {
+  "suite": "definition",
+  "file": "local",
+  "n": 9,
+  "script": "local <!x!>\nif x then\n    local x\nelseif <?x?> then\n    local x\nend\n"
+ },
+ {
+  "suite": "definition",
+  "file": "local",
+  "n": 10,
+  "script": "local <!x!>\nif x then\n    local x\nelseif x then\n    local x\nelse\n    local x\nend\n<?x?>()\n"
+ },
+ {
+  "suite": "definition",
+  "file": "local",
+  "n": 11,
+  "script": "local <!x!>\nif x then\n    <?x?>()\nelseif x then\n    local x\nelse\n    local x\nend\n"
+ },
+ {
+  "suite": "definition",
+  "file": "local",
+  "n": 12,
+  "script": "local <!x!>\nfor x = 1, 10 do\nend\n<?x?>()\n"
+ },
+ {
+  "suite": "definition",
+  "file": "local",
+  "n": 13,
+  "script": "local x\nfor <!x!> = 1, 10 do\n    <?x?>()\nend\n"
+ },
+ {
+  "suite": "definition",
+  "file": "local",
+  "n": 14,
+  "script": "local <!x!>\nfor x in x do\nend\n<?x?>()\n"
+ },
+ {
+  "suite": "definition",
+  "file": "local",
+  "n": 15,
+  "script": "local <!x!>\nfor x in <?x?> do\nend\n"
+ },
+ {
+  "suite": "definition",
+  "file": "local",
+  "n": 16,
+  "script": "local x\nfor <!x!> in x do\n    <?x?>()\nend\n"
+ },
+ {
+  "suite": "definition",
+  "file": "local",
+  "n": 17,
+  "script": "local x\nfor z, y, <!x!> in x do\n    <?x?>()\nend\n"
+ },
+ {
+  "suite": "definition",
+  "file": "local",
+  "n": 18,
+  "script": "local <!x!>\nwhile <?x?> do\nend\n"
+ },
+ {
+  "suite": "definition",
+  "file": "local",
+  "n": 19,
+  "script": "local <!x!>\nwhile x do\n    <?x?>()\nend\n"
+ },
+ {
+  "suite": "definition",
+  "file": "local",
+  "n": 20,
+  "script": "local <!x!>\nwhile x do\n    local x\nend\n<?x?>()\n"
+ },
+ {
+  "suite": "definition",
+  "file": "local",
+  "n": 21,
+  "script": "local <!x!>\nrepeat\n    <?x?>()\nuntil true\n"
+ },
+ {
+  "suite": "definition",
+  "file": "local",
+  "n": 22,
+  "script": "local <!x!>\nrepeat\n    local x\nuntil true\n<?x?>()\n"
+ },
+ {
+  "suite": "definition",
+  "file": "local",
+  "n": 23,
+  "script": "local <!x!>\nrepeat\nuntil <?x?>\n"
+ },
+ {
+  "suite": "definition",
+  "file": "local",
+  "n": 24,
+  "script": "local x\nrepeat\n    local <!x!>\nuntil <?x?>\n"
+ },
+ {
+  "suite": "definition",
+  "file": "local",
+  "n": 25,
+  "script": "local <!x!>\nfunction _()\n    local x\nend\n<?x?>()\n"
+ },
+ {
+  "suite": "definition",
+  "file": "local",
+  "n": 26,
+  "script": "local <!x!>\nreturn function ()\n    <?x?>()\nend\n"
+ },
+ {
+  "suite": "definition",
+  "file": "local",
+  "n": 27,
+  "script": "local <!x!>\nlocal x = function ()\n    <?x?>()\nend\n"
+ },
+ {
+  "suite": "definition",
+  "file": "local",
+  "n": 28,
+  "script": "local <?<!x!>?>\n"
+ },
+ {
+  "suite": "definition",
+  "file": "label",
+  "n": 1,
+  "script": "::<!LABEL!>::\ngoto <?LABEL?>\n"
+ },
+ {
+  "suite": "definition",
+  "file": "label",
+  "n": 2,
+  "script": "goto <?LABEL?>\n::<!LABEL!>::\n"
+ },
+ {
+  "suite": "definition",
+  "file": "label",
+  "n": 3,
+  "script": "::LABEL::\nfunction _()\n    goto <?LABEL?>\nend\n"
+ },
+ {
+  "suite": "definition",
+  "file": "label",
+  "n": 4,
+  "script": "do\n    goto <?LABEL?>\nend\n::<!LABEL!>::\n"
+ },
+ {
+  "suite": "definition",
+  "file": "label",
+  "n": 5,
+  "script": "::LABEL::\ngoto <?LABEL?>\n::<!LABEL!>::\n"
+ },
+ {
+  "suite": "definition",
+  "file": "arg",
+  "n": 1,
+  "script": "local function xx (<!xx!>)\n    <?xx?>()\nend\n"
+ },
+ {
+  "suite": "definition",
+  "file": "arg",
+  "n": 2,
+  "script": "local <!mt!>\nfunction mt:x()\n    <?self?>()\nend\nmt:x()\n"
+ },
+ {
+  "suite": "definition",
+  "file": "arg",
+  "n": 3,
+  "script": "function mt:x(<!self!>)\n    <?self?>()\nend\n"
+ },
+ {
+  "suite": "definition",
+  "file": "set",
+  "n": 1,
+  "script": "<!x!> = 1\n<?x?>()\n"
+ },
+ {
+  "suite": "definition",
+  "file": "set",
+  "n": 2,
+  "script": "do\n    <!global!> = 1\nend\n<?global?>()\n"
+ },
+ {
+  "suite": "definition",
+  "file": "set",
+  "n": 3,
+  "script": "<!x!> = 1\ndo\n    local x = 1\nend\n<?x?>()\n"
+ },
+ {
+  "suite": "definition",
+  "file": "set",
+  "n": 4,
+  "script": "x = 1\ndo\n    local <!x!> = 1\n    do\n        <!x!> = 2\n    end\n    <?x?>()\nend\n"
+ },
+ {
+  "suite": "definition",
+  "file": "set",
+  "n": 5,
+  "script": "<!x!> = 1\nif y then\n    <!x!> = 2\nelse\n    <!x!> = 3\nend\nprint(<?x?>)\n"
+ },
+ {
+  "suite": "definition",
+  "file": "set",
+  "n": 6,
+  "script": "local x\nglobal <!x!> = 1\n\n<?x?>\n"
+ },
+ {
+  "suite": "definition",
+  "file": "set",
+  "n": 7,
+  "script": "global x = 1\nlocal <!x!>\n\n<?x?>\n"
+ },
+ {
+  "suite": "definition",
+  "file": "function",
+  "n": 1,
+  "script": "function <!x!> () end\n<?x?>()\n"
+ },
+ {
+  "suite": "definition",
+  "file": "function",
+  "n": 2,
+  "script": "local function <!x!> () end\n<?x?>()\n"
+ },
+ {
+  "suite": "definition",
+  "file": "function",
+  "n": 3,
+  "script": "local x\nlocal function <!x!> ()\n    <?x?>()\nend\n"
+ },
+ {
+  "suite": "definition",
+  "file": "function",
+  "n": 4,
+  "script": "local <!x!>\nfunction <!x!>()\nend\n<?x?>()\n"
+ },
+ {
+  "suite": "definition",
+  "file": "function",
+  "n": 5,
+  "script": "local <!f!> = <!function () end!>\n<?f?>()\n"
+ },
+ {
+  "suite": "references",
+  "file": "common",
+  "n": 1,
+  "script": "local <~a~> = 1\n<!a!> = <!a!>\n"
+ },
+ {
+  "suite": "references",
+  "file": "common",
+  "n": 2,
+  "script": "<~a~> = 1\n<!a!> = <!a!>\n"
+ },
+ {
+  "suite": "references",
+  "file": "common",
+  "n": 3,
+  "script": "local t\nt.<~a~> = 1\nt.<!a!> = t.<!a!>\n"
+ },
+ {
+  "suite": "references",
+  "file": "common",
+  "n": 4,
+  "script": "t.<~a~> = 1\nt.<!a!> = t.<!a!>\n"
+ },
+ {
+  "suite": "references",
+  "file": "common",
+  "n": 5,
+  "script": ":: <!LABEL!> ::\ngoto <~LABEL~>\nif true then\n    goto <!LABEL!>\nend\n"
+ },
+ {
+  "suite": "references",
+  "file": "common",
+  "n": 6,
+  "script": ":: <~LABEL~> ::\ngoto <!LABEL!>\nif true then\n    goto <!LABEL!>\nend\n"
+ },
+ {
+  "suite": "references",
+  "file": "common",
+  "n": 7,
+  "script": "local a = 1\nlocal <~a~> = 1\n<!a!> = <!a!>\n"
+ },
+ {
+  "suite": "references",
+  "file": "common",
+  "n": 8,
+  "script": "local <~a~>\nlocal b = <!a!>\n"
+ },
+ {
+  "suite": "references",
+  "file": "common",
+  "n": 9,
+  "script": "local t = {\n    <~a~> = 1\n}\nprint(t.<!a!>)\n"
+ },
+ {
+  "suite": "references",
+  "file": "common",
+  "n": 10,
+  "script": "local t = {\n    <~a~> = 1\n}\nt.<!a!> = 1\n"
+ },
+ {
+  "suite": "references",
+  "file": "common",
+  "n": 11,
+  "script": "t[<~'a'~>] = 1\nprint(t.<!a!>)\n"
+ },
+ {
+  "suite": "references",
+  "file": "common",
+  "n": 12,
+  "script": "local t = {\n    [<~'a'~>] = 1\n}\nprint(t.<!a!>)\n"
+ },
+ {
+  "suite": "references",
+  "file": "common",
+  "n": 13,
+  "script": "table.<!dump!>()\nfunction table.<~dump~>()\nend\n"
+ },
+ {
+  "suite": "references",
+  "file": "common",
+  "n": 14,
+  "script": "local t = {}\nt.<~x~> = 1\nt[a.b.c] = 1\n"
+ },
+ {
+  "suite": "references",
+  "file": "common",
+  "n": 15,
+  "script": "local t = {}\nt.x = 1\nt[a.b.<~x~>] = 1\n"
+ },
+ {
+  "suite": "references",
+  "file": "common",
+  "n": 16,
+  "script": "self = {\n    results = {\n        <~labels~> = {},\n    }\n}\nself[self.results.<!labels!>] = lbl\n"
+ },
+ {
+  "suite": "references",
+  "file": "common",
+  "n": 17,
+  "script": "a.b.<~c~> = 1\nprint(a.b.<!c!>)\n"
+ },
+ {
+  "suite": "references",
+  "file": "common",
+  "n": 18,
+  "script": "local <!mt!> = {}\nfunction mt:x()\n    <~self~>:x()\nend\n"
+ },
+ {
+  "suite": "references",
+  "file": "common",
+  "n": 19,
+  "script": "local <~mt~> = {}\nfunction <!mt!>:x()\n    self:x()\nend\n"
+ },
+ {
+  "suite": "references",
+  "file": "common",
+  "n": 20,
+  "script": "local mt = {}\nfunction mt:<!x!>()\n    self:<~x~>()\nend\n"
+ },
+ {
+  "suite": "references",
+  "file": "common",
+  "n": 21,
+  "script": "local mt = {}\nfunction mt:<~x~>()\n    self:<!x!>()\nend\n"
+ },
+ {
+  "suite": "references",
+  "file": "common",
+  "n": 22,
+  "script": "a.<!b!>.c = 1\nprint(a.<~b~>.c)\n"
+ },
+ {
+  "suite": "references",
+  "file": "common",
+  "n": 23,
+  "script": "_G.<~xxx~> = 1\n\nprint(<!xxx!>)\n"
+ },
+ {
+  "suite": "references",
+  "file": "common",
+  "n": 24,
+  "script": "---@class <~Class~>\n---@type <!Class!>\n---@type <!Class!>\n"
+ },
+ {
+  "suite": "references",
+  "file": "common",
+  "n": 25,
+  "script": "---@class Class\nlocal <~t~>\n---@type Class\nlocal x\n"
+ },
+ {
+  "suite": "references",
+  "file": "common",
+  "n": 26,
+  "script": "---@class Class\nlocal t\n---@type Class\nlocal <~x~>\n"
+ },
+ {
+  "suite": "references",
+  "file": "common",
+  "n": 27,
+  "script": "---@return <~xxx~>\nfunction f() end\n"
+ },
+ {
+  "suite": "references",
+  "file": "common",
+  "n": 28,
+  "script": "---@class A\n---@class B: A\n\n---@type A\nlocal <~t~>\n"
+ },
+ {
+  "suite": "references",
+  "file": "common",
+  "n": 29,
+  "script": "-----@class A\n--local a\n--\n-----@type A\n--local b\n--\n-----@type A\n--local c\n--\n--b.<~x~> = 1\n--c.<!x!> = 1\n--"
+ },
+ {
+  "suite": "references",
+  "file": "common",
+  "n": 30,
+  "script": "---@class a\nlocal a = { }\n---@class b\nlocal b = { }\n\na.color = { 1, 1, 1 }\nb.<~color~> = a.color\n"
+ },
+ {
+  "suite": "references",
+  "file": "common",
+  "n": 31,
+  "script": "---@alias <~A~> number\n\n---@type <!A!>\n"
+ },
+ {
+  "suite": "references",
+  "file": "common",
+  "n": 32,
+  "script": "---@class A\n---@field <~x~> number\n\n---@type A\nlocal t\nprint(t.<!x!>)\n"
+ },
+ {
+  "suite": "references",
+  "file": "common",
+  "n": 33,
+  "script": "---@class A\n---@field <!x!> number\n\n---@type A\nlocal t1\n\nt1.<~x~> = 1\n\n---@type A\nlocal t2\n\nt2.<!x!> = 1\n"
+ },
+ {
+  "suite": "references",
+  "file": "common",
+  "n": 34,
+  "script": "---@alias lang 'en' | 'de'\n\n---@class A\nlocal a\n\n---@type lang\na.test = 'en'\n\n---@class B\nlocal b\n\nb.<?<!test!>?> = a.test\n"
+ },
+ {
+  "suite": "references",
+  "file": "all",
+  "n": 1,
+  "script": "---@class A\nlocal a = {}\na.<~x~> = 1\n\n---@return A\nlocal function f() end\n\nlocal b = f()\nreturn b.<!x!>\n"
+ },
+ {
+  "suite": "references",
+  "file": "all",
+  "n": 2,
+  "script": "---@class A\nlocal a = {}\na.<~x~> = 1\n\n---@return table\n---@return A\nlocal function f() end\n\nlocal a, b = f()\nreturn a.x, b.<!x!>\n"
+ },
+ {
+  "suite": "references",
+  "file": "all",
+  "n": 3,
+  "script": "local <~mt~> = {}\nfunction <!mt!>:x()\n    self:x()\nend\n"
+ },
+ {
+  "suite": "references",
+  "file": "all",
+  "n": 4,
+  "script": "local mt = {}\nfunction mt:<~x~>()\n    self:<!x!>()\nend\n"
+ },
+ {
+  "suite": "references",
+  "file": "all",
+  "n": 5,
+  "script": "-----@class Dog\n--local mt = {}\n--function mt:<~eat~>()\n--end\n--\n-----@class Master\n--local mt2 = {}\n--function mt2:init()\n--    ---@type Dog\n--    local foo = self:doSomething()\n--    ---@type Dog\n--    self.dog = getDog()\n--end\n--function mt2:feed()\n--    self.dog:<!eat!>()\n--end\n--function mt2:doSomething()\n--end\n--"
+ },
+ {
+  "suite": "references",
+  "file": "all",
+  "n": 6,
+  "script": "local function f()\n    return <~<!function~> ()\n    end!>\nend\n\nlocal <!f2!> = f()\n"
+ },
+ {
+  "suite": "references",
+  "file": "all",
+  "n": 7,
+  "script": "local function f()\n    return nil, <~<!function~> ()\n    end!>\nend\n\nlocal _, <!f2!> = f()\n"
+ },
+ {
+  "suite": "references",
+  "file": "all",
+  "n": 8,
+  "script": "---@class A\nlocal t\n\n---@class B: A\nlocal <~v~>\n"
+ },
+ {
+  "suite": "references",
+  "file": "all",
+  "n": 9,
+  "script": "---@class Dog\nlocal Dog = {}\nfunction Dog:<~eat~>()\nend\n\n---@generic T\n---@param type1 T\n---@return T\nfunction foobar(type1)\n    return {}\nend\n\nlocal v1 = foobar(Dog)\nv1:<!eat!>()\n"
+ },
+ {
+  "suite": "references",
+  "file": "all",
+  "n": 10,
+  "script": "---@class Dog\nlocal Dog = {}\nfunction Dog:<~eat~>()\nend\n\n---@class Master\nlocal Master = {}\n\n---@generic T\n---@param type1 string\n---@param type2 T\n---@return T\nfunction Master:foobar(type1, type2)\n    return {}\nend\n\nlocal v1 = Master:foobar(\"\", Dog)\nv1.<!eat!>()\n"
+ },
+ {
+  "suite": "references",
+  "file": "all",
+  "n": 11,
+  "script": "---@class A\nA = {}\n\nfunction A:<~TestA~>()\nend\n\n---@param param A\nfunction TestB(param)\n    param:<!TestA!>()\nend\n"
+ },
+ {
+  "suite": "references",
+  "file": "all",
+  "n": 12,
+  "script": "---@class A\n---@field <~x~> number\n\n---@type A\nlocal t = {\n    <!x!> = 1\n}\n"
+ },
+ {
+  "suite": "highlight",
+  "file": "init",
+  "n": 1,
+  "script": "local <!a!> = 1\n"
+ },
+ {
+  "suite": "highlight",
+  "file": "init",
+  "n": 2,
+  "script": "local <!a!> = 1\n<!a!> = 2\n<!a!> = <!a!>\n"
+ },
+ {
+  "suite": "highlight",
+  "file": "init",
+  "n": 3,
+  "script": "t.<!a!> = 1\na = t.<!a!>\n"
+ },
+ {
+  "suite": "highlight",
+  "file": "init",
+  "n": 4,
+  "script": "<!a!> = <!a!>\n<!a!> = <!a!>\n"
+ },
+ {
+  "suite": "highlight",
+  "file": "init",
+  "n": 5,
+  "script": "t = {\n    [<!\"a\"!>] = 1,\n    <!a!> = 1,\n}\nt[<!'a'!>] = 1\na = t.<!a!>\n"
+ },
+ {
+  "suite": "highlight",
+  "file": "init",
+  "n": 6,
+  "script": ":: <!a!> ::\ngoto <!a!>\n"
+ },
+ {
+  "suite": "highlight",
+  "file": "init",
+  "n": 7,
+  "script": "local function f(<!a!>)\n    return <!a!>\nend\n"
+ },
+ {
+  "suite": "highlight",
+  "file": "init",
+  "n": 8,
+  "script": "local s = <!'asd/gadasd.fad.zxczg'!>\n"
+ },
+ {
+  "suite": "highlight",
+  "file": "init",
+  "n": 9,
+  "script": "local b = <!true!>\n"
+ },
+ {
+  "suite": "highlight",
+  "file": "init",
+  "n": 10,
+  "script": "local n = <!nil!>\n"
+ },
+ {
+  "suite": "highlight",
+  "file": "init",
+  "n": 11,
+  "script": "local n = <!1.2354!>\n"
+ },
+ {
+  "suite": "highlight",
+  "file": "init",
+  "n": 12,
+  "script": "local <!function!> f () <!end!>\n"
+ },
+ {
+  "suite": "highlight",
+  "file": "init",
+  "n": 13,
+  "script": "<!function!> f () <!end!>\n"
+ },
+ {
+  "suite": "highlight",
+  "file": "init",
+  "n": 14,
+  "script": "return <!function!> () <!end!>\n"
+ },
+ {
+  "suite": "highlight",
+  "file": "init",
+  "n": 15,
+  "script": "<!if!> true <!then!>\n<!elseif!> true <!then!>\n<!elseif!> true <!then!>\n<!else!>\n<!end!>\n"
+ },
+ {
+  "suite": "highlight",
+  "file": "init",
+  "n": 16,
+  "script": "<!for!> _ <!in!> _ <!do!>\n<!end!>\n"
+ },
+ {
+  "suite": "highlight",
+  "file": "init",
+  "n": 17,
+  "script": "<!for!> i = 1, 10 <!do!>\n<!end!>\n"
+ },
+ {
+  "suite": "highlight",
+  "file": "init",
+  "n": 18,
+  "script": "<!while!> true <!do!>\n<!end!>\n"
+ },
+ {
+  "suite": "highlight",
+  "file": "init",
+  "n": 19,
+  "script": "<!repeat!>\n<!until!> true\n"
+ },
+ {
+  "suite": "highlight",
+  "file": "init",
+  "n": 20,
+  "script": "<!do!>\n<!end!>\n"
+ },
+ {
+  "suite": "highlight",
+  "file": "init",
+  "n": 21,
+  "script": "<!TEST1!> = 1\nTEST2 = 2\n"
+ },
+ {
+  "suite": "highlight",
+  "file": "init",
+  "n": 22,
+  "script": "local zing = foo\nlocal foo = 4\n\nlocal bar = {\n    <!baz!> = foo\n}\n\nbar.<!baz!> = 5\n\nprint(bar.<!baz!>)\n"
+ },
+ {
+  "suite": "rename",
+  "file": "init",
+  "n": 1,
+  "old": "a",
+  "new": "b",
+  "before": "local a = 1\n",
+  "after": "local b = 1\n"
+ },
+ {
+  "suite": "rename",
+  "file": "init",
+  "n": 2,
+  "old": "a",
+  "new": "b",
+  "before": "local a = 1\na = 2\na = a\n",
+  "after": "local b = 1\nb = 2\nb = b\n"
+ },
+ {
+  "suite": "rename",
+  "file": "init",
+  "n": 3,
+  "old": "a",
+  "new": "b",
+  "before": "t.a = 1\na = t.a\na = t['a']\na = t[\"a\"]\na = t[ [=[a]=] ]\n",
+  "after": "t.b = 1\na = t.b\na = t['b']\na = t[\"b\"]\na = t[ [=[b]=] ]\n"
+ },
+ {
+  "suite": "rename",
+  "file": "init",
+  "n": 4,
+  "old": "a",
+  "new": "b",
+  "before": ":: a ::\ngoto a\n",
+  "after": ":: b ::\ngoto b\n"
+ },
+ {
+  "suite": "rename",
+  "file": "init",
+  "n": 5,
+  "old": "a",
+  "new": "b",
+  "before": "local function f(a)\n    return a\nend\n",
+  "after": "local function f(b)\n    return b\nend\n"
+ },
+ {
+  "suite": "rename",
+  "file": "init",
+  "n": 6,
+  "old": "a",
+  "new": "!!!",
+  "before": "t = {\n    a = 0\n}\nt.a = 1\na = t.a\n",
+  "after": "t = {\n    [\"!!!\"] = 0\n}\nt[\"!!!\"] = 1\na = t[\"!!!\"]\n"
+ },
+ {
+  "suite": "rename",
+  "file": "init",
+  "n": 7,
+  "old": "a",
+  "new": "!!!",
+  "before": "t = {\n    ['a'] = 0\n}\nt.a = 1\na = t.a\n",
+  "after": "t = {\n    ['!!!'] = 0\n}\nt[\"!!!\"] = 1\na = t[\"!!!\"]\n"
+ },
+ {
+  "suite": "rename",
+  "file": "init",
+  "n": 8,
+  "old": "a",
+  "new": "\"",
+  "before": "print(t[ \"a\" ])\n",
+  "after": "print(t[ \"\\\"\" ])\n"
+ },
+ {
+  "suite": "rename",
+  "file": "init",
+  "n": 9,
+  "old": "a",
+  "new": "!!!",
+  "before": "function mt:a()\nend\nmt:a()\n",
+  "after": "mt[\"!!!\"] = function (self)\nend\nmt:!!!()\n"
+ },
+ {
+  "suite": "rename",
+  "file": "init",
+  "n": 10,
+  "old": "a",
+  "new": "!!!",
+  "before": "function mt:a(x, y)\nend\nmt:a()\n",
+  "after": "mt[\"!!!\"] = function (self, x, y)\nend\nmt:!!!()\n"
+ },
+ {
+  "suite": "rename",
+  "file": "init",
+  "n": 11,
+  "old": "a",
+  "new": "!!!",
+  "before": "a = a\n",
+  "after": "_ENV[\"!!!\"] = _ENV[\"!!!\"]\n"
+ },
+ {
+  "suite": "rename",
+  "file": "init",
+  "n": 12,
+  "old": "a",
+  "new": "!!!",
+  "before": "function a() end\n",
+  "after": "_ENV[\"!!!\"] = function () end\n"
+ },
+ {
+  "suite": "rename",
+  "file": "init",
+  "n": 13,
+  "old": "a",
+  "new": "a.b",
+  "before": "function a() end\na()\n",
+  "after": "function a.b() end\na.b()\n"
+ },
+ {
+  "suite": "rename",
+  "file": "init",
+  "n": 14,
+  "old": "a",
+  "new": "a:b",
+  "before": "function a() end\na()\n",
+  "after": "function a:b() end\na:b()\n"
+ },
+ {
+  "suite": "rename",
+  "file": "init",
+  "n": 15,
+  "old": "class1",
+  "new": "class2",
+  "before": "---@class class1\n\n---@type class1\n\n---@param x class1\n",
+  "after": "---@class class2\n\n---@type class2\n\n---@param x class2\n"
+ },
+ {
+  "suite": "rename",
+  "file": "init",
+  "n": 16,
+  "old": "alias1",
+  "new": "alias2",
+  "before": "---@alias alias1 class\n\n---@type alias1\n\n---@param x alias1\n",
+  "after": "---@alias alias2 class\n\n---@type alias2\n\n---@param x alias2\n"
+ },
+ {
+  "suite": "rename",
+  "file": "init",
+  "n": 17,
+  "old": "arg1",
+  "new": "arg2",
+  "before": "---@param arg1 number\nfunction f(arg1)\n    print(arg1)\nend\n",
+  "after": "---@param arg2 number\nfunction f(arg2)\n    print(arg2)\nend\n"
+ },
+ {
+  "suite": "rename",
+  "file": "init",
+  "n": 18,
+  "old": "field1",
+  "new": "field2",
+  "before": "---@class A\n---@field field1 number\n\n---@type A\nlocal t\n\nprint(t.field1)\n",
+  "after": "---@class A\n---@field field2 number\n\n---@type A\nlocal t\n\nprint(t.field2)\n"
+ },
+ {
+  "suite": "rename",
+  "file": "init",
+  "n": 19,
+  "old": "A",
+  "new": "C",
+  "before": "---@class A\n\n---@class B: A\n",
+  "after": "---@class C\n\n---@class B: C\n"
+ },
+ {
+  "suite": "rename",
+  "file": "init",
+  "n": 20,
+  "old": "A",
+  "new": "C",
+  "before": "---@class B: A\n",
+  "after": "---@class B: C\n"
+ }
+]
