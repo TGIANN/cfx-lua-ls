@@ -67,6 +67,11 @@ pub struct Lint {
 }
 
 /// Every rule with its default severity; `None`: off by default.
+/// Every diagnostic code `---@diagnostic` may name: LuaLS's and this server's.
+pub(crate) fn diagnostic_names() -> impl Iterator<Item = &'static str> {
+    luadoc::LUALS_CODES.iter().copied().chain(RULES.iter().map(|(c, _)| *c))
+}
+
 pub const RULES: &[(&str, Option<Severity>)] = &[
     // LuaLS
     ("unused-local", Some(Severity::Hint)),

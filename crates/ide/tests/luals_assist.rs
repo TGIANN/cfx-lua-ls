@@ -58,6 +58,15 @@ fn kind_name(k: CompletionKind) -> &'static str {
         CompletionKind::Local | CompletionKind::Global => "Variable",
         CompletionKind::Function => "Function",
         CompletionKind::Field => "Field",
+        CompletionKind::Class => "Class",
+        CompletionKind::Enum => "Enum",
+        CompletionKind::EnumMember => "EnumMember",
+        CompletionKind::Property => "Property",
+        CompletionKind::Interface => "Interface",
+        CompletionKind::Event => "Event",
+        CompletionKind::Snippet => "Snippet",
+        CompletionKind::Value => "Value",
+        CompletionKind::Operator => "Operator",
     }
 }
 
@@ -160,8 +169,12 @@ fn completion_cases(ws: &Workspace, path: &std::path::Path, show: bool, s: &mut 
         })
         .unwrap_or_default();
         let got_set = got.clone().unwrap_or_default();
+        let any = !got_set.is_empty();
+        // Snippets and functions are left out on both sides (LuaLS's are built
+        // at run time, its function items are labelled `f(a, b)`).
+        let got_set: BTreeSet<(String, String)> = got_set.into_iter().filter(|(_, k)| k != "Snippet" && k != "Function").collect();
         let ok = match &want {
-            None if expect.as_str() == Some("<exists>") => !got_set.is_empty(),
+            None if expect.as_str() == Some("<exists>") => any,
             None => got_set.is_empty(),
             Some(want) if expect["include"].as_bool().unwrap() => want.is_subset(&got_set),
             Some(want) => *want == got_set,

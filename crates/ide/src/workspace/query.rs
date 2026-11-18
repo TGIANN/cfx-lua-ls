@@ -1944,6 +1944,16 @@ impl Workspace {
 
     /// Resource names with exports (and the names they `provide`), for
     /// `exports.` completion.
+    /// Every class, alias and enum name of the workspace.
+    pub fn doc_type_names(&self) -> Vec<String> {
+        self.classes.keys().chain(self.doc_names.keys()).cloned().collect()
+    }
+
+    /// Whether a file of the workspace declares the class.
+    pub fn has_class(&self, name: &str) -> bool {
+        self.classes.contains_key(name)
+    }
+
     pub fn export_resources(&self) -> Vec<String> {
         let mut out: Vec<String> = Vec::new();
         for r in &self.resources {
