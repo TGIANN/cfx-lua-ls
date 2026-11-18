@@ -524,8 +524,13 @@ pub fn hover(parse: &Parse, names: &Names, text: &str, offset: TextSize, cx: Fil
 
 /// The expression that ends right before the `.` / `:` at `dot`.
 fn expr_before(parse: &Parse, dot: usize) -> Option<SyntaxNode> {
-    let end = TextSize::from(dot as u32);
-    let tok = parse.syntax().token_at_offset(end).left_biased()?;
+    let mut end = TextSize::from(dot as u32);
+    let mut tok = parse.syntax().token_at_offset(end).left_biased()?;
+    // `t .`: spaces before the dot.
+    if tok.kind() == WHITESPACE && tok.text_range().end() == end {
+        tok = tok.prev_token()?;
+        end = tok.text_range().end();
+    }
     if tok.text_range().end() != end {
         return None;
     }
@@ -667,12 +672,14 @@ pub fn complete_triggered(parse: &Parse, names: &Names, text: &str, offset: Text
     }
 
     // `obj.` / `obj:`: the library's fields of `obj`, and the fields the file uses on it.
-    let member = start > 0 && matches!(bytes[start - 1], b'.' | b':') && !(start > 1 && bytes[start - 2] == b'.');
+    // Spaces may stand between the dot and the cursor (`t.   |`).
+    let sep = if prefix.is_empty() { text[..start].trim_end_matches([' ', '\t']).len() } else { start };
+    let member = sep > 0 && matches!(bytes[sep - 1], b'.' | b':') && !(sep > 1 && bytes[sep - 2] == b'.');
     // `exports.res:` / `exports['res']:`: the resource's exports on this side.
     if member
-        && bytes[start - 1] == b':'
+        && bytes[sep - 1] == b':'
         && let Some((ws, file)) = cx.ws
-        && let Some(resource) = exports_before(text, start - 1)
+        && let Some(resource) = exports_before(text, sep - 1)
     {
         let e = ws.exports_of(file, &resource)?;
         for i in e.items.iter().filter(|i| matches(&i.name)) {
@@ -683,15 +690,15 @@ pub fn complete_triggered(parse: &Parse, names: &Names, text: &str, offset: Text
         return Some(Completions { items, incomplete });
     }
     if member {
-        let mut o = start - 1;
+        let mut o = text[..sep - 1].trim_end_matches([' ', '\t']).len();
+        let object_end = o;
         while o > 0 && (is_ident(bytes[o - 1]) || bytes[o - 1] == b'.') {
             o -= 1;
         }
-        let object = &text[o..start - 1];
+        let object = &text[o..object_end];
         let plain = !(object.is_empty() || object.split('.').any(|s| s.is_empty() || s.as_bytes()[0].is_ascii_digit()));
-        // `s:` on a string (`('%s'):format`, `local s = ''`): the string library.
-        if bytes[start - 1] == b':'
-            && let Some(e) = expr_before(parse, start - 1)
+        // `s:` / `s.` on a string (`('%s'):format`, `local s = ''`): the string library.
+        if let Some(e) = expr_before(parse, sep - 1)
             && crate::types::FileTypes::new(parse, names, text).is_string(&e)
         {
             let mut lib_items: Vec<(&str, &[LibItem])> =
@@ -702,8 +709,29 @@ pub fn complete_triggered(parse: &Parse, names: &Names, text: &str, offset: Text
             }
             return Some(Completions { items, incomplete: false });
         }
+        // The fields its type has (LuaLS kinds: a literal is Enum), without the
+        // private and protected ones it may not see.
+        let colon = bytes[sep - 1] == b':';
+        let mut hidden: Vec<String> = Vec::new();
+        if let Some(e) = expr_before(parse, sep - 1) {
+            let (members, h) = crate::types::FileTypes::new(parse, names, text).member_items(&e);
+            hidden = h;
+            for (name, kind) in members {
+                if !matches(&name) || (colon && kind != crate::types::MemberKind::Function && kind != crate::types::MemberKind::Field) {
+                    continue;
+                }
+                let kind = match kind {
+                    crate::types::MemberKind::Field => CompletionKind::Field,
+                    crate::types::MemberKind::Enum => CompletionKind::Enum,
+                    crate::types::MemberKind::Function => CompletionKind::Function,
+                };
+                // A name that is not an identifier: `'a.b.c'`.
+                let label = if crate::names::is_name(&name) || name.parse::<i64>().is_ok() { name } else { format!("'{name}'") };
+                push(&mut items, Completion { label, kind, detail: None, deprecated: false, replace: None });
+            }
+        }
         // Any expression: `GetEntityCoords(ped).`, `ESX.GetPlayerFromId(src).job.`.
-        let expr = cx.ws.and_then(|_| expr_before(parse, start - 1));
+        let expr = cx.ws.and_then(|_| expr_before(parse, sep - 1));
         if !plain && expr.is_none() {
             return None;
         }
@@ -716,7 +744,6 @@ pub fn complete_triggered(parse: &Parse, names: &Names, text: &str, offset: Text
         for (n, list) in lib_items {
             push(&mut items, library_completion(&n[dotted.len()..], list));
         }
-        let colon = bytes[start - 1] == b':';
         if let (Some((ws, file)), Some(e)) = (cx.ws, &expr) {
             let (overlay, r) = api::expr_ref(parse, text, names, e);
             for i in ws.api_members(file, Some(&overlay), &r, &[]) {
@@ -731,7 +758,7 @@ pub fn complete_triggered(parse: &Parse, names: &Names, text: &str, offset: Text
             return Some(Completions { items, incomplete });
         }
         if let Some((ws, file)) = cx.ws {
-            if object == "exports" && bytes[start - 1] == b'.' {
+            if object == "exports" && bytes[sep - 1] == b'.' {
                 // Resources with exports (names that are Lua identifiers).
                 for r in ws.export_resources().into_iter().filter(|r| crate::names::is_name(r) && matches(r)) {
                     push(&mut items, Completion { label: r, kind: CompletionKind::Field, detail: Some("resource".into()), deprecated: false, replace: None });
@@ -769,6 +796,7 @@ pub fn complete_triggered(parse: &Parse, names: &Names, text: &str, offset: Text
                 push(&mut items, Completion { label: field, kind: CompletionKind::Field, detail: None, deprecated: false, replace: None });
             }
         }
+        items.retain(|i| !hidden.contains(&i.label));
         let incomplete = items.len() > MAX_ITEMS;
         items.truncate(MAX_ITEMS);
         return Some(Completions { items, incomplete });
