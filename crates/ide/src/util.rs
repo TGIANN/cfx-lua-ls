@@ -51,6 +51,46 @@ pub(crate) fn unquote(s: &str) -> Option<&str> {
     s[1..].strip_suffix(q).filter(|_| s.len() >= 2)
 }
 
+/// The value of a quoted Lua string literal, escapes decoded; bytes that are
+/// not UTF-8 are kept as `\ddd`.
+pub(crate) fn lua_string(lit: &str) -> String {
+    let body = unquote(lit).unwrap_or_else(|| lit.trim_start_matches(['"', '\'']));
+    let mut bytes = Vec::new();
+    let mut it = body.bytes().peekable();
+    while let Some(b) = it.next() {
+        if b != b'\\' {
+            bytes.push(b);
+            continue;
+        }
+        let Some(e) = it.next() else { break };
+        match e {
+            b'n' => bytes.push(b'\n'),
+            b't' => bytes.push(b'\t'),
+            b'r' => bytes.push(b'\r'),
+            b'a' => bytes.push(7),
+            b'b' => bytes.push(8),
+            b'f' => bytes.push(12),
+            b'v' => bytes.push(11),
+            b'x' => {
+                let h: String = (0..2).filter_map(|_| it.next_if(u8::is_ascii_hexdigit)).map(char::from).collect();
+                bytes.push(u8::from_str_radix(&h, 16).unwrap_or(0));
+            }
+            b'0'..=b'9' => {
+                let mut d = String::from(char::from(e));
+                while d.len() < 3 && let Some(n) = it.next_if(u8::is_ascii_digit) {
+                    d.push(char::from(n));
+                }
+                bytes.push(d.parse::<u16>().ok().and_then(|n| u8::try_from(n).ok()).unwrap_or(0));
+            }
+            other => bytes.push(other),
+        }
+    }
+    match String::from_utf8(bytes) {
+        Ok(s) => s,
+        Err(e) => e.into_bytes().iter().map(|&b| if b < 0x80 { char::from(b).to_string() } else { format!("\\{b}") }).collect(),
+    }
+}
+
 pub(crate) fn token(node: &SyntaxNode, kind: SyntaxKind) -> Option<SyntaxToken> {
     tokens(node).find(|t| t.kind() == kind)
 }

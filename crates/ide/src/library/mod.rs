@@ -170,6 +170,12 @@ pub fn doc_names() -> &'static std::collections::HashSet<String> {
     })
 }
 
+/// Every `---@alias` of the library by name.
+pub fn aliases() -> &'static std::collections::HashMap<String, crate::luacats::DocType> {
+    static ALIASES: OnceLock<std::collections::HashMap<String, crate::luacats::DocType>> = OnceLock::new();
+    ALIASES.get_or_init(|| files::FILES.iter().filter(|(_, t)| t.contains("@alias")).flat_map(|(_, t)| crate::types::doc_aliases(t).0).collect())
+}
+
 /// The `---@return` types of a library function.
 pub fn returns(item: &LibItem) -> Vec<crate::luacats::DocType> {
     let Some(r) = item.doc else { return Vec::new() };

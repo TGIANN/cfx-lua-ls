@@ -611,6 +611,12 @@ pub fn complete(parse: &Parse, names: &Names, text: &str, offset: TextSize, cx: 
     if let Some(items) = crate::doc_complete::complete(parse, names, text, offset, cx) {
         return Some(Completions { items, incomplete: false });
     }
+    // The literal values the position takes: alone in a string or before
+    // anything is typed, first otherwise.
+    let values = crate::doc_complete::values(parse, text, offset);
+    if let Some((items, true)) = values {
+        return Some(Completions { items, incomplete: false });
+    }
     // No completion inside comments and strings.
     if let Some(t) = token_at(&parse.syntax(), offset).left_biased()
         && matches!(t.kind(), COMMENT | BLOCK_COMMENT | STRING | LONG_STRING)
@@ -645,6 +651,9 @@ pub fn complete(parse: &Parse, names: &Names, text: &str, offset: TextSize, cx: 
             items.push(c);
         }
     };
+    for c in values.map(|(v, _)| v).unwrap_or_default() {
+        push(&mut items, c);
+    }
 
     // `obj.` / `obj:`: the library's fields of `obj`, and the fields the file uses on it.
     let member = start > 0 && matches!(bytes[start - 1], b'.' | b':') && !(start > 1 && bytes[start - 2] == b'.');
