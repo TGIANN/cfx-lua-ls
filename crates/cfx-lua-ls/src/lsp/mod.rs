@@ -432,6 +432,18 @@ impl Server<'_> {
                     K::Function => lsp_types::CompletionItemKind::FUNCTION,
                     K::Global => lsp_types::CompletionItemKind::VARIABLE,
                     K::Field => lsp_types::CompletionItemKind::FIELD,
+                    K::Class => lsp_types::CompletionItemKind::CLASS,
+                    K::Enum => lsp_types::CompletionItemKind::ENUM,
+                    K::EnumMember => lsp_types::CompletionItemKind::ENUM_MEMBER,
+                    K::Property => lsp_types::CompletionItemKind::PROPERTY,
+                    K::Interface => lsp_types::CompletionItemKind::INTERFACE,
+                    K::Event => lsp_types::CompletionItemKind::EVENT,
+                    K::Snippet => lsp_types::CompletionItemKind::SNIPPET,
+                    K::Value => lsp_types::CompletionItemKind::VALUE,
+                    K::Operator => lsp_types::CompletionItemKind::OPERATOR,
+                }),
+                text_edit: i.replace.map(|r| {
+                    lsp_types::CompletionTextEdit::Edit(lsp_types::TextEdit { range: convert::range(&doc.index, r, self.encoding), new_text: i.label.clone() })
                 }),
                 label: i.label,
                 detail: i.detail,

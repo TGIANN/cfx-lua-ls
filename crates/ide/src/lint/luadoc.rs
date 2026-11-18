@@ -11,7 +11,7 @@ use cfx_lua_syntax::SyntaxNode;
 use std::collections::HashMap;
 
 /// LuaLS's diagnostic codes (`script/proto/diagnostic.lua`).
-const LUALS_CODES: &[&str] = &[
+pub(crate) const LUALS_CODES: &[&str] = &[
     "ambiguity-1", "assign-type-mismatch", "await-in-sync", "cast-local-type", "cast-type-mismatch", "circle-doc-class", "close-non-object",
     "code-after-break", "codestyle-check", "count-down-loop", "deprecated", "different-requires", "discard-returns", "doc-field-no-class",
     "duplicate-doc-alias", "duplicate-doc-field", "duplicate-doc-param", "duplicate-index", "duplicate-set-field", "empty-block",

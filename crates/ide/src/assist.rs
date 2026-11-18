@@ -28,6 +28,24 @@ pub enum CompletionKind {
     Function,
     Global,
     Field,
+    /// A class, alias or enum name in a doc comment.
+    Class,
+    /// A `---@diagnostic` mode.
+    Enum,
+    /// A literal value a type allows (`"a"` of `"a"|"b"`).
+    EnumMember,
+    /// A field of the expected type, in a table constructor.
+    Property,
+    /// A parameter name after `---@param`.
+    Interface,
+    /// A doc tag after `---@`.
+    Event,
+    /// Several names or lines at once.
+    Snippet,
+    /// A diagnostic code.
+    Value,
+    /// A `---@operator` name.
+    Operator,
 }
 
 #[derive(Debug, Clone)]
@@ -37,6 +55,9 @@ pub struct Completion {
     pub detail: Option<String>,
     /// Marked `---@deprecated` where it is defined.
     pub deprecated: bool,
+    /// The text the label replaces when it is not just the word before the
+    /// cursor (`AAA.BBB` after `AAA.`).
+    pub replace: Option<TextRange>,
 }
 
 /// What a feature knows about the file beyond its text.
@@ -172,6 +193,7 @@ fn api_completion(item: &ApiItem) -> Completion {
             _ => item.signature(),
         }),
         deprecated: item.deprecated().is_some(),
+        replace: None,
     }
 }
 
@@ -520,7 +542,7 @@ fn expr_before(parse: &Parse, dot: usize) -> Option<SyntaxNode> {
 }
 
 /// Where a local can be seen.
-fn scope(parse: &Parse, d: &crate::names::Decl) -> Option<TextRange> {
+pub(crate) fn scope(parse: &Parse, d: &crate::names::Decl) -> Option<TextRange> {
     match d.kind {
         DeclKind::ForVar | DeclKind::SelfParam => Some(d.owner),
         DeclKind::Param => {
@@ -558,6 +580,7 @@ fn library_completion(label: &str, items: &[LibItem]) -> Completion {
         kind: if first.function { CompletionKind::Function } else { CompletionKind::Global },
         detail: Some(lib.declaration(first)),
         deprecated: false,
+        replace: None,
     }
 }
 
@@ -585,6 +608,9 @@ pub fn complete(parse: &Parse, names: &Names, text: &str, offset: TextSize, cx: 
     let (game, side) = (cx.game, cx.side);
     let end = usize::from(offset).min(text.len());
     let bytes = text.as_bytes();
+    if let Some(items) = crate::doc_complete::complete(parse, names, text, offset, cx) {
+        return Some(Completions { items, incomplete: false });
+    }
     // No completion inside comments and strings.
     if let Some(t) = token_at(&parse.syntax(), offset).left_biased()
         && matches!(t.kind(), COMMENT | BLOCK_COMMENT | STRING | LONG_STRING)
@@ -593,13 +619,12 @@ pub fn complete(parse: &Parse, names: &Names, text: &str, offset: TextSize, cx: 
     {
         return None;
     }
-    // Nor while naming a parameter (`function f(a, |)`).
-    if let Some(t) = token_at(&parse.syntax(), offset).left_biased()
-        && t.kind() != R_PAREN
-        && t.parent_ancestors().any(|a| a.kind() == PARAM_LIST)
-    {
-        return None;
-    }
+    // While naming a parameter (`function f(a, |)`): names, the function's
+    // `---@param` names, no keywords.
+    let param_list = token_at(&parse.syntax(), offset)
+        .left_biased()
+        .filter(|t| t.kind() != R_PAREN)
+        .and_then(|t| t.parent_ancestors().find(|a| a.kind() == PARAM_LIST));
     let mut start = end;
     while start > 0 && is_ident(bytes[start - 1]) {
         start -= 1;
@@ -608,8 +633,11 @@ pub fn complete(parse: &Parse, names: &Names, text: &str, offset: TextSize, cx: 
     if prefix.as_bytes().first().is_some_and(u8::is_ascii_digit) {
         return None;
     }
+    // LuaLS's match: a prefix, or the typed letters in order of words (`zac` for `zabc`).
+    let matches = |label: &str| crate::doc_complete::matchkey(prefix, label);
+    // The library holds thousands of natives: a plain prefix there.
     let lower = prefix.to_ascii_lowercase();
-    let matches = |label: &str| label.to_ascii_lowercase().starts_with(&lower);
+    let lib_matches = |label: &str| label.to_ascii_lowercase().starts_with(&lower);
     let mut items: Vec<Completion> = Vec::new();
     let mut seen: HashSet<String> = HashSet::new();
     let mut push = |items: &mut Vec<Completion>, c: Completion| {
@@ -686,7 +714,7 @@ pub fn complete(parse: &Parse, names: &Names, text: &str, offset: TextSize, cx: 
             if object == "exports" && bytes[start - 1] == b'.' {
                 // Resources with exports (names that are Lua identifiers).
                 for r in ws.export_resources().into_iter().filter(|r| crate::names::is_name(r) && matches(r)) {
-                    push(&mut items, Completion { label: r, kind: CompletionKind::Field, detail: Some("resource".into()), deprecated: false });
+                    push(&mut items, Completion { label: r, kind: CompletionKind::Field, detail: Some("resource".into()), deprecated: false, replace: None });
                 }
             } else if expr.is_none() {
                 // Fields another file or resource defines (`QBCore.Functions.`, `lib.`)
@@ -718,7 +746,7 @@ pub fn complete(parse: &Parse, names: &Names, text: &str, offset: TextSize, cx: 
             let before_ok = s == 0 || !(is_ident(bytes[s - 1]) || bytes[s - 1] == b'.');
             let field: String = text[at..].bytes().take_while(|&b| is_ident(b)).map(char::from).collect();
             if before_ok && !field.is_empty() && at != start && matches(&field) && !field.as_bytes()[0].is_ascii_digit() {
-                push(&mut items, Completion { label: field, kind: CompletionKind::Field, detail: None, deprecated: false });
+                push(&mut items, Completion { label: field, kind: CompletionKind::Field, detail: None, deprecated: false, replace: None });
             }
         }
         let incomplete = items.len() > MAX_ITEMS;
@@ -726,6 +754,11 @@ pub fn complete(parse: &Parse, names: &Names, text: &str, offset: TextSize, cx: 
         return Some(Completions { items, incomplete });
     }
 
+    // A parameter not started yet: only the documented names.
+    if let Some(list) = param_list.as_ref().filter(|_| prefix.is_empty()) {
+        let items = crate::doc_complete::documented_params(text, list, prefix);
+        return (!items.is_empty()).then_some(Completions { items, incomplete: false });
+    }
     // Locals in scope, innermost first.
     let mut locals: Vec<&crate::names::Decl> = names
         .decls
@@ -740,7 +773,7 @@ pub fn complete(parse: &Parse, names: &Names, text: &str, offset: TextSize, cx: 
         } else {
             CompletionKind::Local
         };
-        push(&mut items, Completion { label: d.name.clone(), kind, detail: None, deprecated: false });
+        push(&mut items, Completion { label: d.name.clone(), kind, detail: None, deprecated: false, replace: None });
     }
     // Globals the file uses (its own and the resource's: `Config`, `QBCore`).
     let mut globals: Vec<&str> = names
@@ -753,17 +786,23 @@ pub fn complete(parse: &Parse, names: &Names, text: &str, offset: TextSize, cx: 
     globals.sort_unstable();
     globals.dedup();
     for g in globals {
-        push(&mut items, Completion { label: g.to_string(), kind: CompletionKind::Global, detail: None, deprecated: false });
+        push(&mut items, Completion { label: g.to_string(), kind: CompletionKind::Global, detail: None, deprecated: false, replace: None });
+    }
+    if let Some(list) = &param_list {
+        for c in crate::doc_complete::documented_params(text, list, prefix) {
+            push(&mut items, c);
+        }
+        return Some(Completions { items, incomplete: false });
     }
     for k in KEYWORDS.iter().filter(|k| matches(k)) {
-        push(&mut items, Completion { label: k.to_string(), kind: CompletionKind::Keyword, detail: None, deprecated: false });
+        push(&mut items, Completion { label: k.to_string(), kind: CompletionKind::Keyword, detail: None, deprecated: false, replace: None });
     }
     // The library: thousands of natives, so only once a letter is typed.
     let mut incomplete = prefix.is_empty();
     if !prefix.is_empty() {
         let mut lib_items: Vec<(&str, &[LibItem])> = library()
             .names()
-            .filter(|(n, list)| !n.contains('.') && matches(n) && side_fits(list, side, game))
+            .filter(|(n, list)| !n.contains('.') && lib_matches(n) && side_fits(list, side, game))
             .collect();
         lib_items.sort_by(|a, b| (a.0.len(), a.0).cmp(&(b.0.len(), b.0)));
         for (n, list) in lib_items {
@@ -904,7 +943,7 @@ mod tests {
         let (l, _) = labels("local s = ('%d'):for$\n", FileSide::Unknown);
         assert_eq!(l, ["format"]);
         let (l, _) = labels("local name = 'x'\nprint(name:up$)\n", FileSide::Unknown);
-        assert_eq!(l, ["upper"]);
+        assert_eq!(l, ["unpack", "upper"]);
         let (t, o) = at("local function f(a, $)\nend\n");
         let p = parse(&t);
         let n = names(&p, &t);
