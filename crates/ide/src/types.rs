@@ -37,14 +37,43 @@ enum Effect {
     Cast(Vec<(char, T)>),
     /// `if type(x) == 'string' then`.
     Narrow(T),
+    /// The read only happens when it is falsy (`if not x`, the `else` of
+    /// `if x`): nil or `false`.
+    Falsy,
+    /// The read only happens when it is nil (`if x == nil`).
+    Nil,
 }
 
-/// Without nil and `false`.
+/// Without nil and `false` (`boolean` is `true`).
 fn truthy(t: T) -> T {
     match non_nil(t) {
-        T::Union(parts) => union(parts.into_iter().filter(|p| !matches!(p, T::Bool(false))).collect()),
+        T::Union(parts) => union(
+            parts
+                .into_iter()
+                .filter(|p| !matches!(p, T::Bool(false)))
+                .map(|p| if is(&p, "boolean") { T::Bool(true) } else { p })
+                .collect(),
+        ),
+        t if is(&t, "boolean") => T::Bool(true),
         t => t,
     }
+}
+
+/// Only nil and `false` (`boolean` is `false`); `nil_only`: only nil.
+fn falsy(t: T, nil_only: bool) -> T {
+    if has_unknown(&t) || mentions_any(&t) {
+        return t;
+    }
+    let kept: Vec<T> = members_of(&t)
+        .into_iter()
+        .filter_map(|m| match m {
+            T::Name(n) if n == "nil" => Some(name("nil")),
+            T::Name(n) if n == "boolean" && !nil_only => Some(T::Bool(false)),
+            T::Bool(false) if !nil_only => Some(T::Bool(false)),
+            _ => None,
+        })
+        .collect();
+    union(kept)
 }
 
 /// The members of a type (`A` of `A`, `A` and nil of `A?`, the parts of `A|B`).
@@ -1777,12 +1806,22 @@ impl<'a> Infer<'a> {
                         IF_STAT | ELSEIF_CLAUSE | WHILE_STAT if let Some(c) = owner.first_child().filter(|c| self.checks(c, d) == Some(true)) => {
                             effects.push(self.guard(&c, d))
                         }
+                        IF_STAT | ELSEIF_CLAUSE | WHILE_STAT if let Some(f) = owner.first_child().and_then(|c| self.falsy_when(&c, d, true)) => {
+                            effects.push(f)
+                        }
                         ELSE_CLAUSE => {
-                            let conds = owner.parent().into_iter().flat_map(|i| {
-                                std::iter::once(i.first_child()).chain(i.children().filter(|c| c.kind() == ELSEIF_CLAUSE).map(|c| c.first_child()))
-                            });
-                            if let Some(c) = conds.flatten().find(|c| self.checks(c, d) == Some(false)) {
-                                effects.push(self.guard(&c, d));
+                            let conds: Vec<SyntaxNode> = owner
+                                .parent()
+                                .into_iter()
+                                .flat_map(|i| {
+                                    std::iter::once(i.first_child()).chain(i.children().filter(|c| c.kind() == ELSEIF_CLAUSE).map(|c| c.first_child()))
+                                })
+                                .flatten()
+                                .collect();
+                            if let Some(c) = conds.iter().find(|c| self.checks(c, d) == Some(false)) {
+                                effects.push(self.guard(c, d));
+                            } else if let Some(f) = conds.iter().find_map(|c| self.falsy_when(c, d, false)) {
+                                effects.push(f);
                             }
                         }
                         FUNC_BODY | SOURCE_FILE => break self.decl_type(d),
@@ -1799,6 +1838,9 @@ impl<'a> Infer<'a> {
                             // `type(x) == 'string' and x`.
                             (Some(AND_KW), _) if let Some(t) = self.type_check(&l, d) => effects.push(Effect::Narrow(t)),
                             (Some(AND_KW), Some(true)) | (Some(OR_KW), Some(false)) => effects.push(self.guard(&l, d)),
+                            // `not x and x`, `x or x`.
+                            (Some(AND_KW), _) if let Some(f) = self.falsy_when(&l, d, true) => effects.push(f),
+                            (Some(OR_KW), _) if let Some(f) = self.falsy_when(&l, d, false) => effects.push(f),
                             _ => {}
                         }
                     }
@@ -1810,8 +1852,11 @@ impl<'a> Infer<'a> {
                         std::iter::once(i.first_child())
                             .chain(i.children().filter(move |c| c.kind() == ELSEIF_CLAUSE && c.text_range().start() < before).map(|c| c.first_child()))
                     });
-                    if let Some(c) = earlier.flatten().find(|c| self.checks(c, d) == Some(false)) {
-                        effects.push(self.guard(&c, d));
+                    let earlier: Vec<SyntaxNode> = earlier.flatten().collect();
+                    if let Some(c) = earlier.iter().find(|c| self.checks(c, d) == Some(false)) {
+                        effects.push(self.guard(c, d));
+                    } else if let Some(f) = earlier.iter().find_map(|c| self.falsy_when(c, d, false)) {
+                        effects.push(f);
                     }
                 }
                 FUNC_BODY => break self.decl_type(d),
@@ -1824,6 +1869,8 @@ impl<'a> Infer<'a> {
             t = match x {
                 Effect::NonNil => non_nil(t),
                 Effect::Truthy => truthy(t),
+                Effect::Falsy => falsy(t, false),
+                Effect::Nil => falsy(t, true),
                 Effect::Also(v) => union(std::iter::once(t).chain(v).collect()),
                 Effect::Fill(v) => union(std::iter::once(non_nil(t)).chain(v).collect()),
                 Effect::Narrow(n) => {
@@ -1893,6 +1940,34 @@ impl<'a> Infer<'a> {
                     EQ2 | NEQ if let Some(lit) = self.type_test(&l, &r, d).or_else(|| self.type_test(&r, &l, d)) => {
                         Some((op == EQ2) != (lit == "nil"))
                     }
+                    _ => None,
+                }
+            }
+            _ => None,
+        }
+    }
+
+    /// What `cond` having the value `truth` says of local `d` being falsy:
+    /// `Falsy` (`x` false, `not x` true), `Nil` (`x == nil` true).
+    fn falsy_when(&self, cond: &SyntaxNode, d: usize, truth: bool) -> Option<Effect> {
+        let is_d = |n: &SyntaxNode| {
+            n.kind() == NAME_EXPR && n.first_token().and_then(|t| self.ref_at(t.text_range())).is_some_and(|r| r.target == Target::Decl(d))
+        };
+        match cond.kind() {
+            PAREN_EXPR => self.falsy_when(&cond.first_child()?, d, truth),
+            NAME_EXPR => (is_d(cond) && !truth).then_some(Effect::Falsy),
+            UNARY_EXPR if cond.first_token().is_some_and(|t| t.kind() == NOT_KW) => self.falsy_when(&cond.first_child()?, d, !truth),
+            BINARY_EXPR => {
+                let mut kids = cond.children();
+                let (l, r) = (kids.next()?, kids.next()?);
+                let op = cond.children_with_tokens().filter_map(|x| x.into_token()).find(|t| !matches!(t.kind(), WHITESPACE | COMMENT))?.kind();
+                let nil_side = |a: &SyntaxNode, b: &SyntaxNode| is_d(a) && b.kind() == LITERAL_EXPR && b.first_token().is_some_and(|t| t.kind() == NIL_KW);
+                match op {
+                    // Both sides true, or both false.
+                    AND_KW if truth => self.falsy_when(&l, d, true).or_else(|| self.falsy_when(&r, d, true)),
+                    OR_KW if !truth => self.falsy_when(&l, d, false).or_else(|| self.falsy_when(&r, d, false)),
+                    EQ2 if truth && (nil_side(&l, &r) || nil_side(&r, &l)) => Some(Effect::Nil),
+                    NEQ if !truth && (nil_side(&l, &r) || nil_side(&r, &l)) => Some(Effect::Nil),
                     _ => None,
                 }
             }
@@ -1981,6 +2056,10 @@ impl<'a> Infer<'a> {
         let mut kids = cond.children();
         let (l, r) = (kids.next()?, kids.next()?);
         let op = cond.children_with_tokens().filter_map(|x| x.into_token()).find(|t| !matches!(t.kind(), WHITESPACE | COMMENT))?.kind();
+        // `x ~= nil and type(x) == 'number'`: both sides hold.
+        if op == AND_KW {
+            return self.type_check(&l, d).or_else(|| self.type_check(&r, d));
+        }
         if op != EQ2 {
             return None;
         }

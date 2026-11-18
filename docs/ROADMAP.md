@@ -234,7 +234,7 @@ error ("invalid UTF-8 code").
     `--[[@as T]]`, aliases; memoized per expression, so `s = s:gsub():gsub()`
     chains stay linear. Checked by `crates/ide/tests/luals_types.rs` against
     LuaLS's `test/type_inference` (610 cases, extracted by
-    `tools/extract_luals_types.py`): 408 pass, the list of passing cases is kept
+    `tools/extract_luals_types.py`): 414 pass, the list of passing cases is kept
     so a regression fails the test.
   - Done: `undefined-doc-name`, silent when the resource or one it depends on
     or imports from has escrow files (corpus A's tgiann-core declares
@@ -311,8 +311,11 @@ error ("invalid UTF-8 code").
     `true` / `false` locals never written again read as their value. On the
     corpora two new `param-type-mismatch` hits, both real (a `table<string, _>`
     key passed as a `number`, a value that may be `false` passed on).
-  - Not done: 202 inference cases, sorted by cost: falsy-side narrowing
-    (`if not x`), values past a call's last `---@return`, operators of generic
+  - Done: inference 408 -> 414: the falsy side narrows (`if not x`, the
+    `else` of `if x`, `x == nil`, `not x and x`), a truthy `boolean` is
+    `true`, a `type(x)` test inside `a and b` narrows. On the corpora one
+    `param-type-mismatch` false alarm gone (`x ~= nil and type(x) == 'number'`).
+  - Not done: 196 inference cases, sorted by cost: values past a call's last `---@return`, operators of generic
     classes (`Box<string>`), `stringlib` members on string values, overload
     choice, generics bound through returned `fun`s and callbacks, members
     written onto a class table seen through an instance, union print order,

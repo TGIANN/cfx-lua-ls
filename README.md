@@ -22,7 +22,7 @@ the workspace for completion after any expression (`ESX.GetPlayerFromId(src).`,
 `invisible`, ...), each kept narrower than LuaLS's where it would guess. Every
 LuaLS diagnostic code is implemented except `codestyle-check`, `name-style-check`,
 `spell-check` and `unnecessary-assert`, which LuaLS ships off (the others it
-ships off stay off here too); it passes 408 of LuaLS's 610 type inference cases and 478 of its 507 diagnostic
+ships off stay off here too); it passes 414 of LuaLS's 610 type inference cases and 478 of its 507 diagnostic
 cases. Hover follows LuaLS's layout (`function f(a: any)` with its return lines,
 `local x: integer = 1`, a table's or a class's fields) and matches 75 of its 190
 hover cases word for word.
