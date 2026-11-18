@@ -318,6 +318,41 @@ pub struct FileTypes<'a> {
     class_writes: std::cell::OnceCell<ClassWrites>,
 }
 
+/// A `---@param`'s type with the `---| "a"` lines under it.
+fn param_doc_type(tags: &[Tag], n: &str) -> Option<T> {
+    let i = tags.iter().position(|t| matches!(t, Tag::Param { name, ty: Some(_), .. } if name == n))?;
+    let Tag::Param { ty: Some(ty), .. } = &tags[i] else { return None };
+    let more: Vec<T> = tags[i + 1..]
+        .iter()
+        .map_while(|t| match t {
+            Tag::AliasValue { ty, .. } => Some(ty.clone()),
+            _ => None,
+        })
+        .collect();
+    if more.is_empty() {
+        return Some(ty.clone());
+    }
+    Some(union(std::iter::once(ty.clone()).chain(more).collect()))
+}
+
+/// `a.b.c` of a name or a chain of `.` fields.
+fn dotted(e: &SyntaxNode) -> Option<String> {
+    match e.kind() {
+        NAME_EXPR => Some(e.first_token()?.text().to_string()),
+        INDEX_EXPR => Some(format!("{}.{}", dotted(&e.first_child()?)?, crate::lint::field_name(e)?.text())),
+        _ => None,
+    }
+}
+
+/// A value `value_choices` offers.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub(crate) enum Choice {
+    /// A string, by its content.
+    Str(String),
+    /// Written as is (`1`, `true`, `T.x`).
+    Code(String),
+}
+
 /// Class -> field -> (a constructor entry, the value written).
 type ClassWrites = HashMap<String, HashMap<String, Vec<(bool, Option<SyntaxNode>)>>>;
 
@@ -346,6 +381,21 @@ impl<'a> FileTypes<'a> {
     pub(crate) fn is_string(&self, e: &SyntaxNode) -> bool {
         let t = non_nil(self.inf.expr_type(e));
         is(&t, "string") || matches!(t, T::Str(_))
+    }
+
+    /// The literal values the position of `e` takes (LuaLS's enum completion):
+    /// a call argument, the right side of `==` / `~=`, an assigned value, a
+    /// constructor entry. `"a"` of `"a"|"b"` through aliases (the library's
+    /// too), and an `---@enum`'s fields (`T.x`) and values, or its keys for
+    /// `---@enum(key)`.
+    pub(crate) fn value_choices(&self, e: &SyntaxNode) -> Vec<Choice> {
+        let inf = &self.inf;
+        let Some(want) = inf.value_want(e) else { return Vec::new() };
+        let mut out = Vec::new();
+        inf.choices(&want, &mut out, 0);
+        let mut seen = std::collections::HashSet::new();
+        out.retain(|c| seen.insert(c.clone()));
+        out
     }
 
     /// The fields LuaLS's hover lists under a local: a table constructor's in
@@ -2097,7 +2147,7 @@ fn float_misfits(t: &T) -> bool {
 
 /// `---@alias Name T` (with `---|` lines adding members), and the generic
 /// names of `---@alias Name<T> ...`.
-fn doc_aliases(text: &str) -> (HashMap<String, T>, HashMap<String, Vec<String>>) {
+pub(crate) fn doc_aliases(text: &str) -> (HashMap<String, T>, HashMap<String, Vec<String>>) {
     let mut out = HashMap::new();
     let mut gens = HashMap::new();
     let mut run: Vec<(TextSize, &str)> = Vec::new();
@@ -4384,6 +4434,174 @@ impl<'a> Infer<'a> {
             && self.decl_stat(d).is_some_and(|st| stat_tags(self.text, &st).iter().any(|t| matches!(t, Tag::Type { .. } | Tag::Class { .. })))
     }
 
+    /// The type a value written at `e` should have, for `value_choices`.
+    fn value_want(&self, e: &SyntaxNode) -> Option<T> {
+        let parent = e.parent()?;
+        match parent.kind() {
+            BINARY_EXPR => {
+                let op = parent.children_with_tokens().filter_map(|x| x.into_token()).find(|t| matches!(t.kind(), EQ2 | NEQ))?;
+                let lhs = parent.first_child().filter(|l| l != e && l.text_range().end() <= op.text_range().start())?;
+                Some(self.held_type(&lhs))
+            }
+            EXPR_LIST if parent.parent().is_some_and(|s| s.kind() == ASSIGN_STAT) => {
+                let i = parent.children().position(|c| c == *e)?;
+                let var = parent.parent()?.children().find(|c| c.kind() == VAR_LIST)?.children().nth(i)?;
+                Some(self.held_type(&var))
+            }
+            ARG_LIST => {
+                let call = parent.parent()?;
+                let i = parent.children().position(|c| c == *e)?;
+                let callee = call.first_child()?;
+                if call.kind() == CALL_EXPR
+                    && self.function_body(&callee).is_none()
+                    && let Some(t) = self.library_param(&callee, i)
+                {
+                    return Some(t);
+                }
+                self.expected_type(e)
+            }
+            _ => self.expected_type(e),
+        }
+    }
+
+    /// The type a variable holds by its declaration (`---@type` on a local),
+    /// else by what reads it here.
+    fn held_type(&self, v: &SyntaxNode) -> T {
+        if v.kind() == NAME_EXPR
+            && let Some(Target::Decl(d)) = v.first_token().and_then(|t| self.ref_at(t.text_range())).map(|r| r.target)
+        {
+            let t = self.decl_type(d);
+            if !has_unknown(&t) {
+                return t;
+            }
+        }
+        self.expr_type(v)
+    }
+
+    /// The `---@param` type of a library function's `i`th argument (`...` for
+    /// the rest).
+    fn library_param(&self, callee: &SyntaxNode, i: usize) -> Option<T> {
+        let path = dotted(callee)?;
+        if callee.first_token().and_then(|t| self.ref_at(t.text_range())).is_some_and(|r| r.target != Target::Global) {
+            return None;
+        }
+        let lib = crate::library::library();
+        let item = lib.get(&path).iter().find(|i| i.doc.is_some())?;
+        let r = item.doc?;
+        let (tags, _) = crate::luacats::parse_block(&crate::library::file_text(item.file)[r], TextSize::from(0));
+        let tags: Vec<Tag> = tags.into_iter().map(|t| t.tag).collect();
+        // `---@overload fun(opt: "collect")` lines only (`collectgarbage`): theirs.
+        let overloads: Vec<T> = tags
+            .iter()
+            .filter_map(|t| match t {
+                Tag::Overload(T::Fun(f)) => f.params.get(i).and_then(|p| p.ty.clone()),
+                _ => None,
+            })
+            .collect();
+        let params: Vec<(String, Option<T>)> = tags
+            .into_iter()
+            .filter_map(|t| match t {
+                Tag::Param { name, ty, .. } => Some((name, ty)),
+                _ => None,
+            })
+            .collect();
+        if params.is_empty() && !overloads.is_empty() {
+            return Some(union(overloads));
+        }
+        match params.get(i) {
+            Some((n, t)) if n != "..." => t.clone(),
+            _ => params.last().filter(|(n, _)| n == "...").and_then(|(_, t)| t.clone()),
+        }
+    }
+
+    /// The literal values of a type, for `value_choices`.
+    fn choices(&self, t: &T, out: &mut Vec<Choice>, depth: usize) {
+        if depth > 8 {
+            return;
+        }
+        match t {
+            T::Str(s) => {
+                // `'"aaa"'`: LuaLS reads the inner quotes as the string's.
+                let s = crate::util::unquote(s).unwrap_or(s);
+                out.push(Choice::Str(s.to_string()));
+            }
+            T::Int(i) => out.push(Choice::Code(i.to_string())),
+            T::Bool(b) => out.push(Choice::Code(b.to_string())),
+            T::Code(c) => out.push(Choice::Code(c.clone())),
+            T::Union(ps) => ps.iter().for_each(|p| self.choices(p, out, depth + 1)),
+            T::Optional(x) => self.choices(x, out, depth + 1),
+            T::Name(n) => {
+                if let Some(a) = self.aliases.get(n) {
+                    if !matches!(a, T::Generic(g, _) if g == OPAQUE_ENUM) {
+                        self.choices(a, out, depth + 1);
+                    }
+                } else if let Some(a) = crate::library::aliases().get(n) {
+                    self.choices(a, out, depth + 1);
+                }
+                self.enum_choices(n, out);
+            }
+            _ => {}
+        }
+    }
+
+    /// An `---@enum` of the file: `T.x` and the values, or the keys.
+    fn enum_choices(&self, name: &str, out: &mut Vec<Choice>) {
+        if !self.text.contains("@enum") {
+            return;
+        }
+        for st in self.root.descendants().filter(|s| matches!(s.kind(), LOCAL_STAT | ASSIGN_STAT)) {
+            let Some(key) = stat_tags(self.text, &st).into_iter().find_map(|t| match t {
+                Tag::Enum { name: n, key } if n == name => Some(key),
+                _ => None,
+            }) else {
+                continue;
+            };
+            let Some(table) = st.children().find(|c| c.kind() == EXPR_LIST).and_then(|l| l.first_child()).filter(|t| t.kind() == TABLE_EXPR) else { continue };
+            let holder = st.children().find(|c| matches!(c.kind(), LOCAL_NAME | VAR_LIST)).and_then(|h| match h.kind() {
+                LOCAL_NAME => h.first_token().map(|t| t.text().to_string()),
+                _ => h.first_child().map(|v| self.text[v.text_range()].trim().to_string()),
+            });
+            let mut values = Vec::new();
+            for f in table.children().filter(|f| matches!(f.kind(), FIELD_NAMED | FIELD_INDEXED)) {
+                let k = match f.kind() {
+                    FIELD_NAMED => f.children_with_tokens().filter_map(|x| x.into_token()).find(|t| t.kind() == NAME).map(|t| t.text().to_string()),
+                    _ => f.first_child().filter(|k| k.kind() == LITERAL_EXPR).and_then(|k| k.first_token()).filter(|t| t.kind() == STRING).map(|t| crate::util::lua_string(t.text())),
+                };
+                let (Some(k), Some(v)) = (k, f.children().last()) else { continue };
+                if key {
+                    out.push(Choice::Str(k));
+                    continue;
+                }
+                if let Some(h) = &holder {
+                    out.push(Choice::Code(format!("{h}.{k}")));
+                }
+                if let Some(c) = self.literal_choice(&v) {
+                    values.push(c);
+                }
+            }
+            out.extend(values);
+        }
+    }
+
+    /// The literal a value is, through a local holding one (`x = x`).
+    fn literal_choice(&self, v: &SyntaxNode) -> Option<Choice> {
+        let v = if v.kind() == NAME_EXPR
+            && let Some(Target::Decl(d)) = v.first_token().and_then(|t| self.ref_at(t.text_range())).map(|r| r.target)
+        {
+            self.decl_stat(d)?.children().find(|c| c.kind() == EXPR_LIST)?.first_child()?
+        } else {
+            v.clone()
+        };
+        if v.kind() != LITERAL_EXPR {
+            return None;
+        }
+        let t = v.first_token()?;
+        Some(match t.kind() {
+            STRING => Choice::Str(crate::util::lua_string(t.text())),
+            _ => Choice::Code(t.text().to_string()),
+        })
+    }
+
     /// Aliases replaced by what they stand for, members too (`A|B`).
     fn expand_aliases(&self, t: &T, depth: usize) -> T {
         if depth > 8 {
@@ -4620,10 +4838,7 @@ impl<'a> Infer<'a> {
                     .filter(|p| p.kind() == PARAM)
                     .map(|p| {
                         let n = p.first_token().map(|t| t.text().to_string()).unwrap_or_default();
-                        tags.iter().find_map(|t| match t {
-                            Tag::Param { name: pn, ty: Some(ty), .. } if *pn == n => Some(ty.clone()),
-                            _ => None,
-                        })
+                        param_doc_type(&tags, &n)
                     })
                     .collect()
             })

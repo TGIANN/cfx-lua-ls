@@ -5,6 +5,7 @@
 use crate::assist::{Completion, CompletionKind, FileCtx};
 use crate::names::{DeclKind, Names};
 use crate::selection::token_at;
+use crate::types::Choice;
 use crate::{Parse, TextRange, TextSize};
 use cfx_lua_syntax::SyntaxKind::*;
 use cfx_lua_syntax::SyntaxNode;
@@ -120,6 +121,74 @@ pub(crate) fn complete(parse: &Parse, names: &Names, text: &str, offset: TextSiz
         }
         _ => None,
     }
+}
+
+/// A name no script uses, typed at the cursor to parse the position as an
+/// expression.
+const PROBE: &str = "__cfx_lua_ls_probe";
+
+/// The literal values the position takes (`"a"` of `---@param x "a"|"b"`), and
+/// whether they stand alone: in a string (re-quoted with its quote) or before
+/// anything is typed.
+pub(crate) fn values(parse: &Parse, text: &str, offset: TextSize) -> Option<(Vec<Completion>, bool)> {
+    let root = parse.syntax();
+    if let Some(tok) = token_at(&root, offset).left_biased().filter(|t| t.kind() == STRING && t.text_range().start() < offset) {
+        let raw = tok.text();
+        let q = raw.chars().next()?;
+        // Past the closing quote.
+        if raw.len() >= 2 && raw.ends_with(q) && tok.text_range().end() == offset {
+            return None;
+        }
+        let lit = tok.parent().filter(|p| p.kind() == LITERAL_EXPR)?;
+        let names = crate::names::names(parse, text);
+        let choices = crate::types::FileTypes::new(parse, &names, text).value_choices(&lit);
+        let typed = crate::util::lua_string(raw);
+        let items: Vec<Completion> = choices
+            .into_iter()
+            .map(|c| match c {
+                Choice::Str(s) if matchkey(&typed, &s) => {
+                    Completion { label: quote(&s, q), kind: CompletionKind::EnumMember, detail: None, deprecated: false, replace: Some(tok.text_range()) }
+                }
+                Choice::Str(s) => item(quote(&s, '"'), CompletionKind::EnumMember),
+                Choice::Code(c) => item(c, CompletionKind::EnumMember),
+            })
+            .collect();
+        return (!items.is_empty()).then_some((items, true));
+    }
+    let end = usize::from(offset);
+    let typed = text[..end].bytes().rev().take_while(|b| b.is_ascii_alphanumeric() || *b == b'_').count();
+    let probe = format!("{}{PROBE}{}", &text[..end], &text[end..]);
+    let parse = crate::parse(&probe);
+    let tok = token_at(&parse.syntax(), offset).right_biased().filter(|t| t.kind() == NAME && t.text().ends_with(PROBE))?;
+    let e = tok.parent().filter(|p| p.kind() == NAME_EXPR)?;
+    let names = crate::names::names(&parse, &probe);
+    let items: Vec<Completion> = crate::types::FileTypes::new(&parse, &names, &probe)
+        .value_choices(&e)
+        .into_iter()
+        .map(|c| match c {
+            Choice::Str(s) => item(quote(&s, '"'), CompletionKind::EnumMember),
+            Choice::Code(c) => item(c, CompletionKind::EnumMember),
+        })
+        .collect();
+    (!items.is_empty()).then_some((items, typed == 0))
+}
+
+/// A string's content as a literal in quote `q` (a backslash is kept: the
+/// content holds `\ddd` for bytes that are not UTF-8).
+fn quote(s: &str, q: char) -> String {
+    let mut out = String::from(q);
+    for c in s.chars() {
+        match c {
+            '\n' => out.push_str("\\n"),
+            c if c == q => {
+                out.push('\\');
+                out.push(c);
+            }
+            c => out.push(c),
+        }
+    }
+    out.push(q);
+    out
 }
 
 /// Whether `name` is a class (not an alias or enum) for `---@class X: name`.
