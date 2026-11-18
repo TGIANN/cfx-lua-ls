@@ -383,6 +383,51 @@ impl<'a> FileTypes<'a> {
         is(&t, "string") || matches!(t, T::Str(_))
     }
 
+    /// The keys a table constructor may still get from the type its position
+    /// asks for (a class's `---@field`s with its parents', a `{ x: T }`
+    /// shape's names), sorted, each with whether it is optional.
+    pub(crate) fn table_keys(&self, table: &SyntaxNode) -> Vec<(String, bool)> {
+        let inf = &self.inf;
+        let Some(want) = inf.expected_type(table) else { return Vec::new() };
+        let want = inf.expand_aliases(&non_nil(want), 0);
+        let mut keys: Vec<(String, bool)> = Vec::new();
+        match &want {
+            T::Name(class) if inf.classes.contains_key(class) => {
+                let mut stack = vec![class.clone()];
+                let mut seen = Vec::new();
+                while let Some(c) = stack.pop() {
+                    if seen.contains(&c) || seen.len() > 16 {
+                        continue;
+                    }
+                    let Some(def) = inf.classes.get(&c) else { continue };
+                    for f in def.fields.iter().filter(|f| f.visibility.is_none()) {
+                        if !keys.iter().any(|(n, _)| *n == f.name) {
+                            keys.push((f.name.clone(), matches!(f.ty, T::Optional(_))));
+                        }
+                    }
+                    stack.extend(def.parents.iter().rev().cloned());
+                    seen.push(c);
+                }
+            }
+            T::Table(shape) => {
+                for f in shape {
+                    if let Key::Name(n) = &f.key {
+                        keys.push((n.clone(), f.optional || matches!(f.ty, T::Optional(_))));
+                    }
+                }
+            }
+            _ => {}
+        }
+        let written: Vec<String> = table
+            .children()
+            .filter(|f| f.kind() == FIELD_NAMED)
+            .filter_map(|f| f.children_with_tokens().filter_map(|x| x.into_token()).find(|t| t.kind() == NAME).map(|t| t.text().to_string()))
+            .collect();
+        keys.retain(|(n, _)| !written.contains(n));
+        keys.sort();
+        keys
+    }
+
     /// The literal values the position of `e` takes (LuaLS's enum completion):
     /// a call argument, the right side of `==` / `~=`, an assigned value, a
     /// constructor entry. `"a"` of `"a"|"b"` through aliases (the library's
@@ -3052,7 +3097,16 @@ impl<'a> Infer<'a> {
                 } else {
                     self.callee_info(&callee)?
                 };
-                let want = info.params.get(i).cloned().flatten()?;
+                // Past the listed parameters: the `...` one, for the rest.
+                let vararg = || {
+                    let body = self.function_body(&callee)?;
+                    let last = body.children().find(|c| c.kind() == PARAM_LIST)?.children().filter(|p| p.kind() == PARAM).last()?;
+                    (last.first_token()?.text() == "...").then(|| info.params.last().cloned().flatten())?
+                };
+                let want = match info.params.get(i) {
+                    Some(p) => p.clone(),
+                    None => vararg(),
+                }?;
                 // `---@generic T`, `f(t, function(v) end)` with `t: T[]`: the other
                 // arguments bind it; one left unbound is `unknown`.
                 if !info.generics.is_empty() && e.kind() == FUNCTION_EXPR {
@@ -4838,7 +4892,13 @@ impl<'a> Infer<'a> {
                     .filter(|p| p.kind() == PARAM)
                     .map(|p| {
                         let n = p.first_token().map(|t| t.text().to_string()).unwrap_or_default();
-                        param_doc_type(&tags, &n)
+                        // `...` under `---@vararg T`.
+                        param_doc_type(&tags, &n).or_else(|| {
+                            (n == "...").then(|| tags.iter().find_map(|t| match t {
+                                Tag::Vararg(ty) => Some(ty.clone()),
+                                _ => None,
+                            }))?
+                        })
                     })
                     .collect()
             })
