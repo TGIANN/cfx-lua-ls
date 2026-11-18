@@ -244,7 +244,8 @@ impl Walk<'_> {
                 }
             }
             PARAM => {
-                if let Some(dots) = child_token(n, DOT3) {
+                // `...args` (Lua 5.5) is reported through its name.
+                if let Some(dots) = child_token(n, DOT3).filter(|_| child_token(n, NAME).is_none()) {
                     let id = self.names.varargs.len();
                     self.names.varargs.push(Vararg { range: dots.text_range(), used: false });
                     self.funcs.last_mut().unwrap().vararg = Some(id);

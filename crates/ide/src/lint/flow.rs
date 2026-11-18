@@ -36,7 +36,12 @@ pub(super) fn node(l: &mut Linter, n: &SyntaxNode) {
                 }
             }
         }
-        LOCAL_STAT => close_non_object(l, n),
+        LOCAL_STAT => {
+            close_non_object(l, n);
+            for (range, got, want) in l.types().local_mismatches(n) {
+                l.push("assign-type-mismatch", range, format!("Cannot assign `{got}` to `{want}`."));
+            }
+        }
         NAME_EXPR if l.types().need_check_nil(n) => l.push("need-check-nil", n.text_range(), "Need check nil.".to_string()),
         _ => {}
     }

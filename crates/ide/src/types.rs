@@ -1010,7 +1010,7 @@ impl<'a> FileTypes<'a> {
         }
         let mut got = inf.expr_type(e);
         // `x = 3` under `---@type 1|2`: the literal, not `integer`.
-        if let Some(lit) = literal_type(e).filter(|_| mentions_literal(want)) {
+        if let Some(lit) = literal_type(e).filter(|_| inf.wants_literal(want, 0)) {
             got = lit;
         }
         if inf.exhausted.get() {
@@ -1102,6 +1102,34 @@ impl<'a> FileTypes<'a> {
                     }
                 }
                 _ => {}
+            }
+        }
+        out
+    }
+
+    /// The values of `---@type T` `local x = v` that surely do not fit:
+    /// (the name, its type, the declared one). The values checked are those
+    /// of `assign_mismatches`.
+    pub(crate) fn local_mismatches(&self, stat: &SyntaxNode) -> Vec<(TextRange, String, String)> {
+        let inf = &self.inf;
+        let mut out = Vec::new();
+        let Some(tys) = stat_tags(inf.text, stat).into_iter().find_map(|t| match t {
+            Tag::Type { tys } => Some(tys),
+            _ => None,
+        }) else {
+            return out;
+        };
+        let names: Vec<SyntaxNode> = stat.children().filter(|c| c.kind() == LOCAL_NAME).collect();
+        let values: Vec<SyntaxNode> = stat.children().find(|c| c.kind() == EXPR_LIST).map(|v| v.children().collect()).unwrap_or_default();
+        for ((name, value), want) in names.iter().zip(&values).zip(&tys) {
+            if !matches!(value.kind(), LITERAL_EXPR | FUNCTION_EXPR | CALL_EXPR | METHOD_CALL_EXPR | UNARY_EXPR) && !inf.fixed_doc_local(value) {
+                continue;
+            }
+            if is(want, "nil") || has_unknown(want) || mentions_any(want) {
+                continue;
+            }
+            if let Some((got, want)) = self.value_mismatch(value, want) {
+                out.push((name.text_range(), got, want));
             }
         }
         out
@@ -1205,6 +1233,38 @@ impl<'a> FileTypes<'a> {
         out
     }
 
+    /// The `---@return` lines of the function of this file a plain call
+    /// reaches; None without them, or with `---@overload` / `---@generic`.
+    pub(crate) fn call_doc_returns(&self, call: &SyntaxNode) -> Option<Vec<crate::luacats::FunRet>> {
+        let inf = &self.inf;
+        if call.kind() != CALL_EXPR {
+            return None;
+        }
+        let body = inf.function_body(&call.first_child()?)?;
+        let tags = stat_tags(inf.text, &inf.doc_stat_of(&body)?);
+        if tags.iter().any(|t| matches!(t, Tag::Overload(..) | Tag::Generic { .. })) {
+            return None;
+        }
+        let rets: Vec<crate::luacats::FunRet> = tags
+            .into_iter()
+            .filter_map(|t| match t {
+                Tag::Return { rets, .. } => Some(rets),
+                _ => None,
+            })
+            .flatten()
+            .collect();
+        (!rets.is_empty()).then_some(rets)
+    }
+
+    /// Whether a declared type surely does not fit another: (both shown).
+    pub(crate) fn type_mismatch(&self, got: &T, want: &T) -> Option<(String, String)> {
+        let inf = &self.inf;
+        if has_unknown(got) || has_unknown(want) || mentions_any(want) || inf.cast(got, want, 0) != Some(false) || inf.exhausted.get() {
+            return None;
+        }
+        Some((crate::luacats::view(got), crate::luacats::view(want)))
+    }
+
     /// An argument of a call to a function of this file whose parameter type
     /// it surely does not fit: (the argument's type, the parameter's).
     pub(crate) fn param_mismatch(&self, arg: &SyntaxNode) -> Option<(String, String)> {
@@ -1232,7 +1292,10 @@ impl<'a> FileTypes<'a> {
             return None;
         }
         let want = inf.expected_type(arg)?;
-        let got = inf.expr_type(arg);
+        let mut got = inf.expr_type(arg);
+        if let Some(lit) = literal_type(arg).filter(|_| inf.wants_literal(&want, 0)) {
+            got = lit;
+        }
         if inf.exhausted.get() || inf.cast(&got, &want, 0) != Some(false) {
             return None;
         }
@@ -1275,6 +1338,46 @@ impl<'a> FileTypes<'a> {
     }
 }
 
+/// `---@enum A` on a table of literal values: `A` is one of the values
+/// (`---@enum(key) A`: one of the keys). An enum with any other value is left
+/// out (its type is not known).
+fn enum_aliases(root: &SyntaxNode, text: &str) -> HashMap<String, T> {
+    let mut out = HashMap::new();
+    for stat in root.descendants().filter(|n| matches!(n.kind(), LOCAL_STAT | ASSIGN_STAT)) {
+        let Some((name, key)) = stat_tags(text, &stat).into_iter().find_map(|t| match t {
+            Tag::Enum { name, key } => Some((name, key)),
+            _ => None,
+        }) else {
+            continue;
+        };
+        let Some(table) = stat.children().find(|c| c.kind() == EXPR_LIST).and_then(|l| l.first_child()).filter(|t| t.kind() == TABLE_EXPR) else { continue };
+        let mut members = Vec::new();
+        let mut known = true;
+        for field in table.children() {
+            let m = if key {
+                match field.kind() {
+                    FIELD_NAMED => field.children_with_tokens().filter_map(|x| x.into_token()).find(|t| t.kind() == NAME).map(|t| T::Str(t.text().to_string())),
+                    FIELD_INDEXED => field.first_child().and_then(|k| literal_type(&k)),
+                    _ => None,
+                }
+            } else {
+                match field.kind() {
+                    FIELD_NAMED | FIELD_INDEXED | FIELD_POS => field.children().last().and_then(|v| literal_type(&v)),
+                    _ => None,
+                }
+            };
+            match m {
+                Some(m) => members.push(m),
+                None => known = false,
+            }
+        }
+        if known && !members.is_empty() {
+            out.insert(name, union(members));
+        }
+    }
+    out
+}
+
 /// The literal type of a literal expression (`3`, `'x'`, `true`).
 fn literal_type(e: &SyntaxNode) -> Option<T> {
     if e.kind() != LITERAL_EXPR {
@@ -1287,16 +1390,6 @@ fn literal_type(e: &SyntaxNode) -> Option<T> {
         TRUE_KW => Some(T::Bool(true)),
         FALSE_KW => Some(T::Bool(false)),
         _ => None,
-    }
-}
-
-/// Whether a type names a literal (`1`, `'a'`, `true`) among its members.
-fn mentions_literal(t: &T) -> bool {
-    match t {
-        T::Str(_) | T::Int(_) | T::Bool(_) => true,
-        T::Optional(i) => mentions_literal(i),
-        T::Union(ps) => ps.iter().any(mentions_literal),
-        _ => false,
     }
 }
 
@@ -1435,7 +1528,9 @@ impl<'a> Infer<'a> {
                 }
             }
         }
-        Infer { text, names, root, classes, aliases: doc_aliases(text), depth: Cell::new(0), flow_budget: Cell::new(FLOW_BUDGET),
+        let mut aliases = doc_aliases(text);
+        aliases.extend(enum_aliases(&root, text));
+        Infer { text, names, root, classes, aliases, depth: Cell::new(0), flow_budget: Cell::new(FLOW_BUDGET),
             exhausted: Cell::new(false),
             functions: std::cell::OnceCell::new(),
             written: std::cell::OnceCell::new(),
@@ -2331,6 +2426,17 @@ impl<'a> Infer<'a> {
         if depth > 8 {
             return None;
         }
+        // `---@alias`, `---@enum`: their members.
+        if let T::Name(n) = c
+            && let Some(a) = self.aliases.get(n)
+        {
+            return self.cast(a, p, depth + 1);
+        }
+        if let T::Name(n) = p
+            && let Some(a) = self.aliases.get(n)
+        {
+            return self.cast(c, a, depth + 1);
+        }
         // Every member of the value must fit.
         let all = |parts: &[T]| {
             let mut unsure = false;
@@ -2469,6 +2575,18 @@ impl<'a> Infer<'a> {
             T::Generic(n, _) if n == "table" => Kind::Basic("table"),
             T::Fun(_) => Kind::Basic("function"),
             _ => Kind::Unknown,
+        }
+    }
+
+    /// Whether a type names a literal (`1`, `'a'`, `true`) among its members,
+    /// through aliases and enums.
+    fn wants_literal(&self, t: &T, depth: usize) -> bool {
+        match t {
+            T::Str(_) | T::Int(_) | T::Bool(_) => true,
+            T::Optional(i) => self.wants_literal(i, depth),
+            T::Union(ps) => ps.iter().any(|p| self.wants_literal(p, depth)),
+            T::Name(n) if depth < 8 => self.aliases.get(n).is_some_and(|a| self.wants_literal(a, depth + 1)),
+            _ => false,
         }
     }
 

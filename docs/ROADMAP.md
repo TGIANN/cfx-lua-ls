@@ -258,7 +258,7 @@ error ("invalid UTF-8 code").
     would guess (RULES.md lists every deviation): types from the same file
     only, values the flow may have narrowed (names, `a or b`) left alone,
     upvalues not followed. LuaLS's `test/diagnostics` (507 cases run with
-    LuaLS's default switches, `crates/ide/tests/luals_diags.rs`): 470 pass. Over the five corpora the
+    LuaLS's default switches, `crates/ide/tests/luals_diags.rs`): 478 pass. Over the five corpora the
     new rules give 440 hits (194 `redundant-parameter`, 86
     `missing-parameter`, 52 `missing-return-value`, 32 `duplicate-set-field`,
     31 `need-check-nil`, the rest under 20 each), read in buckets by cause,
