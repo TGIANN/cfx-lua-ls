@@ -183,6 +183,8 @@ struct Infer<'a> {
     strict_nil: Cell<bool>,
     /// A local typed by its first value keeps that type.
     first_value: Cell<bool>,
+    /// `Lua.type.inferParamType`.
+    infer_params: Cell<bool>,
     weak_union: Cell<bool>,
     number_to_integer: Cell<bool>,
     table_shape: Cell<bool>,
@@ -198,11 +200,81 @@ struct Infer<'a> {
 
 /// The type of the name (or `function` keyword) at `offset`, LuaLS style.
 pub fn type_at(parse: &Parse, names: &Names, text: &str, offset: TextSize) -> Option<String> {
+    type_at_with(parse, names, text, offset, &TypeSettings::default())
+}
+
+/// LuaLS's settings that change an inferred type or its view.
+#[derive(Debug, Clone)]
+pub struct TypeSettings {
+    /// `Lua.hover.expandAlias`: an alias shows what it stands for.
+    pub expand_alias: bool,
+    /// `Lua.hover.enumsLimit`: union members shown before `...(+N)`.
+    pub enums_limit: usize,
+    /// `Lua.type.inferParamType`: an undocumented parameter takes the type of
+    /// the arguments the file passes.
+    pub infer_param_type: bool,
+}
+
+impl Default for TypeSettings {
+    fn default() -> Self {
+        TypeSettings { expand_alias: true, enums_limit: 5, infer_param_type: false }
+    }
+}
+
+/// `type_at` with LuaLS's settings.
+pub fn type_at_with(parse: &Parse, names: &Names, text: &str, offset: TextSize, settings: &TypeSettings) -> Option<String> {
     let root = parse.syntax();
     let tok = root.token_at_offset(offset).right_biased()?;
     let inf = Infer::new(root, names, text);
-    let t = inf.token_type(&tok)?;
-    Some(crate::luacats::view(&t))
+    inf.infer_params.set(settings.infer_param_type);
+    let mut t = inf.token_type(&tok)?;
+    if settings.expand_alias {
+        t = inf.expand_aliases(&t, 0);
+    }
+    Some(infer_view(&t, settings.enums_limit))
+}
+
+/// An inferred type as LuaLS prints it: a union's members once each, basic
+/// types first (`boolean`, `string`, `number`, `integer`, `function`,
+/// `table`), `true`, `false`, the rest by name, `nil` last; more than five
+/// members end in `...(+N)` (`Lua.hover.enumsLimit`).
+pub(crate) fn infer_view(t: &T, limit: usize) -> String {
+    let (members, optional) = match t {
+        T::Union(ps) => (ps.clone(), false),
+        T::Optional(inner) => match &**inner {
+            T::Union(ps) => (ps.clone(), true),
+            _ => return crate::luacats::view(t),
+        },
+        _ => return crate::luacats::view(t),
+    };
+    let mut views: Vec<String> = Vec::new();
+    for m in &members {
+        let v = crate::luacats::view(m);
+        if !views.contains(&v) {
+            views.push(v);
+        }
+    }
+    let rank = |v: &str| -> i32 {
+        match v {
+            "boolean" => -100,
+            "string" => -99,
+            "number" => -98,
+            "integer" => -97,
+            "function" => -96,
+            "table" => -95,
+            "true" => 1,
+            "false" => 2,
+            "nil" => 100,
+            _ => 0,
+        }
+    };
+    views.sort_by(|a, b| rank(a).cmp(&rank(b)).then_with(|| a.cmp(b)));
+    let max = views.len();
+    let mut view = if max > limit { format!("{}...(+{})", views[..limit].join("|"), max - limit) } else { views.join("|") };
+    if optional {
+        view = if max > 1 { format!("({view})?") } else { format!("{view}?") };
+    }
+    view
 }
 
 /// The declared or inferred type of a local, for hover; `None` when nothing is
@@ -2114,6 +2186,7 @@ impl<'a> Infer<'a> {
             decl_stats: RefCell::default(),
             strict_nil: Cell::new(false),
             first_value: Cell::new(false),
+            infer_params: Cell::new(false),
             weak_union: Cell::new(false),
             number_to_integer: Cell::new(false),
             table_shape: Cell::new(false),
@@ -3874,6 +3947,31 @@ impl<'a> Infer<'a> {
         self.names.decls[d].kind == DeclKind::Local
             && !written.contains(&d)
             && self.decl_stat(d).is_some_and(|st| stat_tags(self.text, &st).iter().any(|t| matches!(t, Tag::Type { .. } | Tag::Class { .. })))
+    }
+
+    /// Aliases replaced by what they stand for, members too (`A|B`).
+    fn expand_aliases(&self, t: &T, depth: usize) -> T {
+        if depth > 8 {
+            return t.clone();
+        }
+        match t {
+            T::Name(n) => match self.aliases.get(n) {
+                Some(a) if !matches!(a, T::Generic(g, _) if g == OPAQUE_ENUM) => self.expand_aliases(a, depth + 1),
+                _ => t.clone(),
+            },
+            T::Union(ps) => {
+                let mut out = Vec::new();
+                for p in ps {
+                    match self.expand_aliases(p, depth + 1) {
+                        T::Union(inner) => out.extend(inner),
+                        x => out.push(x),
+                    }
+                }
+                T::Union(out)
+            }
+            T::Optional(inner) => T::Optional(Box::new(self.expand_aliases(inner, depth + 1))),
+            t => t.clone(),
+        }
     }
 
     fn class_members(&self) -> &HashMap<String, HashMap<String, Vec<SyntaxNode>>> {

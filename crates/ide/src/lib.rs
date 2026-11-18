@@ -35,7 +35,7 @@ pub use names::{Access, Attrib, Decl, DeclKind, NameRef, Names, Symbol, Target, 
 pub use selection::{MAX_SELECTION_STEPS, selection_ranges};
 pub use semantic::{HighlightToken, TOKEN_MODIFIERS, TOKEN_TYPES, TokenType, modifier, semantic_tokens};
 pub use symbols::{DocumentSymbol, MAX_TEXT, SymbolKind, document_symbols};
-pub use types::{FileTypes, type_at};
+pub use types::{FileTypes, TypeSettings, type_at, type_at_with};
 pub use inlay::{InlayHint, InlayKind, MAX_INLAY_HINTS, inlay_hints};
 
 /// FiveM escrow (Asset Escrow) files are encrypted and start with `FXAP`: they are
