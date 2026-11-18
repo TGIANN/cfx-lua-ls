@@ -413,8 +413,12 @@ impl<'a> Q<'a> {
                 e.first_child()
             }
             // `local v = xs[i]`: the element its value is.
-            NAME_EXPR => match local_init(scan, e) {
-                Some(init) if init.kind() == INDEX_EXPR => return self.element_classes(scan, cx, &init),
+            NAME_EXPR => match local_value(scan, e) {
+                Some((init, 0)) if init.kind() == INDEX_EXPR => return self.element_classes(scan, cx, &init),
+                // `local a, b = f()`, `local v = generic(Dog)`.
+                Some((call, k)) if matches!(call.kind(), CALL_EXPR | METHOD_CALL_EXPR) => {
+                    return self.call_classes(scan, cx, &call, k);
+                }
                 _ => for_list(scan, e),
             },
             _ => None,
@@ -451,6 +455,63 @@ impl<'a> Q<'a> {
             let owner = self.field_class(&c, &last, cx.res);
             out.extend(self.class_field_types(&owner, cx.res, &last, cx).into_iter().map(|(t, _)| t));
         }
+    }
+}
+
+impl<'a> Q<'a> {
+    /// The classes of a call's `k`th value from the called function's
+    /// `---@return`; a `---@generic T` returned as `T` takes the classes of
+    /// the argument given for a `---@param x T`.
+    fn call_classes(&self, scan: &Scan, cx: &Cx, call: &SyntaxNode, k: usize) -> Vec<String> {
+        let expr_ref = |e: &SyntaxNode| -> Option<Ref> {
+            let (root, fields) = crate::assist::chain(&scan.text, &scan.names, e)?;
+            Some(fields.into_iter().fold(root, |r, f| Ref::Field(Box::new(r), f)))
+        };
+        let Some(first) = call.first_child() else { return Vec::new() };
+        let callee = match call.kind() {
+            CALL_EXPR => expr_ref(&first),
+            _ => {
+                api::method_name(call).and_then(|m| Some(Ref::Field(Box::new(expr_ref(&first)?), m.text().to_string())))
+            }
+        };
+        let Some(callee) = callee else { return Vec::new() };
+        let args: Vec<SyntaxNode> =
+            call.children().find(|c| c.kind() == ARG_LIST).map(|l| l.children().collect()).unwrap_or_default();
+        let mut funcs = Vec::new();
+        self.funcs_of_ref(&callee, cx, &mut funcs, &mut HashSet::new());
+        let mut out = Vec::new();
+        for (f, fcx) in funcs {
+            let Some(ret) = f.returns.get(k) else { continue };
+            let mut names = Vec::new();
+            type_names(ret, &mut names);
+            for n in names {
+                if builtin_type(&n) {
+                    continue;
+                }
+                if !self.doc_name_files(&n, fcx.res).is_empty() {
+                    out.push(n);
+                } else if let Some(j) =
+                    f.param_types.iter().position(|t| t.as_ref() == Some(&crate::luacats::DocType::Name(n.clone())))
+                    && let Some(r) = args.get(j).and_then(expr_ref)
+                {
+                    out.extend(self.ref_classes(&r, cx));
+                }
+            }
+        }
+        out.sort_unstable();
+        out.dedup();
+        out
+    }
+}
+
+/// The names a type is: `A` of `A`, `A?`, `A|B`.
+fn type_names(t: &crate::luacats::DocType, out: &mut Vec<String>) {
+    use crate::luacats::DocType as D;
+    match t {
+        D::Name(n) => out.push(n.clone()),
+        D::Optional(i) => type_names(i, out),
+        D::Union(ps) => ps.iter().for_each(|p| type_names(p, out)),
+        _ => {}
     }
 }
 
@@ -514,8 +575,9 @@ fn ref_escapes(root: &SyntaxNode, range: TextRange) -> bool {
     }
 }
 
-/// The value a local is declared with (`local v = <init>`), when `e` names it.
-fn local_init(scan: &Scan, e: &SyntaxNode) -> Option<SyntaxNode> {
+/// The expression a local takes its value from, and which of its values: past
+/// the last expression of `local a, b = f()` a call gives its next values.
+fn local_value(scan: &Scan, e: &SyntaxNode) -> Option<(SyntaxNode, usize)> {
     let t = e.first_token()?;
     let i = scan.names.refs.binary_search_by_key(&t.text_range().start(), |x| x.range.start()).ok()?;
     let crate::Target::Decl(d) = scan.names.refs[i].target else { return None };
@@ -532,7 +594,12 @@ fn local_init(scan: &Scan, e: &SyntaxNode) -> Option<SyntaxNode> {
         .find(|a| a.kind() == LOCAL_STAT)?;
     let i =
         stat.children().filter(|c| c.kind() == LOCAL_NAME).position(|n| n.text_range().contains_range(decl.range))?;
-    stat.children().find(|c| c.kind() == EXPR_LIST)?.children().nth(i)
+    let values: Vec<SyntaxNode> = stat.children().find(|c| c.kind() == EXPR_LIST)?.children().collect();
+    if let Some(v) = values.get(i) {
+        return Some((v.clone(), 0));
+    }
+    let last = values.last().filter(|v| matches!(v.kind(), CALL_EXPR | METHOD_CALL_EXPR))?;
+    Some((last.clone(), i + 1 - values.len()))
 }
 
 /// The list `v` walks in `for _, v in ipairs(list)` / `pairs(list)`, when `e`

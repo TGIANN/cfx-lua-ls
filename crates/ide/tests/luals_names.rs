@@ -54,12 +54,9 @@ impl Drop for Typed {
 const SKIP: &[(&str, &str, usize, &str)] = &[
     ("definition", "label", 5, "duplicate label: a compile error in Lua 5.4"),
     ("definition", "set", 6, "`global` declarations are Lua 5.5"),
-    ("references", "all", 2, "the second value a function returns: the index follows the first"),
     ("references", "all", 5, "case commented out in LuaLS"),
     ("references", "all", 6, "function values through returns: LuaCATS types (phase 5)"),
     ("references", "all", 7, "function values through returns: LuaCATS types (phase 5)"),
-    ("references", "all", 9, "a `---@generic T` return typed from the argument: not followed by the index"),
-    ("references", "all", 10, "a `---@generic T` return typed from the argument: not followed by the index"),
     ("references", "common", 18, "`self` references with the object's declaration (LuaLS-specific)"),
     ("references", "common", 23, "`_G.x` as the global `x`"),
     ("references", "common", 29, "case commented out in LuaLS"),
