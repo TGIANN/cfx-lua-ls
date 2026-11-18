@@ -345,7 +345,7 @@ impl<'a> Q<'a> {
     /// a constructor not passed or returned), a global the workspace defines.
     /// A parameter with no type, a call's result, a constructor handed to a
     /// call may still be a value of the class.
-    fn site_known(&self, scan: &Scan, cx: &Cx, holder: &Holder) -> bool {
+    fn site_known(&self, scan: &Scan, cx: &Cx, holder: &Holder, global_escapes: &dyn Fn(&str) -> bool) -> bool {
         match holder {
             Holder::Class(_) => true,
             Holder::Table(t) => {
@@ -363,6 +363,7 @@ impl<'a> Q<'a> {
                 }
                 match r {
                     Some(Ref::Local(d)) => !escapes(scan, d),
+                    Some(Ref::Global(g)) => !global_escapes(&g),
                     _ => true,
                 }
             }
@@ -381,9 +382,11 @@ impl<'a> Q<'a> {
                 match r {
                     Ref::Global(g) => {
                         !crate::library::library().get(&g).is_empty() || {
-                            let a =
-                                Anchor { base: Base::Global { res: cx.res, side: cx.side, name: g }, path: Vec::new() };
-                            !self.defs(&a, false).is_empty()
+                            let a = Anchor {
+                                base: Base::Global { res: cx.res, side: cx.side, name: g.clone() },
+                                path: Vec::new(),
+                            };
+                            !self.defs(&a, false).is_empty() && !global_escapes(&g)
                         }
                     }
                     Ref::Local(d) => scan.names.decls.get(d as usize).is_some_and(|decl| {
@@ -478,22 +481,37 @@ fn element_names(t: &crate::luacats::DocType, out: &mut Vec<String>) {
 /// stored in another variable or in a table.
 fn escapes(scan: &Scan, d: u32) -> bool {
     let root = scan.parse.syntax();
-    scan.names.refs.iter().filter(|r| r.target == crate::Target::Decl(d as usize)).any(|r| {
-        let Some(e) = root.token_at_offset(r.range.start()).right_biased().and_then(|t| t.parent()) else {
-            return false;
-        };
-        if e.kind() != NAME_EXPR {
-            return false;
+    scan.names.refs.iter().filter(|r| r.target == crate::Target::Decl(d as usize)).any(|r| ref_escapes(&root, r.range))
+}
+
+/// Whether the global `g` is handed on anywhere in the text (as `escapes`).
+fn global_escapes_in(text: &str, g: &str) -> bool {
+    let parse = crate::parse(text);
+    let names = crate::names(&parse, text);
+    let root = parse.syntax();
+    names
+        .refs
+        .iter()
+        .filter(|r| r.target == crate::Target::Global && text.get(std::ops::Range::<usize>::from(r.range)) == Some(g))
+        .any(|r| ref_escapes(&root, r.range))
+}
+
+/// Whether the name read at `range` hands its value on.
+fn ref_escapes(root: &SyntaxNode, range: TextRange) -> bool {
+    let Some(e) = root.token_at_offset(range.start()).right_biased().and_then(|t| t.parent()) else {
+        return false;
+    };
+    if e.kind() != NAME_EXPR {
+        return false;
+    }
+    match e.parent().map(|p| (p.kind(), p)) {
+        Some((ARG_LIST | FIELD_POS | FIELD_NAMED | FIELD_INDEXED, _)) => true,
+        Some((EXPR_LIST, list)) => {
+            list.parent().is_some_and(|s| matches!(s.kind(), RETURN_STAT | LOCAL_STAT | ASSIGN_STAT | GENERIC_FOR_STAT))
         }
-        match e.parent().map(|p| (p.kind(), p)) {
-            Some((ARG_LIST | FIELD_POS | FIELD_NAMED | FIELD_INDEXED, _)) => true,
-            Some((EXPR_LIST, list)) => list
-                .parent()
-                .is_some_and(|s| matches!(s.kind(), RETURN_STAT | LOCAL_STAT | ASSIGN_STAT | GENERIC_FOR_STAT)),
-            // `f "x"` / `f {}` carry no name; `t:m()` hands `t` to its own method.
-            _ => false,
-        }
-    })
+        // `f "x"` / `f {}` carry no name; `t:m()` hands `t` to its own method.
+        _ => false,
+    }
 }
 
 /// The value a local is declared with (`local v = <init>`), when `e` names it.
@@ -773,19 +791,40 @@ impl Workspace {
         // declare it): a value of the class reaches others only untyped.
         let mut naming: HashSet<Option<usize>> = want.iter().map(|f| res_of(f)).collect();
         let mut texts = Vec::new();
+        // For a field, every file's text: a global handed on anywhere in the
+        // resources searched may be a value of the class.
+        let mut all: Vec<(String, Option<usize>)> = Vec::new();
+        let field = matches!(target, TypeTarget::Field { .. });
         for p in paths {
             let Some(text) = text_of(&p) else { continue };
             let k = key(&p);
             let res = res_of(&k);
-            if matches!(target, TypeTarget::Field { .. }) && has_word(&text, name) {
+            if field && has_word(&text, name) {
                 naming.insert(res);
             }
             if !has_word(&text, word) || scope(res) != want {
+                if field {
+                    all.push((text, res));
+                }
                 continue;
             }
             texts.push((p, text, res));
         }
-        for (p, text, res) in texts {
+        let escaping: std::cell::RefCell<HashMap<String, bool>> = Default::default();
+        let global_escapes = |g: &str| -> bool {
+            if let Some(&e) = escaping.borrow().get(g) {
+                return e;
+            }
+            let e = all
+                .iter()
+                .map(|(t, r)| (t.as_str(), r))
+                .chain(texts.iter().map(|(_, t, r)| (t.as_str(), r)))
+                .filter(|(_, r)| naming.contains(r))
+                .any(|(t, _)| has_word(t, g) && global_escapes_in(t, g));
+            escaping.borrow_mut().insert(g.to_string(), e);
+            e
+        };
+        for (p, text, res) in texts.iter().cloned() {
             if matches!(target, TypeTarget::Field { .. }) && !naming.contains(&res) {
                 continue;
             }
@@ -808,7 +847,7 @@ impl Workspace {
                                 found.ambiguous.push((scan.path.clone(), r.start()));
                             }
                             ranges.push(r);
-                        } else if owners.is_empty() && !q.site_known(&scan, &cx, &holder) {
+                        } else if owners.is_empty() && !q.site_known(&scan, &cx, &holder, &global_escapes) {
                             found.unknown.push((scan.path.clone(), r.start()));
                         }
                     }
@@ -1015,6 +1054,19 @@ mod tests {
         assert!(rename_at(&handed, "speed number", "rate").is_err());
         let kept = format!("{class}local t = {{ speed = 1 }}\nprint(t.speed)\n");
         assert_eq!(rename_at(&kept, "speed number", "rate"), Ok(2));
+        // A global table handed to a function may be one too.
+        let global = format!(
+            "{class}Config = {{ speed = 1 }}
+Use(Config)
+"
+        );
+        assert!(rename_at(&global, "speed number", "rate").is_err());
+        let kept_global = format!(
+            "{class}Config = {{ speed = 1 }}
+print(Config.speed)
+"
+        );
+        assert_eq!(rename_at(&kept_global, "speed number", "rate"), Ok(2));
         // A string key of a typed constructor.
         let keyed = format!("{class}---@type Cfg\nlocal k = {{ [\"speed\"] = 1 }}\n");
         assert_eq!(rename_at(&keyed, "speed number", "rate"), Ok(3));

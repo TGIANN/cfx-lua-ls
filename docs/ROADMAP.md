@@ -179,8 +179,8 @@ error ("invalid UTF-8 code").
     budget, a field name the class chain already has, a site whose value may
     also be another class with the field (`---@type A|B`), and a field when
     any same-named access in scope is on a value of unknown type (an untyped
-    parameter, a call's result, a value stored in a field, a constructor or
-    local table handed to a call, returned or stored elsewhere); LuaLS
+    parameter, a call's result, a value stored in a field, a constructor,
+    local or global table handed to a call, returned or stored elsewhere); LuaLS
     renames what it finds instead. Continued doc lines (`---@type {` over
     several lines) keep each name's own offset. On corpus D a field
     search reads the server in 0.5 to 0.9 s. Not done: a `---@generic T`
