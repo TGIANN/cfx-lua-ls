@@ -2948,7 +2948,18 @@ impl<'a> Infer<'a> {
                 _ => None,
             }
         };
-        let arg_types: Vec<T> = args.iter().map(|a| literal(a).unwrap_or_else(|| self.expr_type(a))).collect();
+        let mut arg_types: Vec<T> = args.iter().map(|a| literal(a).or_else(|| self.const_literal(a)).unwrap_or_else(|| self.expr_type(a))).collect();
+        // A call last gives all its values (none at all for `f(g())` when `g`
+        // returns nothing).
+        if let Some(last) = args.last().filter(|a| matches!(a.kind(), CALL_EXPR | METHOD_CALL_EXPR)) {
+            arg_types.pop();
+            let rets = self.call_returns(last);
+            if !(rets.len() == 1 && has_unknown(&rets[0])) {
+                arg_types.extend(rets);
+            } else {
+                arg_types.push(unknown());
+            }
+        }
         let literal_mismatch = |a: &T, p: &T| match (a, p) {
             (T::Str(x), T::Str(y)) => x != y,
             (T::Int(x), T::Int(y)) => x != y,
@@ -2958,13 +2969,17 @@ impl<'a> Infer<'a> {
             }
             _ => false,
         };
-        let fits = |f: &FunType| {
+        // LuaLS: the overloads the argument count fits; among several, those
+        // whose parameters all take the arguments, the ones matching a literal
+        // argument exactly (`a: 'y'` for `'y'`) first; the returns of every
+        // overload left.
+        let counts = |f: &FunType| {
             let vararg = f.params.last().is_some_and(|p| p.name == "...");
             let fixed = f.params.len() - usize::from(vararg);
             let required = f.params.iter().filter(|p| p.name != "..." && !p.optional && !p.ty.as_ref().is_some_and(|t| matches!(t, T::Optional(_)))).count();
-            if arg_types.len() < required || (!vararg && arg_types.len() > fixed) {
-                return false;
-            }
+            arg_types.len() >= required && (vararg || arg_types.len() <= fixed)
+        };
+        let takes = |f: &FunType| {
             arg_types.iter().zip(&f.params).all(|(a, p)| match &p.ty {
                 // A generic takes anything.
                 Some(T::Name(g)) if gens.contains(g) => true,
@@ -2972,6 +2987,44 @@ impl<'a> Infer<'a> {
                 _ => true,
             })
         };
+        let score = |f: &FunType| -> f64 {
+            let mut score = 0.0;
+            for (a, p) in arg_types.iter().zip(&f.params) {
+                let lits: Vec<&T> = match &p.ty {
+                    Some(T::Union(ps)) => ps.iter().filter(|q| matches!(q, T::Str(_) | T::Int(_) | T::Bool(_))).collect(),
+                    Some(q @ (T::Str(_) | T::Int(_) | T::Bool(_))) => vec![q],
+                    _ => Vec::new(),
+                };
+                if !lits.is_empty() && lits.contains(&a) {
+                    score += 1.0 / lits.len() as f64;
+                }
+            }
+            score
+        };
+        let own_vararg = candidates.last().is_some_and(|f| f.params.last().is_some_and(|p| p.name == "..."));
+        let last = candidates.len() - 1;
+        let counted: Vec<(usize, &FunType)> = candidates.iter().enumerate().filter(|(_, f)| counts(f)).collect();
+        let kept: Vec<&FunType> = match counted.as_slice() {
+            [] => return None,
+            [(_, f)] => vec![*f],
+            many => {
+                let scores: Vec<Option<f64>> = many.iter().map(|(i, f)| ((*i != last || !own_vararg) && takes(f)).then(|| score(f))).collect();
+                match scores.iter().flatten().cloned().reduce(f64::max) {
+                    // None takes them: the first the count fits.
+                    None => vec![many[0].1],
+                    Some(max) => many.iter().zip(&scores).filter(|(_, s)| **s == Some(max)).map(|((_, f), _)| *f).collect(),
+                }
+            }
+        };
+        if kept.len() > 1 {
+            let all: Vec<Vec<T>> = kept
+                .iter()
+                .map(|f| self.apply(&Callee { params: f.params.iter().map(|p| p.ty.clone()).collect(), rets: fun_rets(f), generics: gens.clone(), self_param: None }, args))
+                .collect();
+            let n = all.iter().map(Vec::len).max().unwrap_or(0);
+            return Some((0..n).map(|i| union(all.iter().filter_map(|r| r.get(i).cloned()).collect())).collect());
+        }
+        let fits = |f: &FunType| kept.iter().any(|k| std::ptr::eq(*k, f));
         let f = candidates.iter().find(|f| fits(f))?;
         let chosen = Callee { params: f.params.iter().map(|p| p.ty.clone()).collect(), rets: fun_rets(f), generics: gens.clone(), self_param: None };
         Some(self.apply(&chosen, args))
@@ -3009,6 +3062,17 @@ impl<'a> Infer<'a> {
                 // Bounded: classes that inherit each other lead back here.
                 let t = self.deeper(|| self.param_type(&tok));
                 if !is(&t, "any") && !is(&t, "unknown") {
+                    return Some(t);
+                }
+            }
+            // A field of the class typed as a `fun` (`---@field f fun(self: A, x: string)`,
+            // `---@type fun(...)` above `A.f = nil`).
+            if let Some(T::Fun(f)) = self.member_of_type(&name(&p), &Key::Name(method.text().to_string())).map(non_nil) {
+                let colon = fname.children_with_tokens().any(|e| e.kind() == COLON);
+                let skip = usize::from(colon && f.params.first().is_some_and(|q| q.name == "self"));
+                if let Some(t) = f.params.get(i + skip).and_then(|q| q.ty.clone())
+                    && !is(&t, "any")
+                {
                     return Some(t);
                 }
             }
@@ -3561,7 +3625,17 @@ impl<'a> Infer<'a> {
 
     /// `---@operator` of the operand's class: its result.
     fn operator(&self, t: &T, op: &str, other: Option<&T>) -> Option<T> {
-        let T::Name(c) = self.expand(t) else { return None };
+        // `Box<string>`: the class's `T` is `string` in its operators.
+        let (c, map) = match self.expand(t) {
+            T::Name(c) => (c, HashMap::new()),
+            T::Generic(c, args) => {
+                let gens = self.class_def(&c).map(|d| d.generics.clone()).unwrap_or_default();
+                let map: HashMap<String, T> = gens.into_iter().zip(args).collect();
+                (c, map)
+            }
+            _ => return None,
+        };
+        let gens: Vec<String> = map.keys().cloned().collect();
         let mut todo = vec![c];
         let mut seen = std::collections::HashSet::new();
         while let Some(c) = todo.pop() {
@@ -3582,7 +3656,7 @@ impl<'a> Infer<'a> {
                 _ => true,
             };
             if let Some((_, _, r)) = ops.iter().find(|(_, p, _)| fits(p)).or(ops.first()) {
-                return Some(r.clone());
+                return Some(if gens.is_empty() { r.clone() } else { subst(r, &map, &gens, true) });
             }
             todo.extend(def.parents.iter().cloned());
         }
@@ -4163,6 +4237,19 @@ impl<'a> Infer<'a> {
             }
             _ => None,
         }
+    }
+
+    /// A local given a literal and never written again: that literal (`'x'`).
+    fn const_literal(&self, e: &SyntaxNode) -> Option<T> {
+        if e.kind() != NAME_EXPR {
+            return None;
+        }
+        let Target::Decl(d) = self.ref_at(e.first_token()?.text_range())?.target else { return None };
+        if self.names.refs.iter().any(|r| r.target == Target::Decl(d) && r.access == Access::Write) {
+            return None;
+        }
+        let v = first_value_of(self, d)?;
+        literal_type(&v)
     }
 
     fn decl_stat(&self, d: usize) -> Option<SyntaxNode> {
