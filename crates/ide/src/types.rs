@@ -1008,8 +1008,19 @@ impl<'a> FileTypes<'a> {
         if inf.exhausted.get() {
             return None;
         }
-        let got = inf.expr_type(e);
-        if inf.exhausted.get() || inf.cast(&got, want, 0) != Some(false) {
+        let mut got = inf.expr_type(e);
+        // `x = 3` under `---@type 1|2`: the literal, not `integer`.
+        if let Some(lit) = literal_type(e).filter(|_| mentions_literal(want)) {
+            got = lit;
+        }
+        if inf.exhausted.get() {
+            return None;
+        }
+        // `1.5` where only `integer` fits (LuaLS: a float is not an integer).
+        if fractional_literal(e) && float_misfits(want) {
+            return Some(("number".to_string(), crate::luacats::view(want)));
+        }
+        if inf.cast(&got, want, 0) != Some(false) {
             return None;
         }
         Some((crate::luacats::view(&got), crate::luacats::view(want)))
@@ -1024,7 +1035,26 @@ impl<'a> FileTypes<'a> {
         let mut out = Vec::new();
         let vars: Vec<SyntaxNode> = stat.children().find(|c| c.kind() == VAR_LIST).map(|v| v.children().collect()).unwrap_or_default();
         let values: Vec<SyntaxNode> = stat.children().find(|c| c.kind() == EXPR_LIST).map(|v| v.children().collect()).unwrap_or_default();
+        let stat_types: Vec<T> = stat_tags(inf.text, stat)
+            .into_iter()
+            .find_map(|t| match t {
+                Tag::Type { tys } => Some(tys),
+                _ => None,
+            })
+            .unwrap_or_default();
         for (i, var) in vars.iter().enumerate() {
+            // `---@type string` above `x = f()`: the comment says what is written.
+            if let Some(got) = stat_types.get(i).filter(|t| !has_unknown(t) && !mentions_any(t))
+                && var.kind() == NAME_EXPR
+                && let Some(Target::Decl(d)) = var.first_token().and_then(|t| inf.ref_at(t.text_range())).map(|r| r.target)
+                && let Some(want) = self.declared_local(d)
+            {
+                if inf.cast(got, &want, 0) == Some(false) && !inf.exhausted.get() {
+                    let (got, want) = (crate::luacats::view(got), crate::luacats::view(&want));
+                    out.push((var.text_range(), "cast-local-type", format!("This variable is defined as type `{want}`. Cannot convert its type to `{got}`.")));
+                }
+                continue;
+            }
             // A call last spreads; only plain one-to-one values are checked, and
             // not names or `a or b` (the flow inference may miss a narrowing).
             let Some(value) = values.get(i).filter(|v| !(i + 1 == values.len() && vars.len() > values.len() && matches!(v.kind(), CALL_EXPR | METHOD_CALL_EXPR))) else { continue };
@@ -1062,7 +1092,11 @@ impl<'a> FileTypes<'a> {
                 INDEX_EXPR => {
                     let (Some(object), Some(field)) = (var.first_child(), crate::lint::field_name(var)) else { continue };
                     let T::Name(class) = non_nil(inf.expr_type(&object)) else { continue };
-                    let Some(want) = inf.classes.get(&class).and_then(|c| c.fields.iter().find(|f| f.name == field.text())).map(|f| f.ty.clone()) else { continue };
+                    let declared = inf.classes.get(&class).and_then(|c| c.fields.iter().find(|f| f.name == field.text())).map(|f| f.ty.clone());
+                    let Some(want) = declared.or_else(|| self.typed_field(&class, field.text())) else { continue };
+                    if has_unknown(&want) || mentions_any(&want) {
+                        continue;
+                    }
                     if let Some((got, want)) = self.value_mismatch(value, &want) {
                         out.push((var.text_range(), "assign-type-mismatch", format!("Cannot assign `{got}` to `{want}`.")));
                     }
@@ -1071,6 +1105,41 @@ impl<'a> FileTypes<'a> {
             }
         }
         out
+    }
+
+    /// The type a doc comment declares for a local (`---@type`, `---@class`)
+    /// or a parameter (`---@param`); None for a local typed by its value.
+    fn declared_local(&self, d: usize) -> Option<T> {
+        let inf = &self.inf;
+        let decl = &inf.names.decls[d];
+        let tagged = match decl.kind {
+            DeclKind::Local => inf.decl_stat(d).is_some_and(|st| stat_tags(inf.text, &st).iter().any(|t| matches!(t, Tag::Type { .. } | Tag::Class { .. }))),
+            DeclKind::Param => true,
+            _ => false,
+        };
+        let want = inf.decl_type(d);
+        (tagged && !is(&want, "nil") && !has_unknown(&want) && !mentions_any(&want)).then_some(want)
+    }
+
+    /// The type a `---@type` comment gives a field of a class of this file where
+    /// it is written (`---@type integer` above `m.x = 1`, `m` a value of `class`).
+    fn typed_field(&self, class: &str, field: &str) -> Option<T> {
+        let inf = &self.inf;
+        if !inf.classes.contains_key(class) {
+            return None;
+        }
+        inf.root.descendants().filter(|n| n.kind() == ASSIGN_STAT).find_map(|stat| {
+            let var = stat.children().find(|c| c.kind() == VAR_LIST)?.first_child()?;
+            if var.kind() != INDEX_EXPR || crate::lint::field_name(&var)?.text() != field {
+                return None;
+            }
+            let ty = stat_tags(inf.text, &stat).into_iter().find_map(|t| match t {
+                Tag::Type { tys } => tys.into_iter().next(),
+                _ => None,
+            })?;
+            let object = var.first_child()?;
+            (non_nil(inf.expr_type(&object)) == T::Name(class.to_string())).then_some(ty)
+        })
     }
 
     /// The entries of a table constructor whose value surely does not fit the
@@ -1204,6 +1273,60 @@ impl<'a> FileTypes<'a> {
         let t = self.inf.decl_type(d);
         (!is(&t, "unknown") && !is(&t, "any")).then(|| crate::luacats::view(&t))
     }
+}
+
+/// The literal type of a literal expression (`3`, `'x'`, `true`).
+fn literal_type(e: &SyntaxNode) -> Option<T> {
+    if e.kind() != LITERAL_EXPR {
+        return None;
+    }
+    let t = e.first_token()?;
+    match t.kind() {
+        NUMBER => t.text().parse::<i64>().ok().map(T::Int),
+        STRING => crate::util::unquote(t.text()).filter(|_| !t.text().contains('\\')).map(|s| T::Str(s.to_string())),
+        TRUE_KW => Some(T::Bool(true)),
+        FALSE_KW => Some(T::Bool(false)),
+        _ => None,
+    }
+}
+
+/// Whether a type names a literal (`1`, `'a'`, `true`) among its members.
+fn mentions_literal(t: &T) -> bool {
+    match t {
+        T::Str(_) | T::Int(_) | T::Bool(_) => true,
+        T::Optional(i) => mentions_literal(i),
+        T::Union(ps) => ps.iter().any(mentions_literal),
+        _ => false,
+    }
+}
+
+/// A decimal number literal with a fraction (`1.5`, not `2.0` or `1e3`).
+fn fractional_literal(e: &SyntaxNode) -> bool {
+    e.kind() == LITERAL_EXPR
+        && e.first_token().is_some_and(|t| {
+            let s = t.text();
+            t.kind() == NUMBER && !s.starts_with("0x") && !s.starts_with("0X") && s.parse::<f64>().is_ok_and(|v| v.fract() != 0.0)
+        })
+}
+
+/// Whether a fractional number fits none of the type's members while
+/// `integer` is one of them.
+fn float_misfits(t: &T) -> bool {
+    fn members<'t>(t: &'t T, out: &mut Vec<&'t T>) {
+        match t {
+            T::Optional(i) => members(i, out),
+            T::Union(ps) => ps.iter().for_each(|p| members(p, out)),
+            t => out.push(t),
+        }
+    }
+    let mut ms = Vec::new();
+    members(t, &mut ms);
+    ms.iter().any(|m| is(m, "integer"))
+        && ms.iter().all(|m| match m {
+            T::Name(n) => BASIC.contains(&n.as_str()) && !matches!(n.as_str(), "number" | "any" | "unknown"),
+            T::Str(_) | T::Int(_) | T::Bool(_) => true,
+            _ => false,
+        })
 }
 
 /// `---@alias Name T` (with `---|` lines adding members).
@@ -2263,6 +2386,22 @@ impl<'a> Infer<'a> {
             (T::Int(a), T::Int(b)) => return Some(a == b),
             (T::Bool(a), T::Bool(b)) => return Some(a == b),
             _ => {}
+        }
+        if let (T::Generic(a, x), T::Generic(b, y)) = (c, p)
+            && a == "table"
+            && b == "table"
+            && x.len() == 2
+            && y.len() == 2
+        {
+            let mut unsure = false;
+            for (m, w) in x.iter().zip(y) {
+                match self.cast(m, w, depth + 1) {
+                    Some(false) => return Some(false),
+                    None => unsure = true,
+                    Some(true) => {}
+                }
+            }
+            return if unsure { None } else { Some(true) };
         }
         let (ck, pk) = (self.cast_kind(c), self.cast_kind(p));
         // A literal declaration (`'a'|'b'`) takes a value of its base type only
