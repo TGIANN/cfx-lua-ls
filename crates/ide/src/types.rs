@@ -344,6 +344,15 @@ fn dotted(e: &SyntaxNode) -> Option<String> {
     }
 }
 
+/// The kind of a field `member_items` offers.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum MemberKind {
+    Field,
+    /// A literal value.
+    Enum,
+    Function,
+}
+
 /// A value `value_choices` offers.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(crate) enum Choice {
@@ -381,6 +390,100 @@ impl<'a> FileTypes<'a> {
     pub(crate) fn is_string(&self, e: &SyntaxNode) -> bool {
         let t = non_nil(self.inf.expr_type(e));
         is(&t, "string") || matches!(t, T::Str(_))
+    }
+
+    /// The fields completion offers after `e.` by its type: a class's
+    /// `---@field`s with its parents' (Field), a shape's names, the entries of
+    /// the table constructor the local was declared with (Enum for a literal
+    /// value, Function for a function). Private fields show only on the class's
+    /// own variable, protected ones on a variable of the class or a child
+    /// class it declares. The second list: the fields hidden that way.
+    pub(crate) fn member_items(&self, e: &SyntaxNode) -> (Vec<(String, MemberKind)>, Vec<String>) {
+        use crate::luacats::Visibility;
+        let inf = &self.inf;
+        let mut out: Vec<(String, MemberKind)> = Vec::new();
+        let mut hidden = Vec::new();
+        let decl = (e.kind() == NAME_EXPR)
+            .then(|| e.first_token().and_then(|t| inf.ref_at(t.text_range())).map(|r| r.target))
+            .flatten()
+            .and_then(|t| match t {
+                Target::Decl(d) => Some(d),
+                Target::Global => None,
+            });
+        // `---@class B` on the variable's own statement.
+        let own = decl.and_then(|d| inf.decl_stat(d)).and_then(|s| class_tag(inf.text, &s));
+        let t = inf.expand_aliases(&non_nil(inf.expr_type(e)), 0);
+        if let T::Name(class) | T::Generic(class, _) = &t {
+            let mut stack = vec![class.clone()];
+            let mut seen: Vec<String> = Vec::new();
+            while let Some(c) = stack.pop() {
+                if seen.contains(&c) || seen.len() > 16 {
+                    continue;
+                }
+                let defs: Vec<&crate::api::ClassDef> = match inf.classes.get(&c) {
+                    Some(d) => vec![d],
+                    None => crate::library::classes().get(&c).map(|v| v.iter().collect()).unwrap_or_default(),
+                };
+                for def in defs {
+                    for f in &def.fields {
+                        let visible = match f.visibility {
+                            Some(Visibility::Private) => own.as_deref() == Some(def.name.as_str()),
+                            Some(Visibility::Protected) => own.is_some() && own.as_deref() == Some(class.as_str()),
+                            _ => true,
+                        };
+                        if !visible {
+                            hidden.push(f.name.clone());
+                        } else if !out.iter().any(|(n, _)| *n == f.name) {
+                            out.push((f.name.clone(), MemberKind::Field));
+                        }
+                    }
+                    stack.extend(def.parents.iter().rev().cloned());
+                }
+                seen.push(c);
+            }
+        }
+        if let T::Table(shape) = &t {
+            for f in shape {
+                let name = match &f.key {
+                    Key::Name(n) => n.clone(),
+                    Key::Index(T::Int(i)) => i.to_string(),
+                    Key::Index(T::Str(s)) => s.clone(),
+                    _ => continue,
+                };
+                out.push((name, MemberKind::Field));
+            }
+        }
+        // The constructor the local was declared with.
+        if let Some(table) = decl
+            .and_then(|d| inf.decl_stat(d))
+            .filter(|s| s.kind() == LOCAL_STAT)
+            .and_then(|s| s.children().find(|c| c.kind() == EXPR_LIST))
+            .and_then(|l| l.first_child())
+            .filter(|t| t.kind() == TABLE_EXPR)
+        {
+            for f in table.children() {
+                let key = match f.kind() {
+                    FIELD_NAMED => f.children_with_tokens().filter_map(|x| x.into_token()).find(|t| t.kind() == NAME).map(|t| t.text().to_string()),
+                    FIELD_INDEXED => f
+                        .first_child()
+                        .filter(|k| k.kind() == LITERAL_EXPR)
+                        .and_then(|k| k.first_token())
+                        .filter(|t| t.kind() == STRING)
+                        .map(|t| crate::util::lua_string(t.text())),
+                    _ => None,
+                };
+                let (Some(key), Some(v)) = (key, f.children().last()) else { continue };
+                let kind = match v.kind() {
+                    LITERAL_EXPR if v.first_token().is_some_and(|t| t.kind() != NIL_KW) => MemberKind::Enum,
+                    FUNCTION_EXPR => MemberKind::Function,
+                    _ => MemberKind::Field,
+                };
+                if !out.iter().any(|(n, _)| *n == key) {
+                    out.push((key, kind));
+                }
+            }
+        }
+        (out, hidden)
     }
 
     /// The keys a table constructor may still get from the type its position
