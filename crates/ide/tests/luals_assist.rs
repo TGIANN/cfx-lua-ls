@@ -22,7 +22,7 @@
 use cfx_lua_ide::library::{Game, Origin, library};
 use cfx_lua_ide::manifest::FileSide;
 use cfx_lua_ide::workspace::Workspace;
-use cfx_lua_ide::{CompletionKind, FileCtx, TextSize, complete, hover, names, parse};
+use cfx_lua_ide::{CompletionKind, FileCtx, TextSize, complete_triggered, hover, names, parse};
 use serde_json::Value;
 use std::collections::BTreeSet;
 
@@ -164,7 +164,9 @@ fn completion_cases(ws: &Workspace, path: &std::path::Path, show: bool, s: &mut 
                 let items = library().get(label);
                 !items.is_empty() && items.iter().all(|i| i.origin != Origin::Lua)
             };
-            complete(&p, &names, &text, TextSize::from(at as u32), cx)
+            // LuaLS's test passes the character before the cursor as the trigger.
+            let trigger = text[..at].chars().last().filter(|c| *c != '\n' && !c.is_alphanumeric() && *c != '_');
+            complete_triggered(&p, &names, &text, TextSize::from(at as u32), cx, trigger)
                 .map(|r| r.items.into_iter().filter(|i| !cfx(&i.label)).map(|i| (i.label, kind_name(i.kind).to_string())).collect())
         })
         .unwrap_or_default();

@@ -605,6 +605,13 @@ fn exports_before(text: &str, end: usize) -> Option<String> {
 }
 
 pub fn complete(parse: &Parse, names: &Names, text: &str, offset: TextSize, cx: FileCtx) -> Option<Completions> {
+    complete_triggered(parse, names, text, offset, cx, None)
+}
+
+/// Completion the client asked for after typing `trigger` (LuaLS
+/// `tryWord`): after `(`, `,`, `{`, `#` or a space only the literal values and
+/// table keys the position takes, and fields after `t.`, no names.
+pub fn complete_triggered(parse: &Parse, names: &Names, text: &str, offset: TextSize, cx: FileCtx, trigger: Option<char>) -> Option<Completions> {
     let (game, side) = (cx.game, cx.side);
     let end = usize::from(offset).min(text.len());
     let bytes = text.as_bytes();
@@ -637,6 +644,10 @@ pub fn complete(parse: &Parse, names: &Names, text: &str, offset: TextSize, cx: 
     }
     let prefix = &text[start..end];
     if prefix.as_bytes().first().is_some_and(u8::is_ascii_digit) {
+        return None;
+    }
+    let member_ahead = text[..start].trim_end_matches([' ', '\t']).ends_with(['.', ':']);
+    if matches!(trigger, Some('(' | ',' | '{' | '#' | ' ' | '\t')) && prefix.is_empty() && !member_ahead && param_list.is_none() {
         return None;
     }
     // LuaLS's match: a prefix, or the typed letters in order of words (`zac` for `zabc`).
