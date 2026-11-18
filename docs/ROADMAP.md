@@ -235,7 +235,7 @@ error ("invalid UTF-8 code").
     chains stay linear. Checked by `crates/ide/tests/luals_types.rs` against
     LuaLS's `test/type_inference` (610 cases, extracted by
     `tools/extract_luals_types.py` with the LuaLS settings each runs under:
-    `expandAlias`, `enumsLimit`, `inferParamType`): 510 of the 608 scored
+    `expandAlias`, `enumsLimit`, `inferParamType`): 516 of the 608 scored
     cases pass; the `??` operator case (`runtime.nonstandardSymbol`) and the
     `runtime.special` one are not scored. The list of passing cases is kept so
     a regression fails the test. The inferred type prints as LuaLS prints it:
@@ -449,7 +449,7 @@ error ("invalid UTF-8 code").
     ESX 1.12.4 184,522, slowest 85-149 ms by machine load (the 149 ms window,
     tgiann-phone-apps arcade, measures 44-66 ms alone); ESX 1.13.4 32,605,
     slowest 34 ms.
-  - Ready, not published: `.github/workflows/ci.yml` (tests and clippy on
+  - Done: `.github/workflows/ci.yml` (tests and clippy on
     Linux and Windows, the extension's type check and build);
     `.github/workflows/release.yml` (release-please; on a release, the server
     for Windows x64, Linux x64 and macOS arm64 / x64 attached to the GitHub
@@ -457,9 +457,12 @@ error ("invalid UTF-8 code").
     Marketplace upload when the `VSCE_PAT` secret is set); `action.yml`, the
     repository as an action (downloads a release, runs `check`, uploads SARIF
     to code scanning, fails at `fail-on`).
-  - Not done: pushing, the first release and the Marketplace publisher (on the
-    owner's word). Before the repository goes public its history still holds
-    the old local paths (the working tree no longer does).
+  - Done: the repository is pushed (private, a fresh history without local
+    paths) and v1.0.0 is released: the server for the four targets and a
+    `.vsix` per platform on the GitHub release; CI runs on every push.
+  - Not done: the Marketplace upload. It needs the owner's `VSCE_PAT` secret
+    for the `tgiann` publisher; once the secret is set, the release workflow
+    uploads on the next release.
 
 ## Design decisions
 

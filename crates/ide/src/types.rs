@@ -2471,6 +2471,8 @@ impl<'a> Infer<'a> {
     fn read_type(&self, e: &SyntaxNode, d: usize) -> T {
         let mut effects: Vec<Effect> = Vec::new();
         let mut node = e.clone();
+        // The read is in a function nested in the one declaring the local.
+        let mut closure = false;
         let base = 'walk: loop {
             let Some(parent) = node.parent() else { break self.decl_type(d) };
             match parent.kind() {
@@ -2522,7 +2524,11 @@ impl<'a> Infer<'a> {
                                 effects.push(f);
                             }
                         }
-                        FUNC_BODY | SOURCE_FILE => break self.decl_type(d),
+                        FUNC_BODY if self.names.decls[d].range.start() >= owner.text_range().start() && owner.text_range().contains_range(self.names.decls[d].range) => {
+                            break self.decl_type(d)
+                        }
+                        FUNC_BODY => closure = true,
+                        SOURCE_FILE => break self.decl_type(d),
                         _ => {}
                     }
                 }
@@ -2557,11 +2563,14 @@ impl<'a> Infer<'a> {
                         effects.push(f);
                     }
                 }
-                FUNC_BODY => break self.decl_type(d),
+                FUNC_BODY if parent.text_range().contains_range(self.names.decls[d].range) => break self.decl_type(d),
                 _ => {}
             }
             node = parent;
         };
+        // In a closure, a local declared without a value is what its first
+        // write in the declaring function gives (LuaLS).
+        let base = if closure && is(&base, UNSET) { self.first_write(d) } else { base };
         let mut t = base;
         for x in effects.into_iter().rev() {
             t = match x {
@@ -2569,8 +2578,8 @@ impl<'a> Infer<'a> {
                 Effect::Truthy => truthy(t),
                 Effect::Falsy => falsy(t, false),
                 Effect::Nil => falsy(t, true),
-                Effect::Also(v) => union(std::iter::once(t).chain(v).collect()),
-                Effect::Fill(v) => union(std::iter::once(non_nil(t)).chain(v).collect()),
+                Effect::Also(v) => union(std::iter::once(t).chain(v).filter(|t| !is(t, UNSET)).collect()),
+                Effect::Fill(v) => union(std::iter::once(non_nil(t)).chain(v).filter(|t| !is(t, UNSET)).collect()),
                 Effect::Narrow(n) => {
                     // The members of the known type that the check keeps.
                     let fits = |m: &T| {
@@ -2613,7 +2622,24 @@ impl<'a> Infer<'a> {
                 Effect::Set(t) => t,
             };
         }
-        t
+        if is(&t, UNSET) { unknown() } else { t }
+    }
+
+    /// The value of the first write to local `d` when it is in the function
+    /// that declares `d`, else unknown.
+    fn first_write(&self, d: usize) -> T {
+        let decl = self.names.decls[d].range;
+        let home = |at: TextSize| self.root.token_at_offset(at).right_biased().and_then(|t| t.parent_ancestors().find(|a| a.kind() == FUNC_BODY));
+        let Some(w) = self.names.refs.iter().find(|r| r.target == Target::Decl(d) && r.access == Access::Write) else { return unknown() };
+        if home(w.range.start()) != home(decl.start()) {
+            return unknown();
+        }
+        self.root
+            .token_at_offset(w.range.start())
+            .right_biased()
+            .and_then(|t| t.parent())
+            .and_then(|e| self.assigned_value(&e))
+            .unwrap_or_else(unknown)
     }
 
     /// Whether `cond` being true means local `d` is set (`Some(true)`: `x`,
@@ -2790,13 +2816,22 @@ impl<'a> Infer<'a> {
     fn stat_effect(&self, s: &SyntaxNode, d: usize) -> Option<Effect> {
         let r = s.text_range();
         let from = self.names.refs.partition_point(|x| x.range.start() < r.start());
+        let home = s.ancestors().find(|a| a.kind() == FUNC_BODY);
         let writes: Vec<&crate::names::NameRef> = self.names.refs[from..]
             .iter()
             .take_while(|x| x.range.end() <= r.end())
             .filter(|x| x.target == Target::Decl(d) && x.access == Access::Write)
+            // A write inside a function defined here runs later, if at all.
+            .filter(|x| {
+                self.root.token_at_offset(x.range.start()).right_biased().and_then(|t| t.parent_ancestors().find(|a| a.kind() == FUNC_BODY)) == home
+            })
             .collect();
         let declares = self.names.decls[d].range;
         if s.kind() == LOCAL_STAT && r.contains_range(declares) {
+            // `local x` with no value and no type: nothing is known yet.
+            if s.children().all(|c| c.kind() != EXPR_LIST) && !stat_tags(self.text, s).iter().any(|t| matches!(t, Tag::Type { .. } | Tag::Class { .. })) {
+                return Some(Effect::Set(name(UNSET)));
+            }
             return Some(Effect::Set(self.decl_type(d)));
         }
         let value_of = |w: &crate::names::NameRef| {
@@ -4902,6 +4937,9 @@ fn generics(tags: &[Tag]) -> Vec<String> {
         .flatten()
         .collect()
 }
+
+/// The flow placeholder for a local declared without a value, before any write.
+const UNSET: &str = "<unset>";
 
 /// The `<K>` names (generics left unbound by an earlier call) in a type.
 fn open_generics(t: &T, out: &mut Vec<String>) {
