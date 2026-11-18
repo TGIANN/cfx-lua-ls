@@ -169,21 +169,19 @@ Baseline memory measurement (LuaLS spawns 2 processes; sum them):
   `release-please-config.json`, type `simple`; the workspace version in `Cargo.toml`
   and every workspace crate in `Cargo.lock` follow through toml extra-files; a new
   crate needs its own `Cargo.lock` entry there; the VS Code extension's `package.json`
-  and `package-lock.json` versions follow through json extra-files). Before 1.0.0 a
-  breaking change bumps minor. When release-please would pick another version, set
-  it with a `Release-As: x.y.z` commit footer.
+  and `package-lock.json` versions follow through json extra-files). A breaking
+  change bumps major. When release-please would pick another version, set it with
+  a `Release-As: x.y.z` commit footer.
 - release-please reads TOML with a tagged parser: a value is `{value, start, end}`,
   so a JSONPath filter compares `@.name.value`, not `@.name` (checked with
   release-please 17.6.0's own `GenericToml` on our `Cargo.lock`).
 - The repo allows Actions to create pull requests (Settings > Actions > Workflow
   permissions); without it the release job fails after pushing its branch.
-- The first release is 0.1.0: the manifest says 0.0.0 (nothing released) and the
-  history starts with one `feat` commit.
-- Push, merging the release pull request, tags and GitHub releases only when the
-  owner asks. The local repo has no remote: its history was started again so no
-  local path is in it, while the private TGIANN/cfx-lua-ls on GitHub still holds
-  the old one. Where it is published (a new repo, or that one after a force
-  push) is the owner's call; then `git remote add origin <url>`. Local paths and
-  the owner's server folder names stay out of tracked files (`CLAUDE.local.md` is
+- The first release is 1.0.0 (owner's choice), set by a `Release-As: 1.0.0` footer;
+  the manifest said 0.0.0 before it.
+- Remote: `origin` is the private TGIANN/cfx-lua-ls, created again on 2026-11-18
+  with a fresh history (no local path in it). Push, merging the release pull
+  request, tags and GitHub releases only when the owner asks. Local paths and the
+  owner's server folder names stay out of tracked files (`CLAUDE.local.md` is
   git-ignored; `docs/ROADMAP.md` names corpora by letter). After a release pull
   request is merged: `git pull --rebase origin main` before the next commit.

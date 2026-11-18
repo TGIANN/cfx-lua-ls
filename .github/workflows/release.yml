@@ -90,7 +90,7 @@ jobs:
         working-directory: editors/vscode
         run: npx --yes @vscode/vsce@3 publish --packagePath "cfx-lua-ls-${{ matrix.vscode }}.vsix"
 
-  # `uses: TGIANN/cfx-lua-ls@v0` follows the newest release of that major version, once its
+  # `uses: TGIANN/cfx-lua-ls@v1` follows the newest release of that major version, once its
   # archives are attached.
   major-tag:
     needs: [release-please, build]
