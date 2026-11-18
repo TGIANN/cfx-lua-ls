@@ -2973,7 +2973,7 @@ impl<'a> Infer<'a> {
             })
         };
         let f = candidates.iter().find(|f| fits(f))?;
-        let chosen = Callee { params: f.params.iter().map(|p| p.ty.clone()).collect(), rets: fun_rets(f), generics: gens.clone() };
+        let chosen = Callee { params: f.params.iter().map(|p| p.ty.clone()).collect(), rets: fun_rets(f), generics: gens.clone(), self_param: None };
         Some(self.apply(&chosen, args))
     }
 
@@ -3844,6 +3844,15 @@ impl<'a> Infer<'a> {
                     info.generics.retain(|x| *x != g);
                 }
             }
+            // `function C:f()` with `---@generic T` / `---@param self T`.
+            if let Some(Some(T::Name(g))) = info.self_param.take()
+                && info.generics.contains(&g)
+            {
+                let map: HashMap<String, T> = [(g.clone(), object.clone())].into();
+                let only = [g.clone()];
+                info.rets = info.rets.iter().map(|r| subst(r, &map, &only, true)).collect();
+                info.generics.retain(|x| *x != g);
+            }
             return self.apply(&info, &args).into_iter().map(|t| if is(&t, "self") { object.clone() } else { t }).collect();
         }
         let callee_name = (callee.kind() == NAME_EXPR).then(|| self.text[callee.text_range()].to_string());
@@ -3890,15 +3899,27 @@ impl<'a> Infer<'a> {
     /// `fun(...)` type.
     fn callee_info(&self, f: &SyntaxNode) -> Option<Callee> {
         if let Some(body) = self.function_body(f) {
-            return Some(self.body_info(&body));
+            let mut info = self.body_info(&body);
+            if let Some(sp) = info.self_param.take() {
+                info.params.insert(0, sp);
+            }
+            return Some(info);
         }
-        let mut info = fun_info(&self.expr_type(f))?;
+        let ft = self.expr_type(f);
+        let mut info = fun_info(&ft)?;
         // `---@generic K` on the local holding the `fun` type.
         if f.kind() == NAME_EXPR
             && let Some(Target::Decl(d)) = f.first_token().and_then(|t| self.ref_at(t.text_range())).map(|r| r.target)
             && let Some(stat) = self.decl_stat(d)
         {
             info.generics = generics(&stat_tags(self.text, &stat));
+        }
+        // A `fun` a generic call returned with its generics unbound (`<K>`):
+        // this call binds them.
+        if info.generics.is_empty() {
+            let mut open = Vec::new();
+            open_generics(&ft, &mut open);
+            info.generics = open;
         }
         Some(info)
     }
@@ -4049,6 +4070,34 @@ impl<'a> Infer<'a> {
         })
     }
 
+    /// `obj.f` where `f` is a function written on the variable of `obj`'s class
+    /// or a parent's (`function Parent.f()`, `Parent.f = function() end`).
+    fn member_body(&self, e: &SyntaxNode) -> Option<SyntaxNode> {
+        let object = e.first_child()?;
+        let field = crate::lint::field_name(e)?;
+        let T::Name(class) = non_nil(self.expr_type(&object)) else { return None };
+        let mut todo = vec![class];
+        let mut seen = std::collections::HashSet::new();
+        while let Some(c) = todo.pop() {
+            if !seen.insert(c.clone()) || seen.len() > 16 {
+                continue;
+            }
+            if let Some(vs) = self.class_members().get(&c).and_then(|m| m.get(field.text()))
+                && let [v] = vs.as_slice()
+            {
+                return match v.kind() {
+                    FUNC_NAME => v.parent()?.children().find(|c| c.kind() == FUNC_BODY),
+                    FUNCTION_EXPR => v.children().find(|c| c.kind() == FUNC_BODY),
+                    _ => None,
+                };
+            }
+            if let Some(def) = self.classes.get(&c) {
+                todo.extend(def.parents.iter().cloned());
+            }
+        }
+        None
+    }
+
     /// The type of a field written on a class's variable (`function A.f()`,
     /// `A.x = 1`): the union of what is written.
     fn written_member(&self, class: &str, field: &str) -> Option<T> {
@@ -4152,7 +4201,14 @@ impl<'a> Infer<'a> {
                     .collect()
             })
             .unwrap_or_default();
-        Callee { params, rets: self.body_returns(body), generics: generics(&tags) }
+        let colon = holder.as_ref().filter(|h| h.kind() == FUNCTION_STAT).is_some_and(|_| !self.dot_defined(body));
+        let self_param = colon.then(|| {
+            tags.iter().find_map(|t| match t {
+                Tag::Param { name: pn, ty: Some(ty), .. } if pn == "self" => Some(ty.clone()),
+                _ => None,
+            })
+        });
+        Callee { params, rets: self.body_returns(body), generics: generics(&tags), self_param }
     }
 
     /// The returns of a call with these arguments: generics bound from the
@@ -4207,11 +4263,10 @@ impl<'a> Infer<'a> {
                     Target::Global => self.file_functions().get(tok.text()).cloned(),
                 }
             }
-            // `C.f(...)` on `function C.f()` of this file (a `:` one takes `self` first).
+            // `C.f(...)` on `function C.f()` / `function C:f()` of this file.
             INDEX_EXPR => {
                 let key: String = self.text[e.text_range()].split_whitespace().collect();
-                let body = self.file_functions().get(&key)?.clone();
-                self.dot_defined(&body).then_some(body)
+                self.file_functions().get(&key).cloned().or_else(|| self.member_body(e))
             }
             _ => None,
         }
@@ -4362,11 +4417,14 @@ struct Callee {
     params: Vec<Option<T>>,
     rets: Vec<T>,
     generics: Vec<String>,
+    /// `function C:f()`: the implicit `self` (its `---@param self T`), which a
+    /// `C.f(obj)` call passes first.
+    self_param: Option<Option<T>>,
 }
 
 fn fun_info(t: &T) -> Option<Callee> {
     match t {
-        T::Fun(f) => Some(Callee { params: f.params.iter().map(|p| p.ty.clone()).collect(), rets: fun_rets(f), generics: Vec::new() }),
+        T::Fun(f) => Some(Callee { params: f.params.iter().map(|p| p.ty.clone()).collect(), rets: fun_rets(f), generics: Vec::new(), self_param: None }),
         T::Optional(inner) => fun_info(inner),
         _ => None,
     }
@@ -4380,6 +4438,30 @@ fn generics(tags: &[Tag]) -> Vec<String> {
         })
         .flatten()
         .collect()
+}
+
+/// The `<K>` names (generics left unbound by an earlier call) in a type.
+fn open_generics(t: &T, out: &mut Vec<String>) {
+    match t {
+        T::Name(n) if n.starts_with('<') && n.ends_with('>') => {
+            if !out.contains(n) {
+                out.push(n.clone());
+            }
+        }
+        T::Optional(i) | T::Array(i) => open_generics(i, out),
+        T::Union(ps) | T::Generic(_, ps) | T::Tuple(ps) => ps.iter().for_each(|p| open_generics(p, out)),
+        T::Fun(f) => {
+            for p in &f.params {
+                if let Some(t) = &p.ty {
+                    open_generics(t, out);
+                }
+            }
+            for r in &f.rets {
+                open_generics(&r.ty, out);
+            }
+        }
+        _ => {}
+    }
 }
 
 /// Generic names in `pattern` take their part of `actual`.
@@ -4430,7 +4512,15 @@ fn bind(pattern: &T, actual: &T, gens: &[String], out: &mut HashMap<String, T>) 
 fn subst(t: &T, map: &HashMap<String, T>, gens: &[String], top: bool) -> T {
     let s = |x: &T| subst(x, map, gens, false);
     match t {
-        T::Name(g) if gens.contains(g) => map.get(g).cloned().unwrap_or_else(|| if top { unknown() } else { name(&format!("<{g}>")) }),
+        T::Name(g) if gens.contains(g) => map.get(g).cloned().unwrap_or_else(|| {
+            if top {
+                unknown()
+            } else if g.starts_with('<') {
+                name(g)
+            } else {
+                name(&format!("<{g}>"))
+            }
+        }),
         T::Optional(i) => T::Optional(Box::new(s(i))),
         T::Union(ps) => union(ps.iter().map(|p| subst(p, map, gens, top)).collect()),
         T::Array(i) => T::Array(Box::new(s(i))),
