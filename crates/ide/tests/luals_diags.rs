@@ -112,7 +112,10 @@ fn luals_diagnostics() {
     compat.luals_compat = true;
     let mut passing = BTreeSet::new();
     let mut unscored = Vec::new();
-    let mut lost = Vec::new();
+    let mut details: BTreeMap<String, String> = BTreeMap::new();
+    // Every case again with `cfx.lualsCompat` alone, no fallback.
+    let mut compat_only = 0;
+    let mut compat_fails = Vec::new();
     // Rule -> (cases, passed, extra).
     let mut per_rule: BTreeMap<&str, (usize, usize, usize)> = BTreeMap::new();
     for c in &data {
@@ -128,8 +131,14 @@ fn luals_diagnostics() {
             std::panic::catch_unwind(|| run(&ws, &path, config, code, script)).unwrap_or_else(|_| (Outcome::Extra, "<panic>".to_string()))
         };
         let (mut outcome, detail) = attempt(&config);
+        let compat_pass = matches!(attempt(&compat).0, Outcome::Pass);
+        if compat_pass {
+            compat_only += 1;
+        } else {
+            compat_fails.push(id.clone());
+        }
         let mut id = id;
-        if !matches!(outcome, Outcome::Pass) && matches!(attempt(&compat).0, Outcome::Pass) {
+        if !matches!(outcome, Outcome::Pass) && compat_pass {
             outcome = Outcome::Pass;
             id.push_str(" compat");
         }
@@ -144,9 +153,7 @@ fn luals_diagnostics() {
                 if matches!(failed, Outcome::Extra) {
                     entry.2 += 1;
                 }
-                if listed.contains(&id) {
-                    lost.push(format!("{id}: {detail}"));
-                }
+                details.insert(id.clone(), detail.clone());
                 if ours.contains(code) && (show || only.as_deref() == Some(code)) && only.as_deref().is_none_or(|o| o == code) {
                     println!("--- {id}: {detail}\n{script}");
                 }
@@ -156,12 +163,16 @@ fn luals_diagnostics() {
     let _ = std::fs::remove_dir_all(&root);
     let with_compat = passing.iter().filter(|p| p.ends_with(" compat")).count();
     println!(
-        "{} of {} LuaLS diagnostic cases pass ({} of them with cfx.lualsCompat); not scored: {:?}",
+        "{} of {} LuaLS diagnostic cases pass ({} of them with cfx.lualsCompat; {} with cfx.lualsCompat on for every case); not scored: {:?}",
         passing.len(),
         per_rule.values().map(|r| r.0).sum::<usize>(),
         with_compat,
+        compat_only,
         unscored
     );
+    if !compat_fails.is_empty() {
+        println!("  failing with cfx.lualsCompat on: {compat_fails:?}");
+    }
     for (code, (cases, passed, extra)) in &per_rule {
         if ours.contains(code) {
             println!("  {code}: {passed}/{cases}{}", if *extra > 0 { format!(", {extra} extra") } else { String::new() });
@@ -172,6 +183,11 @@ fn luals_diagnostics() {
         std::fs::write(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/data/luals_diags_pass.txt"), out.join("\n") + "\n").unwrap();
         return;
     }
+    // A listed `code n compat` that no longer passes either way counts too.
+    let lost: Vec<String> = listed
+        .difference(&passing)
+        .map(|l| format!("{l}: {}", details.get(l.trim_end_matches(" compat")).map_or("passes another way now", String::as_str)))
+        .collect();
     assert!(lost.is_empty(), "listed cases that fail now:\n{}", lost.join("\n"));
     let new: Vec<&String> = passing.difference(&listed).collect();
     assert!(new.is_empty(), "cases that pass now but are not listed (LUALS_DIAGS_WRITE=1): {new:?}");

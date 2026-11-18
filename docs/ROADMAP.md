@@ -234,7 +234,7 @@ error ("invalid UTF-8 code").
     `--[[@as T]]`, aliases; memoized per expression, so `s = s:gsub():gsub()`
     chains stay linear. Checked by `crates/ide/tests/luals_types.rs` against
     LuaLS's `test/type_inference` (610 cases, extracted by
-    `tools/extract_luals_types.py`): 414 pass, the list of passing cases is kept
+    `tools/extract_luals_types.py`): 415 pass, the list of passing cases is kept
     so a regression fails the test.
   - Done: `undefined-doc-name`, silent when the resource or one it depends on
     or imports from has escrow files (corpus A's tgiann-core declares
@@ -259,9 +259,11 @@ error ("invalid UTF-8 code").
     only, values the flow may have narrowed (names, `a or b`) left alone,
     upvalues not followed. LuaLS's `test/diagnostics` (537 cases, each run
     with the LuaLS switches its test sets, `crates/ide/tests/luals_diags.rs`):
-    all 537 pass, 8 of them only with `cfx.lualsCompat` (the deliberate
-    deviations below, LuaLS's behaviour behind one switch); the Lua 5.5
-    `global` case is not scored (CfxLua is 5.4). Over the five corpora the
+    529 pass by default and all 537 with `cfx.lualsCompat` on (the
+    deliberate deviations below, LuaLS's behaviour behind one switch: nil
+    checked as LuaLS does, a local typed by its first value, `unpack`
+    deprecated, empty bodies, every unknown `---@diagnostic` code); the Lua
+    5.5 `global` case is not scored (CfxLua is 5.4). Over the five corpora the
     new rules give 440 hits (194 `redundant-parameter`, 86
     `missing-parameter`, 52 `missing-return-value`, 32 `duplicate-set-field`,
     31 `need-check-nil`, the rest under 20 each), read in buckets by cause,
