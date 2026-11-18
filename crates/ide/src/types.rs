@@ -417,7 +417,51 @@ impl<'a> FileTypes<'a> {
         if inf.exhausted.get() {
             return None;
         }
-        let T::Name(class) = non_nil(inf.expected_type(table)?) else { return None };
+        // `A|B`: the table must have what one of them needs.
+        let classes: Vec<String> = match non_nil(inf.expected_type(table)?) {
+            T::Name(c) => vec![c],
+            T::Union(ps) => ps.into_iter().filter(|p| !is(p, "nil")).map(|p| if let T::Name(c) = p { Some(c) } else { None }).collect::<Option<Vec<String>>>()?,
+            _ => return None,
+        };
+        let mut given: Vec<String> = Vec::new();
+        let mut pos = 0;
+        for field in table.children() {
+            match field.kind() {
+                FIELD_NAMED => given.extend(field.children_with_tokens().filter_map(|x| x.into_token()).find(|t| t.kind() == NAME).map(|t| t.text().to_string())),
+                FIELD_POS => {
+                    pos += 1;
+                    given.push(format!("[{pos}]"));
+                }
+                FIELD_INDEXED => {
+                    let key = field.children().next().filter(|k| k.kind() == LITERAL_EXPR).and_then(|k| k.first_token());
+                    // A computed key may be any of them.
+                    let k = key.as_ref()?;
+                    match k.kind() {
+                        NUMBER => given.push(format!("[{}]", k.text())),
+                        _ => given.push(crate::util::unquote(k.text())?.to_string()),
+                    }
+                }
+                _ => {}
+            }
+        }
+        let mut best: Option<(String, Vec<String>)> = None;
+        for class in classes {
+            let missing = self.class_missing(&class, &given)?;
+            if missing.is_empty() {
+                return None;
+            }
+            if best.as_ref().is_none_or(|(_, m)| missing.len() < m.len()) {
+                best = Some((class, missing));
+            }
+        }
+        best
+    }
+
+    /// The required fields of a class of this file (parents included) not in
+    /// `given`; None when the class or a parent is not all known here.
+    fn class_missing(&self, class: &str, given: &[String]) -> Option<Vec<String>> {
+        let inf = &self.inf;
+        let class = class.to_string();
         inf.classes.get(&class)?;
         let mut required: Vec<String> = Vec::new();
         // `---@class (partial) B: A`: A's fields are not required.
@@ -438,25 +482,19 @@ impl<'a> FileTypes<'a> {
                     required.push(f.name.clone());
                 }
             }
+            // `---@field [1] string`.
+            for (k, v) in &def.indexes {
+                if let T::Int(n) = k
+                    && !nil_able(v)
+                {
+                    required.push(format!("[{n}]"));
+                }
+            }
             if !partial {
                 stack.extend(def.parents.iter().filter(|p| !BASIC.contains(&p.as_str())).cloned());
             }
         }
-        let mut given: Vec<String> = Vec::new();
-        for field in table.children() {
-            match field.kind() {
-                FIELD_NAMED => given.extend(field.children_with_tokens().filter_map(|x| x.into_token()).find(|t| t.kind() == NAME).map(|t| t.text().to_string())),
-                FIELD_INDEXED => {
-                    let key = field.children().next().filter(|k| k.kind() == LITERAL_EXPR).and_then(|k| k.first_token());
-                    // A computed key may be any of them.
-                    let k = key.as_ref().and_then(|k| crate::util::unquote(k.text()))?;
-                    given.push(k.to_string());
-                }
-                _ => {}
-            }
-        }
-        let missing: Vec<String> = required.into_iter().filter(|r| !given.contains(r)).collect();
-        (!missing.is_empty()).then_some((class, missing))
+        Some(required.into_iter().filter(|r| !given.contains(r)).collect())
     }
 
     /// Fields read (`v.f`, `v:m()`) on a value of a `---@class` of this file
@@ -468,27 +506,57 @@ impl<'a> FileTypes<'a> {
     pub(crate) fn undefined_fields(&self, root: &SyntaxNode) -> Vec<(TextRange, Vec<String>)> {
         let inf = &self.inf;
         let mut out = Vec::new();
-        if inf.classes.is_empty() {
+        let enums = self.enum_fields();
+        if inf.classes.is_empty() && enums.is_empty() {
             return out;
         }
-        // Every name the file writes as a field, anywhere.
-        let mut written: std::collections::HashSet<&str> = std::collections::HashSet::new();
+        // Every name the file writes as a field, anywhere, with what it is
+        // written on: a write on a value of another class does not hide it.
+        enum Writer {
+            Unknown,
+            Node(SyntaxNode),
+            Token(SyntaxToken),
+        }
+        let mut written: HashMap<&str, Vec<Writer>> = HashMap::new();
         for n in root.descendants() {
             let name = match n.kind() {
-                INDEX_EXPR if n.parent().is_some_and(|p| p.kind() == VAR_LIST) => crate::lint::field_name(&n),
-                FIELD_NAMED => n.children_with_tokens().filter_map(|x| x.into_token()).find(|t| t.kind() == NAME),
-                FUNC_NAME => n.children_with_tokens().filter_map(|x| x.into_token()).filter(|t| t.kind() == NAME).last(),
+                INDEX_EXPR if n.parent().is_some_and(|p| p.kind() == VAR_LIST) => {
+                    crate::lint::field_name(&n).map(|f| (f, n.first_child().map_or(Writer::Unknown, Writer::Node)))
+                }
+                FIELD_NAMED => n.children_with_tokens().filter_map(|x| x.into_token()).find(|t| t.kind() == NAME).map(|f| (f, Writer::Unknown)),
+                FUNC_NAME => {
+                    let parts: Vec<SyntaxToken> = n.children_with_tokens().filter_map(|x| x.into_token()).filter(|t| t.kind() == NAME).collect();
+                    let w = if parts.len() == 2 { Writer::Token(parts[0].clone()) } else { Writer::Unknown };
+                    parts.last().cloned().map(|f| (f, w))
+                }
                 _ => None,
             };
-            if let Some(t) = name {
-                written.insert(self.text_of(t.text_range()));
+            if let Some((t, w)) = name {
+                written.entry(self.text_of(t.text_range())).or_default().push(w);
             }
             // A computed write (`t[k] = v`, `rawset`) may set any name.
             if n.kind() == INDEX_EXPR && n.parent().is_some_and(|p| p.kind() == VAR_LIST) && crate::lint::field_name(&n).is_none() {
                 return out;
             }
         }
+        let globals = self.global_classes();
         let mut chains: HashMap<String, Option<ClassChain>> = HashMap::new();
+        // Whether a write of the name may be on a value of these classes.
+        let hidden = |field: &str, names: &[String]| {
+            written.get(field).is_some_and(|ws| {
+                ws.iter().any(|w| {
+                    let class = match w {
+                        Writer::Unknown => None,
+                        Writer::Node(o) => match non_nil(inf.expr_type(o)) {
+                            T::Name(c) => Some(c),
+                            _ => None,
+                        },
+                        Writer::Token(t) => self.token_class(t, &globals),
+                    };
+                    class.is_none_or(|c| names.contains(&c) || !inf.classes.contains_key(&c))
+                })
+            })
+        };
         for n in root.descendants() {
             let (object, field) = match n.kind() {
                 INDEX_EXPR if n.parent().is_none_or(|p| p.kind() != VAR_LIST) => match (n.first_child(), crate::lint::field_name(&n)) {
@@ -502,19 +570,109 @@ impl<'a> FileTypes<'a> {
                 }
                 _ => continue,
             };
-            if written.contains(field.text()) || n.children_with_tokens().any(|c| c.kind() == QUESTION) {
+            if n.children_with_tokens().any(|c| c.kind() == QUESTION) {
                 continue;
             }
             if inf.exhausted.get() {
                 return out;
             }
+            // `X.C` on an `---@enum X` without `C`.
+            if let Some((name, keys)) = self.enum_of(&object, &enums) {
+                if !keys.contains(field.text()) && !written.contains_key(field.text()) {
+                    out.push((field.text_range(), vec![name]));
+                }
+                continue;
+            }
             let T::Name(class) = non_nil(inf.expr_type(&object)) else { continue };
-            let Some(chain) = chains.entry(class.clone()).or_insert_with(|| self.class_chain(&class)) else { continue };
-            if !chain.1.contains(field.text()) {
-                out.push((field.text_range(), chain.0.clone()));
+            // `---@generic T: A|B`: a field of neither.
+            let classes = if inf.classes.contains_key(&class) { vec![class] } else { self.generic_bound_classes(&object, &class) };
+            if classes.is_empty() {
+                continue;
+            }
+            let mut names = Vec::new();
+            let mut known = false;
+            for class in &classes {
+                let Some(chain) = chains.entry(class.clone()).or_insert_with(|| self.class_chain(class)).clone() else {
+                    known = true;
+                    break;
+                };
+                if chain.1.contains(field.text()) {
+                    known = true;
+                    break;
+                }
+                names.extend(chain.0);
+            }
+            if !known && !hidden(field.text(), &names) {
+                out.push((field.text_range(), names));
             }
         }
         out
+    }
+
+    /// The `---@enum`s of the file whose table has only named fields: (the
+    /// variable's declaration or global name, the enum, its keys).
+    fn enum_fields(&self) -> Vec<(Result<usize, String>, String, std::collections::HashSet<String>)> {
+        let inf = &self.inf;
+        let mut out = Vec::new();
+        for st in inf.root.descendants().filter(|n| matches!(n.kind(), LOCAL_STAT | ASSIGN_STAT)) {
+            let Some(name) = stat_tags(inf.text, &st).into_iter().find_map(|t| match t {
+                Tag::Enum { name, .. } => Some(name),
+                _ => None,
+            }) else {
+                continue;
+            };
+            let Some(table) = st.children().find(|c| c.kind() == EXPR_LIST).and_then(|l| l.first_child()).filter(|t| t.kind() == TABLE_EXPR) else { continue };
+            if table.children().any(|f| f.kind() != FIELD_NAMED) {
+                continue;
+            }
+            let keys = table.children().filter_map(|f| f.children_with_tokens().filter_map(|x| x.into_token()).find(|t| t.kind() == NAME)).map(|t| t.text().to_string()).collect();
+            let target = match st.kind() {
+                LOCAL_STAT => {
+                    let Some(n) = st.children().find(|c| c.kind() == LOCAL_NAME) else { continue };
+                    let Some(d) = inf.decl_at(n.first_token().map_or(n.text_range(), |t| t.text_range())) else { continue };
+                    Ok(d)
+                }
+                _ => {
+                    let Some(v) = st.children().find(|c| c.kind() == VAR_LIST).and_then(|l| l.first_child()).filter(|v| v.kind() == NAME_EXPR) else { continue };
+                    Err(inf.text[v.text_range()].to_string())
+                }
+            };
+            out.push((target, name, keys));
+        }
+        out
+    }
+
+    /// The enum a name reads, with its keys.
+    fn enum_of<'e>(&self, object: &SyntaxNode, enums: &'e [(Result<usize, String>, String, std::collections::HashSet<String>)]) -> Option<(String, &'e std::collections::HashSet<String>)> {
+        let inf = &self.inf;
+        if object.kind() != NAME_EXPR || enums.is_empty() {
+            return None;
+        }
+        let target = inf.ref_at(object.first_token()?.text_range())?.target;
+        enums
+            .iter()
+            .find(|(t, _, _)| match (t, target) {
+                (Ok(d), Target::Decl(x)) => *d == x,
+                (Err(g), Target::Global) => *g == inf.text[object.text_range()],
+                _ => false,
+            })
+            .map(|(_, n, k)| (n.clone(), k))
+    }
+
+    /// The classes a `---@generic T: A|B` of the function around `e` is bound to.
+    fn generic_bound_classes(&self, e: &SyntaxNode, g: &str) -> Vec<String> {
+        let inf = &self.inf;
+        let Some(st) = e.ancestors().find(|a| a.kind() == FUNC_BODY).and_then(|b| inf.doc_stat_of(&b)) else { return Vec::new() };
+        let bound = stat_tags(inf.text, &st).into_iter().find_map(|t| match t {
+            Tag::Generic { names } => names.into_iter().find(|(n, _)| n == g).and_then(|(_, b)| b),
+            _ => None,
+        });
+        let members = match bound {
+            Some(T::Name(c)) => vec![c],
+            Some(T::Union(ps)) => ps.into_iter().filter_map(|p| if let T::Name(c) = p { Some(c) } else { None }).collect(),
+            _ => return Vec::new(),
+        };
+        if members.iter().all(|c| inf.classes.contains_key(c)) { members } else { Vec::new() }
     }
 
     /// The class a name token's variable defines: `---@class C` above its
@@ -1099,7 +1257,9 @@ impl<'a> FileTypes<'a> {
                 && let Some(Target::Decl(d)) = var.first_token().and_then(|t| inf.ref_at(t.text_range())).map(|r| r.target)
                 && let Some(want) = self.declared_local(d)
             {
-                if inf.cast(got, &want, 0) == Some(false) && !inf.exhausted.get() {
+                // A declared `number` may be fractional: it does not fit `integer`.
+                let float = is(got, "number") && float_misfits(&want);
+                if (float || inf.cast(got, &want, 0) == Some(false)) && !inf.exhausted.get() {
                     let (got, want) = (crate::luacats::view(got), crate::luacats::view(&want));
                     out.push((var.text_range(), "cast-local-type", format!("This variable is defined as type `{want}`. Cannot convert its type to `{got}`.")));
                 }
@@ -1418,9 +1578,34 @@ impl<'a> FileTypes<'a> {
             _ => false,
         };
         if !local {
-            return None;
+            return self.class_call_mismatch(&call, &callee, arg);
         }
-        let want = inf.expected_type(arg)?;
+        let mut want = inf.expected_type(arg)?;
+        // `---@generic T: string|table` and `---@param x T`: the bound.
+        if let T::Name(g) = &want {
+            let body = match call.kind() {
+                CALL_EXPR => inf.function_body(&callee),
+                _ => crate::api::method_name(&call).and_then(|m| inf.method_body(&callee, m.text())),
+            };
+            let bound = body.and_then(|b| inf.doc_stat_of(&b)).and_then(|st| {
+                stat_tags(inf.text, &st).into_iter().find_map(|t| match t {
+                    Tag::Generic { names } => names.into_iter().find(|(n, _)| n == g).map(|(_, b)| b),
+                    _ => None,
+                })
+            });
+            match bound {
+                Some(Some(b)) => want = b,
+                Some(None) => return None,
+                None => {}
+            }
+        }
+        // A table constructor is none of an enum's table values.
+        if arg.kind() == TABLE_EXPR
+            && let T::Name(n) = &want
+            && matches!(inf.aliases.get(n), Some(T::Generic(g, _)) if g == OPAQUE_ENUM)
+        {
+            return Some(("table".to_string(), n.clone()));
+        }
         let mut got = inf.expr_type(arg);
         if let Some(lit) = literal_type(arg).filter(|_| inf.wants_literal(&want, 0)) {
             got = lit;
@@ -1429,6 +1614,57 @@ impl<'a> FileTypes<'a> {
             return None;
         }
         Some((crate::luacats::view(&got), crate::luacats::view(&want)))
+    }
+
+    /// `C(x)` on a local `---@class C` with `---@overload fun(x: T): C`: an
+    /// argument no overload takes.
+    fn class_call_mismatch(&self, call: &SyntaxNode, callee: &SyntaxNode, arg: &SyntaxNode) -> Option<(String, String)> {
+        let inf = &self.inf;
+        if call.kind() != CALL_EXPR || callee.kind() != NAME_EXPR {
+            return None;
+        }
+        let Target::Decl(d) = inf.ref_at(callee.first_token()?.text_range())?.target else { return None };
+        let tags = stat_tags(inf.text, &inf.decl_stat(d)?);
+        if !tags.iter().any(|t| matches!(t, Tag::Class { .. })) {
+            return None;
+        }
+        let i = arg.parent()?.children().position(|c| c == *arg)?;
+        let wants: Vec<T> = tags
+            .into_iter()
+            .filter_map(|t| match t {
+                Tag::Overload(T::Fun(f)) => Some(f.params.get(i).map(|p| p.ty.clone())),
+                _ => None,
+            })
+            .collect::<Option<Vec<Option<T>>>>()?
+            .into_iter()
+            .collect::<Option<Vec<T>>>()?;
+        let got = inf.expr_type(arg);
+        let first = wants.first()?.clone();
+        for w in &wants {
+            if has_unknown(w) || mentions_any(w) || inf.cast(&got, w, 0) != Some(false) {
+                return None;
+            }
+        }
+        (!inf.exhausted.get()).then(|| (crate::luacats::view(&got), crate::luacats::view(&first)))
+    }
+
+    /// `C:f()` on `function C.f(a)` of this file: the object is passed as `a`,
+    /// and does not fit its `---@param`: (the `:`, its type, the parameter's).
+    pub(crate) fn self_mismatch(&self, call: &SyntaxNode) -> Option<(TextRange, String, String)> {
+        let inf = &self.inf;
+        let object = call.first_child()?;
+        let m = crate::api::method_name(call)?;
+        let body = inf.method_body(&object, m.text())?;
+        if !inf.dot_defined(&body) {
+            return None;
+        }
+        let want = inf.body_info(&body).params.first().cloned().flatten()?;
+        let colon = call.children_with_tokens().find(|e| e.kind() == COLON)?.text_range();
+        let got = inf.expr_type(&object);
+        if has_unknown(&want) || mentions_any(&want) || inf.exhausted.get() || inf.cast(&got, &want, 0) != Some(false) {
+            return None;
+        }
+        Some((colon, crate::luacats::view(&got), crate::luacats::view(&want)))
     }
 
     /// `---@cast x T` on a local whose doc comment declares its type, when `T`
@@ -1467,6 +1703,9 @@ impl<'a> FileTypes<'a> {
     }
 }
 
+/// The alias of an `---@enum` whose values are not literals.
+const OPAQUE_ENUM: &str = "<enum>";
+
 /// `---@enum A` on a table of literal values: `A` is one of the values
 /// (`---@enum(key) A`: one of the keys). An enum with any other value is left
 /// out (its type is not known).
@@ -1502,6 +1741,9 @@ fn enum_aliases(root: &SyntaxNode, text: &str) -> HashMap<String, T> {
         }
         if known && !members.is_empty() {
             out.insert(name, union(members));
+        } else if !key {
+            // Values the type cannot spell (tables): a fresh table is none of them.
+            out.insert(name, T::Generic(OPAQUE_ENUM.to_string(), Vec::new()));
         }
     }
     out
@@ -2327,6 +2569,10 @@ impl<'a> Infer<'a> {
                 }
                 let info = if call.kind() == METHOD_CALL_EXPR {
                     let m = crate::api::method_name(&call)?;
+                    // `function C.f(a, b)` called as `C:f(b)`: the object is `a`.
+                    if self.method_body(&callee, m.text()).is_some_and(|b| self.dot_defined(&b)) {
+                        i += 1;
+                    }
                     self.method_info(&callee, m.text())?
                 } else {
                     self.callee_info(&callee)?
@@ -2349,6 +2595,12 @@ impl<'a> Infer<'a> {
                 // `return function(x) end` under `---@return fun(x: integer)`.
                 if stat.kind() == RETURN_STAT {
                     let i = parent.children().position(|c| c == *e)?;
+                    if let Some(t) = stat_tags(self.text, &stat).into_iter().find_map(|t| match t {
+                        Tag::Type { tys } => tys.into_iter().nth(i),
+                        _ => None,
+                    }) {
+                        return Some(t);
+                    }
                     let body = stat.ancestors().find(|a| a.kind() == FUNC_BODY)?;
                     let holder = self.doc_stat_of(&body)?;
                     return stat_tags(self.text, &holder)
@@ -2659,6 +2911,9 @@ impl<'a> Infer<'a> {
         if let T::Name(n) = p
             && let Some(a) = self.aliases.get(n)
         {
+            if matches!(a, T::Generic(g, _) if g == OPAQUE_ENUM) {
+                return None;
+            }
             return self.cast(c, a, depth + 1);
         }
         // Every member of the value must fit.
@@ -3327,12 +3582,25 @@ impl<'a> Infer<'a> {
 
     /// `obj:m()` where the file has `function obj:m()` / `function obj.m()`.
     fn method_info(&self, object: &SyntaxNode, m: &str) -> Option<Callee> {
+        let body = self.method_body(object, m)?;
+        Some(self.body_info(&body))
+    }
+
+    /// The body of `function O.m()` / `function O:m()` of this file, for `O:m()`.
+    fn method_body(&self, object: &SyntaxNode, m: &str) -> Option<SyntaxNode> {
         if object.kind() != NAME_EXPR {
             return None;
         }
         let obj = &self.text[object.text_range()];
-        let body = self.file_functions().get(&format!("{obj}.{m}"))?.clone();
-        Some(self.body_info(&body))
+        self.file_functions().get(&format!("{obj}.{m}")).cloned()
+    }
+
+    /// `function C.f()` (not `function C:f()`).
+    fn dot_defined(&self, body: &SyntaxNode) -> bool {
+        body.parent()
+            .filter(|s| s.kind() == FUNCTION_STAT)
+            .and_then(|s| s.children().find(|c| c.kind() == FUNC_NAME))
+            .is_some_and(|f| !f.children_with_tokens().any(|e| e.kind() == COLON))
     }
 
     /// A name of a local that a `---@type` / `---@class` declares and nothing
@@ -3485,6 +3753,12 @@ impl<'a> Infer<'a> {
                     // `function n()` in the file.
                     Target::Global => self.file_functions().get(tok.text()).cloned(),
                 }
+            }
+            // `C.f(...)` on `function C.f()` of this file (a `:` one takes `self` first).
+            INDEX_EXPR => {
+                let key: String = self.text[e.text_range()].split_whitespace().collect();
+                let body = self.file_functions().get(&key)?.clone();
+                self.dot_defined(&body).then_some(body)
             }
             _ => None,
         }

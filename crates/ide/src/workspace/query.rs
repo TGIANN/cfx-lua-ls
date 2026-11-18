@@ -1460,7 +1460,7 @@ impl Workspace {
                 push("circle-doc-class", range, "Circularly inherited classes.".to_string(), None);
             }
         }
-        if text.contains("@class") || text.contains("---@type") {
+        if text.contains("@class") || text.contains("---@type") || text.contains("@enum") {
             // undefined-field and inject-field: only for classes no other file declares.
             let types = crate::types::FileTypes::from_root(parse.syntax(), names, text);
             let found = types.undefined_fields(&parse.syntax());
