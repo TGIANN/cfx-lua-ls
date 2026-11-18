@@ -425,7 +425,8 @@ impl Server<'_> {
         if let Some(ev) = cfx_lua_ide::event_at(doc.parse.as_ref()?, &doc.text, offset) {
             return Some(self.event_completion(doc, &ev, offset));
         }
-        let c = cfx_lua_ide::complete_triggered(doc.parse.as_ref()?, doc.names()?, &doc.text, offset, cx, trigger)?;
+        let opts = cfx_lua_ide::CompleteOptions { trigger, show_word: cfx_lua_ide::ShowWord::Fallback };
+        let c = cfx_lua_ide::complete_with(doc.parse.as_ref()?, doc.names()?, &doc.text, offset, cx, opts)?;
         use cfx_lua_ide::CompletionKind as K;
         let items = c
             .items
@@ -435,7 +436,8 @@ impl Server<'_> {
                     K::Keyword => lsp_types::CompletionItemKind::KEYWORD,
                     K::Local => lsp_types::CompletionItemKind::VARIABLE,
                     K::Function => lsp_types::CompletionItemKind::FUNCTION,
-                    K::Global => lsp_types::CompletionItemKind::VARIABLE,
+                    // LuaLS shows globals as fields of `_G`.
+                    K::Global => lsp_types::CompletionItemKind::FIELD,
                     K::Field => lsp_types::CompletionItemKind::FIELD,
                     K::Class => lsp_types::CompletionItemKind::CLASS,
                     K::Enum => lsp_types::CompletionItemKind::ENUM,
@@ -446,6 +448,11 @@ impl Server<'_> {
                     K::Snippet => lsp_types::CompletionItemKind::SNIPPET,
                     K::Value => lsp_types::CompletionItemKind::VALUE,
                     K::Operator => lsp_types::CompletionItemKind::OPERATOR,
+                    K::Text => lsp_types::CompletionItemKind::TEXT,
+                }),
+                insert_text: i.insert.clone(),
+                additional_text_edits: (!i.edits.is_empty()).then(|| {
+                    i.edits.iter().map(|(r, t)| lsp_types::TextEdit { range: convert::range(&doc.index, *r, self.encoding), new_text: t.clone() }).collect()
                 }),
                 text_edit: i.replace.map(|r| {
                     lsp_types::CompletionTextEdit::Edit(lsp_types::TextEdit { range: convert::range(&doc.index, r, self.encoding), new_text: i.label.clone() })

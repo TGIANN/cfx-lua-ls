@@ -73,7 +73,7 @@ const OPERATORS: &[&str] = &[
 ];
 
 fn item(label: impl Into<String>, kind: CompletionKind) -> Completion {
-    Completion { label: label.into(), kind, detail: None, deprecated: false, replace: None }
+    Completion { label: label.into(), kind, detail: None, deprecated: false, replace: None, insert: None, edits: Vec::new() }
 }
 
 /// Completion when `offset` is inside a `---` comment: None elsewhere, and in a
@@ -139,20 +139,40 @@ pub(crate) fn values(parse: &Parse, text: &str, offset: TextSize) -> Option<(Vec
         if raw.len() >= 2 && raw.ends_with(q) && tok.text_range().end() == offset {
             return None;
         }
-        let lit = tok.parent().filter(|p| p.kind() == LITERAL_EXPR)?;
         let names = crate::names::names(parse, text);
-        let choices = crate::types::FileTypes::new(parse, &names, text).value_choices(&lit);
+        let types = crate::types::FileTypes::new(parse, &names, text);
         let typed = crate::util::lua_string(raw);
-        let items: Vec<Completion> = choices
-            .into_iter()
-            .map(|c| match c {
-                Choice::Str(s) if matchkey(&typed, &s) => {
-                    Completion { label: quote(&s, q), kind: CompletionKind::EnumMember, detail: None, deprecated: false, replace: Some(tok.text_range()) }
-                }
-                Choice::Str(s) => item(quote(&s, '"'), CompletionKind::EnumMember),
-                Choice::Code(c) => item(c, CompletionKind::EnumMember),
-            })
-            .collect();
+        let holder = tok.parent()?;
+        // `f 'x'`: the call's only argument.
+        if holder.kind() == ARG_LIST {
+            let call = holder.parent()?;
+            let items: Vec<Completion> = types.bare_arg_choices(&call).into_iter().filter_map(|c| value_item(c, &typed, q, tok.text_range())).collect();
+            return (!items.is_empty()).then_some((items, true));
+        }
+        let lit = Some(holder).filter(|p| p.kind() == LITERAL_EXPR)?;
+        // `t['|']`: the fields of `t`, quoted.
+        if let Some(index) = lit.parent().filter(|p| p.kind() == INDEX_EXPR && p.first_child().as_ref() != Some(&lit))
+            && let Some(object) = index.first_child()
+        {
+            let items: Vec<Completion> = types
+                .member_items(&object)
+                .0
+                .into_iter()
+                .filter(|(n, _)| matchkey(&typed, n))
+                .map(|(n, _)| Completion {
+                    label: quote(&n, q),
+                    kind: CompletionKind::Field,
+                    detail: None,
+                    deprecated: false,
+                    replace: Some(tok.text_range()),
+                    insert: None,
+                    edits: Vec::new(),
+                })
+                .collect();
+            return (!items.is_empty()).then_some((items, true));
+        }
+        let choices = types.value_choices(&lit);
+        let items: Vec<Completion> = choices.into_iter().filter_map(|c| value_item(c, &typed, q, tok.text_range())).collect();
         return (!items.is_empty()).then_some((items, true));
     }
     let end = usize::from(offset);
@@ -165,7 +185,9 @@ pub(crate) fn values(parse: &Parse, text: &str, offset: TextSize) -> Option<(Vec
     let types = crate::types::FileTypes::new(&parse, &names, &probe);
     // An entry of a table constructor: the keys its type still lacks
     // (`y?` for an optional one).
-    if let Some(table) = e.parent().filter(|f| f.kind() == FIELD_POS).and_then(|f| f.parent()).filter(|t| t.kind() == TABLE_EXPR) {
+    // Only where a key may start: after `{`, `,` or `;` (`{aaa |}` is not).
+    let key_spot = text[..end - typed].trim_end().ends_with(['{', ',', ';']);
+    if let Some(table) = e.parent().filter(|f| f.kind() == FIELD_POS && key_spot).and_then(|f| f.parent()).filter(|t| t.kind() == TABLE_EXPR) {
         let word = &text[end - typed..end];
         let keys: Vec<Completion> = types
             .table_keys(&table)
@@ -183,9 +205,30 @@ pub(crate) fn values(parse: &Parse, text: &str, offset: TextSize) -> Option<(Vec
         .map(|c| match c {
             Choice::Str(s) => item(quote(&s, '"'), CompletionKind::EnumMember),
             Choice::Code(c) => item(c, CompletionKind::EnumMember),
+            Choice::Fun { label, params } => fun_item(label, &params),
         })
         .collect();
     (!items.is_empty()).then_some((items, typed == 0))
+}
+
+/// A `fun(a, b)` the position takes, written out as a function.
+fn fun_item(label: String, params: &[String]) -> Completion {
+    let mut c = item(label, CompletionKind::Function);
+    c.insert = Some(format!("function ({})\nend", params.join(", ")));
+    c
+}
+
+/// A value in a string with quote `q`: a string matching what is typed is
+/// written with that quote over the whole string.
+fn value_item(c: Choice, typed: &str, q: char, string: TextRange) -> Option<Completion> {
+    Some(match c {
+        Choice::Str(s) if matchkey(typed, &s) => {
+            Completion { label: quote(&s, q), kind: CompletionKind::EnumMember, detail: None, deprecated: false, replace: Some(string), insert: None, edits: Vec::new() }
+        }
+        Choice::Str(s) => item(quote(&s, '"'), CompletionKind::EnumMember),
+        Choice::Code(c) => item(c, CompletionKind::EnumMember),
+        Choice::Fun { label, params } => fun_item(label, &params),
+    })
 }
 
 /// A string's content as a literal in quote `q` (a backslash is kept: the
@@ -239,7 +282,7 @@ fn type_names(text: &str, cx: FileCtx, word: &str, range: TextRange, exclude: Op
         .filter(|n| Some(n.as_str()) != exclude && matchkey(word, n))
         .map(|n| {
             let replace = n.contains(|c: char| !(c.is_ascii_alphanumeric() || c == '_')).then_some(range);
-            Completion { label: n, kind: CompletionKind::Class, detail: None, deprecated: false, replace }
+            Completion { label: n, kind: CompletionKind::Class, detail: None, deprecated: false, replace, insert: None, edits: Vec::new() }
         })
         .collect()
 }

@@ -360,6 +360,8 @@ pub(crate) enum Choice {
     Str(String),
     /// Written as is (`1`, `true`, `T.x`).
     Code(String),
+    /// A `fun(a: T)` type: its view and parameter names.
+    Fun { label: String, params: Vec<String> },
 }
 
 /// Class -> field -> (a constructor entry, the value written).
@@ -412,7 +414,15 @@ impl<'a> FileTypes<'a> {
             });
         // `---@class B` on the variable's own statement.
         let own = decl.and_then(|d| inf.decl_stat(d)).and_then(|s| class_tag(inf.text, &s));
-        let t = inf.expand_aliases(&non_nil(inf.expr_type(e)), 0);
+        let mut t = inf.expand_aliases(&non_nil(inf.expr_type(e)), 0);
+        // A table global of the library (`utf8`): its class.
+        if has_unknown(&t)
+            && e.kind() == NAME_EXPR
+            && decl.is_none()
+            && let Some(c) = crate::library::global_class(&inf.text[e.text_range()])
+        {
+            t = name(&c);
+        }
         if let T::Name(class) | T::Generic(class, _) = &t {
             let mut stack = vec![class.clone()];
             let mut seen: Vec<String> = Vec::new();
@@ -437,6 +447,14 @@ impl<'a> FileTypes<'a> {
                             out.push((f.name.clone(), MemberKind::Field));
                         }
                     }
+                    // `---@field ['with quotes'] integer`.
+                    for (k, _) in &def.indexes {
+                        if let T::Str(s) = k
+                            && !out.iter().any(|(n, _)| n == s)
+                        {
+                            out.push((s.clone(), MemberKind::Field));
+                        }
+                    }
                     stack.extend(def.parents.iter().rev().cloned());
                 }
                 seen.push(c);
@@ -453,14 +471,31 @@ impl<'a> FileTypes<'a> {
                 out.push((name, MemberKind::Field));
             }
         }
-        // The constructor the local was declared with.
-        if let Some(table) = decl
+        let value = decl
             .and_then(|d| inf.decl_stat(d))
             .filter(|s| s.kind() == LOCAL_STAT)
             .and_then(|s| s.children().find(|c| c.kind() == EXPR_LIST))
-            .and_then(|l| l.first_child())
-            .filter(|t| t.kind() == TABLE_EXPR)
+            .and_then(|l| l.first_child());
+        // `setmetatable(t, mt)` with `mt.__index = mt`: what the metatable's
+        // `__index` table holds.
+        if let Some(call) = value.as_ref().filter(|v| v.kind() == CALL_EXPR)
+            && call.first_child().is_some_and(|c| &inf.text[c.text_range()] == "setmetatable")
+            && let Some(mt) = call.children().find(|c| c.kind() == ARG_LIST).and_then(|a| a.children().nth(1))
+            && let Some(Target::Decl(m)) = mt.first_token().and_then(|t| inf.ref_at(t.text_range())).map(|r| r.target)
         {
+            let written = self.local_fields(m);
+            if let Some(Some(index)) = written.iter().find(|(n, _)| n == "__index").map(|(_, v)| v.clone())
+                && let Some(Target::Decl(target)) = index.first_token().and_then(|t| inf.ref_at(t.text_range())).map(|r| r.target)
+            {
+                for (n, _) in self.local_fields(target) {
+                    if !out.iter().any(|(o, _)| *o == n) {
+                        out.push((n, MemberKind::Field));
+                    }
+                }
+            }
+        }
+        // The constructor the local was declared with.
+        if let Some(table) = value.filter(|t| t.kind() == TABLE_EXPR) {
             for f in table.children() {
                 let key = match f.kind() {
                     FIELD_NAMED => f.children_with_tokens().filter_map(|x| x.into_token()).find(|t| t.kind() == NAME).map(|t| t.text().to_string()),
@@ -484,6 +519,37 @@ impl<'a> FileTypes<'a> {
             }
         }
         (out, hidden)
+    }
+
+    /// The fields a local's table gets: its constructor's and `x.f = v`
+    /// writes, with the value when it is a name (`mt.__index = mt`).
+    fn local_fields(&self, d: usize) -> Vec<(String, Option<SyntaxNode>)> {
+        let inf = &self.inf;
+        let mut out: Vec<(String, Option<SyntaxNode>)> = Vec::new();
+        if let Some(table) = inf
+            .decl_stat(d)
+            .and_then(|s| s.children().find(|c| c.kind() == EXPR_LIST))
+            .and_then(|l| l.first_child())
+            .filter(|t| t.kind() == TABLE_EXPR)
+        {
+            for f in table.children().filter(|f| f.kind() == FIELD_NAMED) {
+                if let Some(n) = f.children_with_tokens().filter_map(|x| x.into_token()).find(|t| t.kind() == NAME) {
+                    out.push((n.text().to_string(), f.children().last().filter(|v| v.kind() == NAME_EXPR)));
+                }
+            }
+        }
+        for r in inf.names.refs.iter().filter(|r| r.target == Target::Decl(d)) {
+            let Some(var) = inf.root.token_at_offset(r.range.start()).right_biased().and_then(|t| t.parent()).and_then(|n| n.parent()) else { continue };
+            if var.kind() != INDEX_EXPR || var.parent().is_none_or(|l| l.kind() != VAR_LIST) {
+                continue;
+            }
+            let Some(field) = crate::lint::field_name(&var) else { continue };
+            let stat = var.parent().and_then(|l| l.parent());
+            let i = var.parent().and_then(|l| l.children().position(|c| c == var)).unwrap_or(0);
+            let v = stat.and_then(|s| s.children().find(|c| c.kind() == EXPR_LIST)).and_then(|l| l.children().nth(i)).filter(|v| v.kind() == NAME_EXPR);
+            out.push((field.text().to_string(), v));
+        }
+        out
     }
 
     /// The keys a table constructor may still get from the type its position
@@ -549,8 +615,25 @@ impl<'a> FileTypes<'a> {
     pub(crate) fn value_choices(&self, e: &SyntaxNode) -> Vec<Choice> {
         let inf = &self.inf;
         let Some(want) = inf.value_want(e) else { return Vec::new() };
+        self.choices_of(&want)
+    }
+
+    /// The values of `f 'x'`'s string, the call's only argument.
+    pub(crate) fn bare_arg_choices(&self, call: &SyntaxNode) -> Vec<Choice> {
+        let inf = &self.inf;
+        let Some(callee) = call.first_child() else { return Vec::new() };
+        let want = if call.kind() == CALL_EXPR && inf.function_body(&callee).is_none() && let Some(t) = inf.library_param(&callee, 0) {
+            Some(t)
+        } else {
+            inf.callee_info(&callee).and_then(|i| i.params.first().cloned().flatten())
+        };
+        want.map(|w| self.choices_of(&w)).unwrap_or_default()
+    }
+
+    fn choices_of(&self, want: &T) -> Vec<Choice> {
+        let inf = &self.inf;
         let mut out = Vec::new();
-        inf.choices(&want, &mut out, 0);
+        inf.choices(want, &mut out, 0);
         let mut seen = std::collections::HashSet::new();
         out.retain(|c| seen.insert(c.clone()));
         out
@@ -4723,6 +4806,11 @@ impl<'a> Infer<'a> {
             T::Int(i) => out.push(Choice::Code(i.to_string())),
             T::Bool(b) => out.push(Choice::Code(b.to_string())),
             T::Code(c) => out.push(Choice::Code(c.clone())),
+            // A function: one written out (`function (a, b) end`).
+            T::Fun(f) => {
+                let params: Vec<String> = f.params.iter().map(|p| p.name.clone()).collect();
+                out.push(Choice::Fun { label: crate::luacats::view(t), params });
+            }
             T::Union(ps) => ps.iter().for_each(|p| self.choices(p, out, depth + 1)),
             T::Optional(x) => self.choices(x, out, depth + 1),
             T::Name(n) => {
