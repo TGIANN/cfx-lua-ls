@@ -73,7 +73,7 @@ permissions:
   security-events: write
 steps:
   - uses: actions/checkout@v4
-  - uses: TGIANN/cfx-lua-ls@v0
+  - uses: TGIANN/cfx-lua-ls@v1
     with:
       path: resources      # folders or files, separated by spaces (default .)
       fail-on: error       # error, warning, information, hint or none

@@ -2,7 +2,7 @@
 # (SARIF, needs `security-events: write`) and the step fails at the chosen level.
 #
 #   - uses: actions/checkout@v4
-#   - uses: TGIANN/cfx-lua-ls@v0
+#   - uses: TGIANN/cfx-lua-ls@v1
 #     with:
 #       path: resources
 name: cfx-lua-ls check
@@ -16,7 +16,7 @@ inputs:
     description: Folders or files to check, separated by spaces.
     default: "."
   version:
-    description: A release tag such as v0.2.0, or latest.
+    description: A release tag such as v1.0.0, or latest.
     default: latest
   fail-on:
     description: "Fail the step on diagnostics at this level or above: error, warning, information, hint, or none."
