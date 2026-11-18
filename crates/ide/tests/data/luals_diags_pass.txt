@@ -7,6 +7,7 @@ ambiguity-1 5
 assign-type-mismatch 0
 assign-type-mismatch 1
 assign-type-mismatch 11
+assign-type-mismatch 12
 assign-type-mismatch 13
 assign-type-mismatch 14
 assign-type-mismatch 15
@@ -16,6 +17,7 @@ assign-type-mismatch 18
 assign-type-mismatch 2
 assign-type-mismatch 20
 assign-type-mismatch 22
+assign-type-mismatch 27
 assign-type-mismatch 28
 assign-type-mismatch 29
 assign-type-mismatch 3
@@ -26,6 +28,7 @@ assign-type-mismatch 34
 assign-type-mismatch 37
 assign-type-mismatch 38
 assign-type-mismatch 39
+assign-type-mismatch 4
 assign-type-mismatch 40
 assign-type-mismatch 41
 assign-type-mismatch 42
@@ -80,6 +83,8 @@ cast-local-type 3
 cast-local-type 30
 cast-local-type 31
 cast-local-type 32
+cast-local-type 33
+cast-local-type 34
 cast-local-type 37
 cast-local-type 4
 cast-local-type 5
@@ -319,6 +324,7 @@ not-yieldable 2
 not-yieldable 3
 param-type-mismatch 0
 param-type-mismatch 1
+param-type-mismatch 10
 param-type-mismatch 11
 param-type-mismatch 12
 param-type-mismatch 13
