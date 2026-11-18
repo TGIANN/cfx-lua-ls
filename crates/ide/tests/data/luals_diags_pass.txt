@@ -9,6 +9,7 @@ assign-type-mismatch 1
 assign-type-mismatch 11
 assign-type-mismatch 13
 assign-type-mismatch 14
+assign-type-mismatch 15
 assign-type-mismatch 16
 assign-type-mismatch 17
 assign-type-mismatch 18
@@ -34,8 +35,10 @@ assign-type-mismatch 46
 assign-type-mismatch 47
 assign-type-mismatch 48
 assign-type-mismatch 49
+assign-type-mismatch 5
 assign-type-mismatch 50
 assign-type-mismatch 51
+assign-type-mismatch 6
 assign-type-mismatch 7
 assign-type-mismatch 8
 assign-type-mismatch 9
@@ -53,7 +56,9 @@ await-in-sync 8
 await-in-sync 9
 cast-local-type 1
 cast-local-type 11
+cast-local-type 12
 cast-local-type 13
+cast-local-type 14
 cast-local-type 15
 cast-local-type 16
 cast-local-type 17
@@ -62,12 +67,17 @@ cast-local-type 19
 cast-local-type 2
 cast-local-type 20
 cast-local-type 21
+cast-local-type 22
 cast-local-type 23
 cast-local-type 24
 cast-local-type 25
 cast-local-type 26
+cast-local-type 27
+cast-local-type 28
 cast-local-type 29
 cast-local-type 3
+cast-local-type 30
+cast-local-type 31
 cast-local-type 32
 cast-local-type 37
 cast-local-type 4
