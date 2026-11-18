@@ -185,6 +185,8 @@ struct Infer<'a> {
     first_value: Cell<bool>,
     /// `Lua.type.inferParamType`.
     infer_params: Cell<bool>,
+    /// A member of `C<args>` is being looked up: `C`'s generics are bound.
+    generic_args: Cell<bool>,
     weak_union: Cell<bool>,
     number_to_integer: Cell<bool>,
     table_shape: Cell<bool>,
@@ -239,6 +241,9 @@ pub fn type_at_with(parse: &Parse, names: &Names, text: &str, offset: TextSize, 
 /// `table`), `true`, `false`, the rest by name, `nil` last; more than five
 /// members end in `...(+N)` (`Lua.hover.enumsLimit`).
 pub(crate) fn infer_view(t: &T, limit: usize) -> String {
+    if matches!(t, T::Table(fields) if fields.is_empty()) {
+        return "table".to_string();
+    }
     let (members, optional) = match t {
         T::Union(ps) => (ps.clone(), false),
         T::Optional(inner) => match &**inner {
@@ -2187,6 +2192,7 @@ impl<'a> Infer<'a> {
             strict_nil: Cell::new(false),
             first_value: Cell::new(false),
             infer_params: Cell::new(false),
+            generic_args: Cell::new(false),
             weak_union: Cell::new(false),
             number_to_integer: Cell::new(false),
             table_shape: Cell::new(false),
@@ -2305,10 +2311,57 @@ impl<'a> Infer<'a> {
             return if k == 0 { t } else { name("nil") };
         }
         match values[last].kind() {
-            CALL_EXPR | METHOD_CALL_EXPR => self.call_returns(&values[last]).get(k).cloned().unwrap_or_else(|| name("nil")),
+            CALL_EXPR | METHOD_CALL_EXPR => {
+                self.call_returns(&values[last]).get(k).cloned().or_else(|| self.call_tail(&values[last])).unwrap_or_else(|| name("nil"))
+            }
             VARARG_EXPR => self.vararg_type(&values[last]),
             _ if k == 0 => self.expr_type(&values[last]),
             _ => name("nil"),
+        }
+    }
+
+    /// What a call gives past its listed returns: the type a `---@return T ...`
+    /// (or `fun(): ...: T`) repeats, `unknown` for `---@return ...` or a
+    /// function whose `return` ends in `...` or a call; None: nil.
+    fn call_tail(&self, call: &SyntaxNode) -> Option<T> {
+        let callee = call.first_child()?;
+        let tail = |rets: &[crate::luacats::FunRet]| -> Option<T> {
+            let last = rets.last()?;
+            match &last.ty {
+                T::Dots => Some(unknown()),
+                t if last.name.as_deref() == Some("...") => Some(t.clone()),
+                _ => None,
+            }
+        };
+        let body = if call.kind() == METHOD_CALL_EXPR {
+            crate::api::method_name(call).and_then(|m| self.method_body(&callee, m.text()))
+        } else {
+            self.function_body(&callee)
+        };
+        if let Some(body) = body {
+            if let Some(stat) = self.doc_stat_of(&body) {
+                let rets: Vec<crate::luacats::FunRet> = stat_tags(self.text, &stat)
+                    .into_iter()
+                    .filter_map(|t| match t {
+                        Tag::Return { rets, .. } => Some(rets),
+                        _ => None,
+                    })
+                    .flatten()
+                    .collect();
+                if !rets.is_empty() {
+                    return tail(&rets);
+                }
+            }
+            // `return a, ...` / `return a, f()`.
+            let open = body.descendants().filter(|n| n.kind() == RETURN_STAT).any(|r| {
+                r.ancestors().find(|a| a.kind() == FUNC_BODY).as_ref() == Some(&body)
+                    && r.children().find(|c| c.kind() == EXPR_LIST).and_then(|l| l.children().last()).is_some_and(|v| matches!(v.kind(), VARARG_EXPR | CALL_EXPR | METHOD_CALL_EXPR))
+            });
+            return open.then(unknown);
+        }
+        match non_nil(self.expr_type(&callee)) {
+            T::Fun(f) => tail(&f.rets),
+            _ => None,
         }
     }
 
@@ -2872,7 +2925,25 @@ impl<'a> Infer<'a> {
                 } else {
                     self.callee_info(&callee)?
                 };
-                info.params.get(i).cloned().flatten()
+                let want = info.params.get(i).cloned().flatten()?;
+                // `---@generic T`, `f(t, function(v) end)` with `t: T[]`: the other
+                // arguments bind it; one left unbound is `unknown`.
+                if !info.generics.is_empty() && e.kind() == FUNCTION_EXPR {
+                    let mut map = HashMap::new();
+                    for (j, a) in args.iter().enumerate() {
+                        if j != i
+                            && a.kind() != FUNCTION_EXPR
+                            && let Some(Some(p)) = info.params.get(j)
+                        {
+                            bind(p, &self.expr_type(a), &info.generics, &mut map);
+                        }
+                    }
+                    for g in &info.generics {
+                        map.entry(g.clone()).or_insert_with(unknown);
+                    }
+                    return Some(subst(&want, &map, &info.generics, true));
+                }
+                Some(want)
             }
             FIELD_NAMED | FIELD_INDEXED | FIELD_POS => {
                 let ctor = parent.parent()?;
@@ -3824,6 +3895,25 @@ impl<'a> Infer<'a> {
             }
             // A table constructor's field.
             if let Some(ctor) = self.constructor(object) {
+                // `t[#t]`, `t[i]`: any of its integer-keyed values.
+                if let Key::Index(k) = key
+                    && !matches!(k, T::Int(_))
+                    && numeric(k).is_some()
+                {
+                    let vals: Vec<T> = ctor
+                        .children()
+                        .filter(|f| {
+                            f.kind() == FIELD_POS
+                                || (f.kind() == FIELD_INDEXED
+                                    && f.first_child().and_then(|k| k.first_token()).is_some_and(|t| t.kind() == NUMBER))
+                        })
+                        .filter_map(|f| f.children().last())
+                        .map(|v| self.expr_type(&v))
+                        .collect();
+                    if !vals.is_empty() {
+                        return union(vals);
+                    }
+                }
                 let mut pos = 0i64;
                 for f in ctor.children() {
                     let value = f.children().last();
@@ -3889,7 +3979,10 @@ impl<'a> Infer<'a> {
             T::Generic(n, args) if self.class_def(n).is_some_and(|c| !c.generics.is_empty()) => {
                 let c = self.class_def(n)?;
                 let map: HashMap<String, T> = c.generics.iter().cloned().zip(args.iter().cloned()).collect();
-                let t = self.member_of_type(&name(n), key)?;
+                let outer = self.generic_args.replace(true);
+                let t = self.member_of_type(&name(n), key);
+                self.generic_args.set(outer);
+                let t = t?;
                 Some(subst(&t, &map, &c.generics, true))
             }
             T::Name(n) => {
@@ -3932,6 +4025,11 @@ impl<'a> Infer<'a> {
                         }
                     };
                     if let Some(f) = def.fields.iter().find(|f| &f.name == k) {
+                        // A generic class named bare (`---@type Storage`): its `T` is `any`.
+                        if c == *n && !def.generics.is_empty() && !self.generic_args.get() {
+                            let map: HashMap<String, T> = def.generics.iter().map(|g| (g.clone(), name("any"))).collect();
+                            return Some(subst(&f.ty, &map, &def.generics, true));
+                        }
                         return Some(f.ty.clone());
                     }
                     todo.extend(def.parents.iter().cloned());
@@ -4643,6 +4741,13 @@ fn bind(pattern: &T, actual: &T, gens: &[String], out: &mut HashMap<String, T>) 
             bind(&pa[1], e, gens, out);
         }
         (T::Array(p), T::Array(a)) => bind(p, a, gens, out),
+        (T::Table(pf), T::Table(af)) => {
+            for p in pf {
+                if let Some(a) = af.iter().find(|a| a.key == p.key) {
+                    bind(&p.ty, &a.ty, gens, out);
+                }
+            }
+        }
         (T::Array(p), T::Generic(an, aa)) if an == "table" && aa.len() == 2 => bind(p, &aa[1], gens, out),
         (T::Fun(pf), T::Fun(af)) => {
             for (p, a) in pf.params.iter().zip(&af.params) {
@@ -4676,6 +4781,8 @@ fn subst(t: &T, map: &HashMap<String, T>, gens: &[String], top: bool) -> T {
         T::Union(ps) => union(ps.iter().map(|p| subst(p, map, gens, top)).collect()),
         T::Array(i) => T::Array(Box::new(s(i))),
         T::Generic(n, args) => T::Generic(n.clone(), args.iter().map(s).collect()),
+        T::Tuple(items) => T::Tuple(items.iter().map(s).collect()),
+        T::Table(fields) => T::Table(fields.iter().map(|f| crate::luacats::TableField { key: f.key.clone(), ty: s(&f.ty), optional: f.optional }).collect()),
         T::Fun(f) => {
             let mut f = (**f).clone();
             for p in &mut f.params {
