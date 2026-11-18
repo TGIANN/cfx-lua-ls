@@ -436,9 +436,11 @@ impl<'a> P<'a> {
 
     /// After `fun`: `(a: T, b?: U, ...: V): R1, R2`.
     fn fun(&mut self, is_async: bool) -> Option<DocType> {
-        // `fun<T>(...)`: the generic names are kept as plain names.
+        // `fun<T>(...)`: its generics become open ones (`<T>`), bound per call.
+        let mut gens = Vec::new();
         if self.eat("<") {
-            while self.name().is_some() {
+            while let Some(g) = self.name() {
+                gens.push(g);
                 if !self.eat(",") {
                     break;
                 }
@@ -484,7 +486,18 @@ impl<'a> P<'a> {
                 self.eat(")");
             }
         }
-        Some(DocType::Fun(Box::new(FunType { params, rets, is_async })))
+        let mut f = FunType { params, rets, is_async };
+        if !gens.is_empty() {
+            for p in &mut f.params {
+                if let Some(t) = &mut p.ty {
+                    open_generic_names(t, &gens);
+                }
+            }
+            for r in &mut f.rets {
+                open_generic_names(&mut r.ty, &gens);
+            }
+        }
+        Some(DocType::Fun(Box::new(f)))
     }
 
     /// After `{`: `a: T, [K]: V, b?: U }`.
@@ -518,6 +531,27 @@ impl<'a> P<'a> {
             }
         }
         Some(DocType::Table(fields))
+    }
+}
+
+/// `T` -> `<T>` for each name of `gens` in `t`.
+fn open_generic_names(t: &mut DocType, gens: &[String]) {
+    match t {
+        DocType::Name(n) if gens.contains(n) => *n = format!("<{n}>"),
+        DocType::Generic(_, items) | DocType::Union(items) | DocType::Tuple(items) => items.iter_mut().for_each(|i| open_generic_names(i, gens)),
+        DocType::Array(i) | DocType::Optional(i) => open_generic_names(i, gens),
+        DocType::Table(fields) => fields.iter_mut().for_each(|f| open_generic_names(&mut f.ty, gens)),
+        DocType::Fun(f) => {
+            for p in &mut f.params {
+                if let Some(t) = &mut p.ty {
+                    open_generic_names(t, gens);
+                }
+            }
+            for r in &mut f.rets {
+                open_generic_names(&mut r.ty, gens);
+            }
+        }
+        _ => {}
     }
 }
 

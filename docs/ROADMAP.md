@@ -235,7 +235,7 @@ error ("invalid UTF-8 code").
     chains stay linear. Checked by `crates/ide/tests/luals_types.rs` against
     LuaLS's `test/type_inference` (610 cases, extracted by
     `tools/extract_luals_types.py` with the LuaLS settings each runs under:
-    `expandAlias`, `enumsLimit`, `inferParamType`): 500 of the 608 scored
+    `expandAlias`, `enumsLimit`, `inferParamType`): 510 of the 608 scored
     cases pass; the `??` operator case (`runtime.nonstandardSymbol`) and the
     `runtime.special` one are not scored. The list of passing cases is kept so
     a regression fails the test. The inferred type prints as LuaLS prints it:
