@@ -234,8 +234,13 @@ error ("invalid UTF-8 code").
     `--[[@as T]]`, aliases; memoized per expression, so `s = s:gsub():gsub()`
     chains stay linear. Checked by `crates/ide/tests/luals_types.rs` against
     LuaLS's `test/type_inference` (610 cases, extracted by
-    `tools/extract_luals_types.py`): 422 pass, the list of passing cases is kept
-    so a regression fails the test.
+    `tools/extract_luals_types.py` with the LuaLS settings each runs under:
+    `expandAlias`, `enumsLimit`, `inferParamType`): 439 of the 608 scored
+    cases pass; the `??` operator case (`runtime.nonstandardSymbol`) and the
+    `runtime.special` one are not scored. The list of passing cases is kept so
+    a regression fails the test. The inferred type prints as LuaLS prints it:
+    union members sorted (basic types first, `nil` last), five then
+    `...(+N)`, aliases expanded.
   - Done: `undefined-doc-name`, silent when the resource or one it depends on
     or imports from has escrow files (corpus A's tgiann-core declares
     `ChangeClotheData` in an escrow file). 128 hits on the five corpora, all

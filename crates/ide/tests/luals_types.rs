@@ -6,17 +6,31 @@
 //! so the list stays true. `LUALS_TYPES_WRITE=1` rewrites the list;
 //! `LUALS_TYPES_SHOW=1` prints every failing case.
 
-use cfx_lua_ide::{TextSize, names, parse, type_at};
+use cfx_lua_ide::{TextSize, TypeSettings, names, parse, type_at_with};
 use serde_json::Value;
 use std::collections::BTreeSet;
 
-fn run(script: &str) -> Option<String> {
+fn run(script: &str, settings: &TypeSettings) -> Option<String> {
     let at = script.find("<?")?;
     let text = script.replacen("<?", "", 1).replacen("?>", "", 1);
     let text = text.replace("<?", "").replace("?>", "");
     let p = parse(&text);
     let n = names(&p, &text);
-    type_at(&p, &n, &text, TextSize::from(at as u32))
+    type_at_with(&p, &n, &text, TextSize::from(at as u32), settings)
+}
+
+/// The case's LuaLS settings; None for one not read here.
+fn settings_of(c: &Value) -> Option<TypeSettings> {
+    let mut s = TypeSettings::default();
+    for (k, v) in c["settings"].as_object()? {
+        match k.as_str() {
+            "Lua.hover.expandAlias" => s.expand_alias = v.as_bool()?,
+            "Lua.hover.enumsLimit" => s.enums_limit = v.as_u64()? as usize,
+            "Lua.type.inferParamType" => s.infer_param_type = v.as_bool()?,
+            _ => return None,
+        }
+    }
+    Some(s)
 }
 
 #[test]
@@ -26,11 +40,16 @@ fn luals_type_inference() {
     let show = std::env::var_os("LUALS_TYPES_SHOW").is_some();
     let mut passing = BTreeSet::new();
     let mut lost = Vec::new();
+    let mut unscored = Vec::new();
     for c in &data {
         let id = format!("{} {}", c["file"].as_str().unwrap(), c["n"]);
         let want = c["want"].as_str().unwrap();
         let script = c["script"].as_str().unwrap();
-        let got = std::panic::catch_unwind(|| run(script)).unwrap_or_else(|_| Some("<panic>".into()));
+        let Some(settings) = settings_of(c) else {
+            unscored.push(id);
+            continue;
+        };
+        let got = std::panic::catch_unwind(|| run(script, &settings)).unwrap_or_else(|_| Some("<panic>".into()));
         if got.as_deref() == Some(want) {
             passing.insert(id);
         } else {
@@ -42,7 +61,7 @@ fn luals_type_inference() {
             }
         }
     }
-    println!("{} of {} LuaLS type inference cases pass", passing.len(), data.len());
+    println!("{} of {} LuaLS type inference cases pass; not scored: {unscored:?}", passing.len(), data.len() - unscored.len());
     if std::env::var_os("LUALS_TYPES_WRITE").is_some() {
         let out: Vec<&str> = passing.iter().map(String::as_str).collect();
         std::fs::write(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/data/luals_types_pass.txt"), out.join("\n") + "\n").unwrap();
