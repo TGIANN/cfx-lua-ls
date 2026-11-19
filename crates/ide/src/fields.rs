@@ -273,13 +273,19 @@ fn fields<'a>(parse: &Parse, names: &'a Names) -> Fields<'a> {
 pub fn field_references(parse: &Parse, names: &Names, offset: TextSize) -> Option<Vec<(TextRange, bool)>> {
     let f = fields(parse, names);
     let sites = f.sites();
-    let at = sites.iter().find(|s| !s.dynamic && s.key.contains_inclusive(offset))?;
+    let root = parse.syntax();
+    // On the global `x` itself: the `_G.x` of the file, if any.
+    let global = || {
+        let r = names.refs.iter().find(|r| r.target == Target::Global && r.range.contains_inclusive(offset))?;
+        let name = root.text().slice(r.range).to_string();
+        sites.iter().find(|s| !s.dynamic && s.field == name && matches!((&s.owner.0, s.owner.1.as_slice()), (Base::Global(g), []) if g == "_G"))
+    };
+    let at = sites.iter().find(|s| !s.dynamic && s.key.contains_inclusive(offset)).or_else(global)?;
     let mut out: Vec<(TextRange, bool)> = sites.iter().filter(|s| !s.dynamic && s.field == at.field && s.owner == at.owner).map(|s| (s.key, s.write)).collect();
     // `_G.x` is the global `x`.
     if let (Base::Global(g), []) = (&at.owner.0, at.owner.1.as_slice())
         && g == "_G"
     {
-        let root = parse.syntax();
         out.extend(
             names
                 .refs

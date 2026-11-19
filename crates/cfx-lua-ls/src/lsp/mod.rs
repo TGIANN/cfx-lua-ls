@@ -630,6 +630,12 @@ impl Server<'_> {
             return Some(self.file_locations(&sites));
         }
         let names = doc.names()?;
+        // A global the file also writes as `_G.x`: both spellings.
+        if matches!(names.symbol_at(offset), Some(cfx_lua_ide::Symbol::Global(_)))
+            && let Some(sites) = cfx_lua_ide::field_references(doc.parse.as_ref()?, names, offset)
+        {
+            return Some(self.locations(&p.text_document_position.text_document.uri, doc, sites.into_iter().map(|(r, _)| r).collect()));
+        }
         let mut ranges = names.references(&doc.text, offset);
         if ranges.is_empty()
             && let Some(path) = format::file_path(&p.text_document_position.text_document.uri)
