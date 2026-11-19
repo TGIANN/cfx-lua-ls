@@ -311,8 +311,9 @@ pub fn doc_classes(text: &str) -> Vec<ClassDef> {
                             out[c].fields.push(DocField { name, ty, desc, visibility, offset });
                         }
                     }
-                    Tag::Field { key: Key::Index(k), ty, .. } => {
+                    Tag::Field { key: Key::Index(k), ty, optional, .. } => {
                         if let Some(c) = cur {
+                            let ty = if optional { DocType::Optional(Box::new(ty)) } else { ty };
                             out[c].indexes.push((k, ty));
                         }
                     }

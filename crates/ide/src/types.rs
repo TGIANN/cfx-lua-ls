@@ -902,6 +902,8 @@ impl<'a> FileTypes<'a> {
                     let Some(k) = self.key_text(k) else { continue };
                     (k, Some(v.clone()))
                 }
+                // `...` has no key of its own.
+                FIELD_POS if f.first_child().is_some_and(|v| v.kind() == VARARG_EXPR) => continue,
                 FIELD_POS => {
                     position += 1;
                     (format!("[{position}]"), f.children().next())
@@ -3051,11 +3053,15 @@ impl<'a> Infer<'a> {
                     stat.children().filter(|c| c.kind() == LOCAL_NAME).filter_map(|c| c.first_token()).collect();
                 let i = locals.iter().position(|t| t.text_range() == decl.range).unwrap_or(0);
                 if i == 0 {
+                    // Of several `---@class` lines the last one is the variable's.
+                    if let Some(c) = last_class_tag(self.text, &stat) {
+                        return name(&c);
+                    }
                     for tag in stat_tags(self.text, &stat) {
-                        match tag {
-                            Tag::Class { name: c, .. } => return name(&c),
-                            Tag::Type { tys } if !tys.is_empty() => return tys[0].clone(),
-                            _ => {}
+                        if let Tag::Type { tys } = tag
+                            && let Some(t) = tys.into_iter().next()
+                        {
+                            return t;
                         }
                     }
                 } else {
@@ -3972,13 +3978,15 @@ impl<'a> Infer<'a> {
         }
     }
 
-    /// `...` inside a function whose doc says `---@param ... T`: `T`.
+    /// `...` inside a function whose doc says `---@param ... T` (or
+    /// `---@vararg T`): `T`.
     fn vararg_type(&self, e: &SyntaxNode) -> T {
         let Some(stat) = e.ancestors().find(|a| a.kind() == FUNC_BODY).and_then(|b| self.doc_stat_of(&b)) else { return unknown() };
         stat_tags(self.text, &stat)
             .into_iter()
             .find_map(|t| match t {
                 Tag::Param { name, ty: Some(ty), .. } if name == "..." => Some(ty),
+                Tag::Vararg(ty) => Some(ty),
                 _ => None,
             })
             .unwrap_or_else(unknown)
@@ -3993,6 +4001,13 @@ impl<'a> Infer<'a> {
         }
         if stat.kind() != GENERIC_FOR_STAT {
             return unknown();
+        }
+        // `---@param k T` above the loop types its variable.
+        if let Some(t) = stat_tags(self.text, &stat).into_iter().find_map(|t| match t {
+            Tag::Param { name, ty: Some(ty), .. } if name == tok.text() => Some(ty),
+            _ => None,
+        }) {
+            return t;
         }
         let vars: Vec<SyntaxToken> =
             stat.children_with_tokens().filter_map(|e| e.into_token()).take_while(|t| t.kind() != IN_KW).filter(|t| t.kind() == NAME).collect();
@@ -4434,7 +4449,11 @@ impl<'a> Infer<'a> {
     fn expr_type_inner(&self, e: &SyntaxNode) -> T {
         match e.kind() {
             LITERAL_EXPR => e.first_token().and_then(|t| token_kind_type(&t)).unwrap_or_else(unknown),
-            TABLE_EXPR => name("table"),
+            // `{...}` alone is an array of what `...` holds.
+            TABLE_EXPR => match e.children().collect::<Vec<_>>().as_slice() {
+                [f] if f.kind() == FIELD_POS && f.first_child().is_some_and(|v| v.kind() == VARARG_EXPR) => T::Array(Box::new(self.vararg_type(f))),
+                _ => name("table"),
+            },
             FUNCTION_EXPR => name("function"),
             VARARG_EXPR => self.vararg_type(e),
             PAREN_EXPR => e.first_child().map_or_else(unknown, |c| self.expr_type(&c)),
