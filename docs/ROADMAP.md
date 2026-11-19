@@ -129,7 +129,7 @@ error ("invalid UTF-8 code").
     the `Lua.format` section and does not declare it (the sumneko extension does).
     The nearest `.editorconfig` from the file's folder up to its workspace folder
     replaces `defaultConfig`; the editor's `tabSize` / `insertSpaces` apply last.
-- [ ] **4. Names:** scopes, locals, globals, go to definition, references, rename,
+- [x] **4. Names:** scopes, locals, globals, go to definition, references, rename,
   highlight. Diagnostics: `undefined-global`, `unused-local`, `redefined-local`,
   `lowercase-global`, ...
   - Done: name resolution inside a file (`ide/src/names.rs`, one iterative
@@ -140,11 +140,14 @@ error ("invalid UTF-8 code").
     and its assignments, as LuaLS), references, document highlight (names, keyword
     partners, literals) and rename (with prepare), in the server.
   - Check: LuaLS `test/definition` (local, label, arg, set, function),
-    `references`, `highlight` and `rename`: 118 of 136 cases pass; the 18
-    skipped are a function value through returns, a duplicate label, Lua 5.5 `global`,
-    `_G.x`, a rename to a non-name or of a global's field, or commented out in
-    LuaLS; each listed with the reason in
-    `crates/ide/tests/luals_names.rs` (`tools/extract_luals_names.py`).
+    `references`, `highlight` and `rename`: 122 of 136 cases pass (`_G.x` as
+    the global `x`, `self` with its object's declaration, a returned function
+    found in the locals that receive it); the 14 not scored are a duplicate
+    label (a compile error in Lua 5.4), Lua 5.5 `global`, two cases commented
+    out in LuaLS, a rename of a global's field (refused: other files may use
+    it) and nine renames to a non-name (refused: LuaLS writes `_ENV["!!!"]`,
+    and `mt:!!!()` in two of them, which is not Lua); each listed with the
+    reason in `crates/ide/tests/luals_names.rs` (`tools/extract_luals_names.py`).
   - Done: field references, highlight and rename inside a file
     (`ide/src/fields.rs`). A field is named by its path from a local or a
     global: `t.a`, `t['a']`, `t[ [[a]] ]`, constructor fields under `local t =`

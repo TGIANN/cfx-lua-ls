@@ -525,7 +525,16 @@ impl Names {
 
     /// Every occurrence of the name at `offset` in this file, the declaration first.
     pub fn references(&self, text: &str, offset: TextSize) -> Vec<TextRange> {
-        self.symbol_at(offset).map(|s| self.occurrences(text, s).into_iter().map(|(r, _)| r).collect()).unwrap_or_default()
+        let Some(sym) = self.symbol_at(offset) else { return Vec::new() };
+        let mut out: Vec<TextRange> = self.occurrences(text, sym).into_iter().map(|(r, _)| r).collect();
+        // `self` of `function obj:m()` is `obj`: its declaration is listed too.
+        if let Symbol::Decl(d) = sym
+            && self.decls[d].kind == DeclKind::SelfParam
+            && let Some(Target::Decl(o)) = self.decls[d].self_of
+        {
+            out.insert(0, self.decls[o].range);
+        }
+        out
     }
 
     /// Like `references`, with whether each one writes.

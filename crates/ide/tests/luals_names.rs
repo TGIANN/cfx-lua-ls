@@ -4,7 +4,7 @@
 //! starts passing fails the test, so the list stays true.
 
 use cfx_lua_ide::workspace::{TypeTarget, Workspace};
-use cfx_lua_ide::{TextRange, TextSize, field_references, highlights, names, parse, rename};
+use cfx_lua_ide::{TextRange, TextSize, field_references, function_references, highlights, names, parse, rename};
 use serde_json::Value;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -55,21 +55,17 @@ const SKIP: &[(&str, &str, usize, &str)] = &[
     ("definition", "label", 5, "duplicate label: a compile error in Lua 5.4"),
     ("definition", "set", 6, "`global` declarations are Lua 5.5"),
     ("references", "all", 5, "case commented out in LuaLS"),
-    ("references", "all", 6, "function values through returns: LuaCATS types (phase 5)"),
-    ("references", "all", 7, "function values through returns: LuaCATS types (phase 5)"),
-    ("references", "common", 18, "`self` references with the object's declaration (LuaLS-specific)"),
-    ("references", "common", 23, "`_G.x` as the global `x`"),
     ("references", "common", 29, "case commented out in LuaLS"),
     ("rename", "init", 3, "a field of a global: rename refuses, other files may use it"),
-    ("rename", "init", 6, "new name that is not a Lua name (LuaLS writes `_ENV[...]` or a field path)"),
-    ("rename", "init", 7, "new name that is not a Lua name (LuaLS writes `_ENV[...]` or a field path)"),
-    ("rename", "init", 8, "new name that is not a Lua name (LuaLS writes `_ENV[...]` or a field path)"),
-    ("rename", "init", 9, "new name that is not a Lua name (LuaLS writes `_ENV[...]` or a field path)"),
-    ("rename", "init", 10, "new name that is not a Lua name (LuaLS writes `_ENV[...]` or a field path)"),
-    ("rename", "init", 11, "new name that is not a Lua name (LuaLS writes `_ENV[...]` or a field path)"),
-    ("rename", "init", 12, "new name that is not a Lua name (LuaLS writes `_ENV[...]` or a field path)"),
-    ("rename", "init", 13, "new name that is not a Lua name (LuaLS writes `_ENV[...]` or a field path)"),
-    ("rename", "init", 14, "new name that is not a Lua name (LuaLS writes `_ENV[...]` or a field path)"),
+    ("rename", "init", 6, "rename refuses a new name that is not a Lua name; LuaLS rewrites the code to `_ENV[\"!!!\"]` / `t[\"!!!\"]` and in cases 9 and 10 leaves `mt:!!!()`, which is not Lua"),
+    ("rename", "init", 7, "rename refuses a new name that is not a Lua name; LuaLS rewrites the code to `_ENV[\"!!!\"]` / `t[\"!!!\"]` and in cases 9 and 10 leaves `mt:!!!()`, which is not Lua"),
+    ("rename", "init", 8, "rename refuses a new name that is not a Lua name; LuaLS rewrites the code to `_ENV[\"!!!\"]` / `t[\"!!!\"]` and in cases 9 and 10 leaves `mt:!!!()`, which is not Lua"),
+    ("rename", "init", 9, "rename refuses a new name that is not a Lua name; LuaLS rewrites the code to `_ENV[\"!!!\"]` / `t[\"!!!\"]` and in cases 9 and 10 leaves `mt:!!!()`, which is not Lua"),
+    ("rename", "init", 10, "rename refuses a new name that is not a Lua name; LuaLS rewrites the code to `_ENV[\"!!!\"]` / `t[\"!!!\"]` and in cases 9 and 10 leaves `mt:!!!()`, which is not Lua"),
+    ("rename", "init", 11, "rename refuses a new name that is not a Lua name; LuaLS rewrites the code to `_ENV[\"!!!\"]` / `t[\"!!!\"]` and in cases 9 and 10 leaves `mt:!!!()`, which is not Lua"),
+    ("rename", "init", 12, "rename refuses a new name that is not a Lua name; LuaLS rewrites the code to `_ENV[\"!!!\"]` / `t[\"!!!\"]` and in cases 9 and 10 leaves `mt:!!!()`, which is not Lua"),
+    ("rename", "init", 13, "rename refuses a new name that is not a Lua name; LuaLS rewrites the code to `_ENV[\"!!!\"]` / `t[\"!!!\"]` and in cases 9 and 10 leaves `mt:!!!()`, which is not Lua"),
+    ("rename", "init", 14, "rename refuses a new name that is not a Lua name; LuaLS rewrites the code to `_ENV[\"!!!\"]` / `t[\"!!!\"]` and in cases 9 and 10 leaves `mt:!!!()`, which is not Lua"),
 ];
 
 /// The script without its markers and the marked ranges per marker character.
@@ -85,8 +81,13 @@ fn catch(script: &str) -> (String, Vec<(char, TextRange)>) {
             i += 2;
             continue;
         }
-        if b"!?~".contains(&b[i]) && b.get(i + 1) == Some(&b'>') && open.last().is_some_and(|(c, _)| *c == b[i] as char) {
-            let (c, start) = open.pop().unwrap();
+        // Marks may overlap (`<~<!function~> () end!>`): a close ends the
+        // latest open mark of its kind.
+        if b"!?~".contains(&b[i])
+            && b.get(i + 1) == Some(&b'>')
+            && let Some(k) = open.iter().rposition(|(c, _)| *c == b[i] as char)
+        {
+            let (c, start) = open.remove(k);
             marks.push((c, TextRange::new(TextSize::from(start as u32), TextSize::from(out.len() as u32))));
             i += 2;
             continue;
@@ -156,6 +157,9 @@ fn run(case: &Value) -> Option<String> {
             }
             if got.is_empty() {
                 got = field_references(&p, &n, input.start()).unwrap_or_default().into_iter().map(|(r, _)| r).collect();
+            }
+            if got.is_empty() {
+                got = function_references(&p, &n, input.start()).unwrap_or_default();
             }
             let got = sorted(got);
             let want = sorted(of(&marks, "!~"));
