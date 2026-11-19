@@ -240,7 +240,11 @@ pub fn type_at_with(parse: &Parse, names: &Names, text: &str, offset: TextSize, 
     let tok = root.token_at_offset(offset).right_biased()?;
     let inf = Infer::new(root, names, text);
     inf.infer_params.set(settings.infer_param_type);
-    let mut t = inf.token_type(&tok)?;
+    let mut t = match inf.token_type(&tok) {
+        Some(t) => t,
+        None if tok.kind() == COMMENT => inf.doc_self_type(&tok, offset)?,
+        None => return None,
+    };
     if settings.expand_alias {
         t = inf.view_aliases(&t);
     }
@@ -2767,6 +2771,15 @@ fn float_misfits(t: &T) -> bool {
 
 /// `---@alias Name T` (with `---|` lines adding members), and the generic
 /// names of `---@alias Name<T> ...`.
+/// An alias declared again (`---@alias (partial) A boolean`) adds its type.
+fn add_alias(out: &mut HashMap<String, T>, n: String, t: T) {
+    let t = match out.remove(&n) {
+        Some(old) => union(vec![old, t]),
+        None => t,
+    };
+    out.insert(n, t);
+}
+
 pub(crate) fn doc_aliases(text: &str) -> (HashMap<String, T>, HashMap<String, Vec<String>>) {
     let mut out = HashMap::new();
     let mut gens = HashMap::new();
@@ -2779,7 +2792,7 @@ pub(crate) fn doc_aliases(text: &str) -> (HashMap<String, T>, HashMap<String, Ve
                 match t.tag {
                     Tag::Alias { name, ty, generics } => {
                         if let Some((n, parts)) = cur.take() {
-                            out.insert(n, union(parts));
+                            add_alias(&mut out, n, union(parts));
                         }
                         if !generics.is_empty() {
                             gens.insert(name.clone(), generics);
@@ -2795,7 +2808,7 @@ pub(crate) fn doc_aliases(text: &str) -> (HashMap<String, T>, HashMap<String, Ve
                 }
             }
             if let Some((n, parts)) = cur {
-                out.insert(n, union(parts));
+                add_alias(&mut out, n, union(parts));
             }
         }
         run.clear();
@@ -3426,7 +3439,8 @@ impl<'a> Infer<'a> {
             .token_at_offset(w.range.start())
             .right_biased()
             .and_then(|t| t.parent())
-            .and_then(|e| self.assigned_value(&e))
+            // `function f() end` sets it too.
+            .and_then(|e| if e.kind() == FUNC_NAME { Some(name("function")) } else { self.assigned_value(&e) })
             .unwrap_or_else(unknown)
     }
 
@@ -3520,6 +3534,11 @@ impl<'a> Infer<'a> {
     /// `---@cast` lines standing alone (blank lines around them) right before
     /// the statement `s`.
     fn detached_cast(&self, s: &SyntaxNode, d: usize) -> Option<Effect> {
+        self.cast_in(self.detached_tags(s), d)
+    }
+
+    /// The doc tags of comment lines standing alone right before `s`.
+    fn detached_tags(&self, s: &SyntaxNode) -> Vec<Tag> {
         let mut lines = Vec::new();
         let mut at = s.prev_sibling_or_token();
         while let Some(rowan::NodeOrToken::Token(t)) = at {
@@ -3535,10 +3554,10 @@ impl<'a> Infer<'a> {
             at = t.prev_sibling_or_token();
         }
         if !lines.iter().any(|(_, l)| l.contains("@cast")) {
-            return None;
+            return Vec::new();
         }
         lines.reverse();
-        self.cast_in(crate::luacats::parse_lines(lines).0.into_iter().map(|t| t.tag).collect(), d)
+        crate::luacats::parse_lines(lines).0.into_iter().map(|t| t.tag).collect()
     }
 
     fn cast_in(&self, tags: Vec<Tag>, d: usize) -> Option<Effect> {
@@ -3801,6 +3820,21 @@ impl<'a> Infer<'a> {
             .children()
             .find(|c| c.kind() == PARAM_LIST)
             .and_then(|l| l.children().filter(|p| p.kind() == PARAM).position(|p| p.first_token().as_ref() == Some(tok)));
+        // `---@param x integer` above `local arr = f(function (x) end)`: the
+        // statement's first function takes its `---@param`s.
+        if stat.is_none()
+            && holder.kind() == FUNCTION_EXPR
+            && let Some(st) = holder.ancestors().find(|a| matches!(a.kind(), LOCAL_STAT | ASSIGN_STAT))
+            && st.descendants().find(|n| n.kind() == FUNCTION_EXPR).as_ref() == Some(&holder)
+        {
+            for tag in stat_tags(self.text, &st) {
+                if let Tag::Param { name: n, ty: Some(t), optional, .. } = tag
+                    && n == pname
+                {
+                    return if optional { T::Optional(Box::new(t)) } else { t };
+                }
+            }
+        }
         if let Some(stat) = &stat {
             let tags = stat_tags(self.text, stat);
             for tag in &tags {
@@ -5081,6 +5115,35 @@ impl<'a> Infer<'a> {
     /// block does not set it before the read.
     fn global_read(&self, e: &SyntaxNode, g: &str) -> T {
         let mut t = self.global_type(g);
+        // The last `---@cast X ...` above the read, in its block or around it,
+        // with no write to it after.
+        if self.text.contains(&format!("@cast {g}")) {
+            'up: for n in e.ancestors() {
+                let Some(b) = n.parent().filter(|b| b.kind() == BLOCK) else { continue };
+                let _ = b;
+                let mut cur = Some(n.clone());
+                while let Some(st) = cur {
+                    if let Some(ops) = stat_tags(self.text, &st).into_iter().chain(self.detached_tags(&st)).find_map(|t| match t {
+                        Tag::Cast { name: c, ops } if c == g => Some(ops),
+                        _ => None,
+                    }) {
+                        for (op, c) in ops {
+                            t = match op {
+                                '+' => union(vec![t, c]),
+                                '-' => union(members_of(&t).into_iter().filter(|m| *m != c).collect()),
+                                '?' => T::Optional(Box::new(t)),
+                                _ => c,
+                            };
+                        }
+                        break 'up;
+                    }
+                    if st != n && st.kind() == ASSIGN_STAT && st.children().find(|c| c.kind() == VAR_LIST).is_some_and(|l| l.children().any(|v| v.kind() == NAME_EXPR && &self.text[v.text_range()] == g)) {
+                        break 'up;
+                    }
+                    cur = st.prev_sibling();
+                }
+            }
+        }
         let is_g = |n: &SyntaxNode| {
             n.kind() == NAME_EXPR && &self.text[n.text_range()] == g && n.first_token().and_then(|t| self.ref_at(t.text_range())).is_some_and(|r| r.target == Target::Global)
         };
@@ -5130,6 +5193,34 @@ impl<'a> Infer<'a> {
             }
         }
         t
+    }
+
+    /// `self` in a doc comment (`---@field x self`, `---@return self`): the
+    /// class the comment declares, else the object of the `function obj:m()`
+    /// it documents.
+    fn doc_self_type(&self, tok: &SyntaxToken, offset: TextSize) -> Option<T> {
+        let at = usize::from(offset);
+        let word = |c: u8| c.is_ascii_alphanumeric() || c == b'_';
+        let b = self.text.as_bytes();
+        let start = (0..at).rev().take_while(|i| word(b[*i])).last().unwrap_or(at);
+        let end = (at..b.len()).take_while(|i| word(b[*i])).last().map_or(at, |i| i + 1);
+        if &self.text[start..end] != "self" {
+            return None;
+        }
+        // The doc lines above, up to the first that is not one.
+        let line_start = self.text[..start].rfind('\n').map_or(0, |i| i + 1);
+        for line in self.text[..line_start].lines().rev().take_while(|l| l.trim_start().starts_with("---")) {
+            if let Some(rest) = line.trim_start().trim_start_matches('-').trim_start().strip_prefix("@class") {
+                let n: String = rest.trim_start().chars().take_while(|c| c.is_alphanumeric() || *c == '_' || *c == '.').collect();
+                if !n.is_empty() {
+                    return Some(name(&n));
+                }
+            }
+        }
+        // The comment leads the statement it documents.
+        let stat = tok.parent_ancestors().find(|n| n.kind() == FUNCTION_STAT)?;
+        let colon = stat.children().find(|c| c.kind() == FUNC_NAME)?.children_with_tokens().filter_map(|e| e.into_token()).find(|t| t.kind() == COLON)?;
+        Some(self.self_type(&colon))
     }
 
     /// The value a local is declared with (`local m = <value>`).
@@ -5206,7 +5297,8 @@ impl<'a> Infer<'a> {
                             (w, k) if w == k => true,
                             (w, k) => numeric(w).is_some() && numeric(k).is_some() || is(w, "any"),
                         };
-                        if let Some(v) = def.indexes.iter().find(|(want, _)| fits(want)).map(|(_, v)| v.clone()) {
+                        // `[2]` before any numeric key.
+                        if let Some(v) = def.indexes.iter().find(|(want, _)| want == kt).or_else(|| def.indexes.iter().find(|(want, _)| fits(want))).map(|(_, v)| v.clone()) {
                             return Some(v);
                         }
                         // `---@class listB<T>: { [integer]: T }`.
@@ -5243,6 +5335,8 @@ impl<'a> Infer<'a> {
                     if let Some(first) = same.first() {
                         // A function field declared on several lines is each of them.
                         let ty = if same.len() > 1 && same.iter().all(|t| matches!(t, T::Fun(_))) { T::Union(same.iter().map(|t| (*t).clone()).collect()) } else { (*first).clone() };
+                        // `---@field x self`: the class itself.
+                        let ty = if is(&ty, "self") { name(n) } else { ty };
                         // A generic class named bare (`---@type Storage`): its `T` is `any`.
                         if c == *n && !def.generics.is_empty() && !self.generic_args.get() {
                             let map: HashMap<String, T> = def.generics.iter().map(|g| (g.clone(), name("any"))).collect();
@@ -6267,6 +6361,16 @@ impl<'a> Infer<'a> {
                 continue;
             }
             returns += 1;
+            // `---@type A` above `return {}`.
+            if let Some(Tag::Type { tys }) = stat_tags(self.text, &r).into_iter().find(|t| matches!(t, Tag::Type { .. })) {
+                for (i, t) in tys.into_iter().enumerate() {
+                    if cols.len() <= i {
+                        cols.push(if returns > 1 { vec![name("nil")] } else { Vec::new() });
+                    }
+                    cols[i].push(t);
+                }
+                continue;
+            }
             let values: Vec<SyntaxNode> = r.children().find(|c| c.kind() == EXPR_LIST).map(|l| l.children().collect()).unwrap_or_default();
             let n = match values.last().map(|v| v.kind()) {
                 Some(CALL_EXPR | METHOD_CALL_EXPR) => values.len() - 1 + self.call_returns(values.last().unwrap()).len().max(1),

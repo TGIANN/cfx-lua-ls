@@ -60,14 +60,25 @@ pub(super) fn run(l: &mut Linter) {
     // duplicate-doc-alias: an alias declared twice, or named like a class.
     let mut aliases: Vec<(&str, TextRange)> = Vec::new();
     let mut classes: Vec<&str> = Vec::new();
+    // A name with a `---@alias (partial)` declaration may be declared again.
+    let mut partial: Vec<&str> = Vec::new();
     for t in groups.iter().flat_map(|g| &g.tags) {
         match &t.tag {
-            Tag::Alias { name, .. } => aliases.push((name, t.name.unwrap_or(t.range))),
+            Tag::Alias { name, .. } => {
+                aliases.push((name, t.name.unwrap_or(t.range)));
+                let line = &l.text[t.range];
+                if line.split_once("@alias").is_some_and(|(_, rest)| rest.trim_start().starts_with('(') && rest.split(')').next().is_some_and(|a| a.contains("partial"))) {
+                    partial.push(name);
+                }
+            }
             Tag::Class { name, .. } => classes.push(name),
             _ => {}
         }
     }
     for (name, range) in &aliases {
+        if partial.contains(name) {
+            continue;
+        }
         if classes.contains(name) || aliases.iter().filter(|(n, _)| n == name).count() > 1 {
             l.push("duplicate-doc-alias", *range, format!("Duplicate defined alias `{name}`."));
         }

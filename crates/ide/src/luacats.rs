@@ -782,6 +782,15 @@ fn parse_line(text: &str, at: TextSize, errors: &mut Vec<DocError>) -> Option<Do
             Tag::Type { tys }
         }
         "alias" => {
+            // `---@alias (partial) A boolean`: its attributes.
+            if p.eat("(") {
+                while p.name().is_some() {
+                    if !p.eat(",") {
+                        break;
+                    }
+                }
+                p.eat(")");
+            }
             name_range = span(&p, p.i);
             let Some(name) = p.name() else {
                 miss(&p, "luadoc-miss-alias-name", errors);
