@@ -1091,7 +1091,11 @@ fn write_view(t: &DocType, s: &mut String, depth: usize) {
                 if i > 0 {
                     s.push_str(", ");
                 }
-                write_view(a, s, depth + 1);
+                // An open generic shows bare inside `table<K, V>` (LuaLS).
+                match a {
+                    DocType::Name(g) if g.len() > 2 && g.starts_with('<') && g.ends_with('>') => s.push_str(&g[1..g.len() - 1]),
+                    a => write_view(a, s, depth + 1),
+                }
             }
             s.push('>');
         }
