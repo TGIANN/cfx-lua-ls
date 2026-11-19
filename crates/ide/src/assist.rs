@@ -426,14 +426,53 @@ fn render_doc(doc: &str) -> String {
     out
 }
 
-fn render_items(items: &[&LibItem]) -> String {
+fn render_items(path: &str, items: &[&LibItem]) -> String {
     let lib = library();
     items
         .iter()
         .take(3)
-        .map(|i| format!("```lua\n{}\n```\n{}", lib.declaration(i), render_doc(&lib.doc(i))))
+        .map(|i| {
+            let code = if i.function { lib.signature(i) } else { library_value(path).unwrap_or_else(|| lib.declaration(i)) };
+            format!("```lua\n{code}\n```\n{}", render_doc(&lib.doc(i)))
+        })
         .collect::<Vec<_>>()
         .join("\n\n---\n\n")
+}
+
+/// `(global) utf8: utf8lib {` with the class's members, for a table global
+/// of the library or a `---@field` of one (`io.stderr: file*`).
+fn library_value(path: &str) -> Option<String> {
+    let class = match crate::library::global_class(path) {
+        Some(c) => c,
+        None => {
+            let (owner, key) = path.rsplit_once('.')?;
+            let owner_class = crate::library::global_class(owner)?;
+            let (_, ty) = crate::library::class_members(&owner_class).into_iter().find(|(n, _)| n == key)?;
+            crate::luacats::view(&ty)
+        }
+    };
+    let mut fields: Vec<(String, String)> = crate::library::class_members(&class)
+        .into_iter()
+        .map(|(n, t)| match t {
+            crate::luacats::DocType::Optional(i) => (format!("{n}?"), crate::luacats::view(&i)),
+            t => (n, crate::luacats::view(&t)),
+        })
+        .collect();
+    let rank = |k: &str| (if k.starts_with('_') { 10 } else { 0 }) + i32::from(k.starts_with('['));
+    fields.sort_by(|a, b| rank(&a.0).cmp(&rank(&b.0)).then_with(|| a.0.cmp(&b.0)));
+    let mut code = format!("(global) {path}: {class}");
+    if !fields.is_empty() {
+        code.push_str(" {");
+        let more = fields.len().saturating_sub(50);
+        for (n, t) in fields.into_iter().take(50) {
+            code.push_str(&format!("\n    {n}: {t},"));
+        }
+        if more > 0 {
+            code.push_str(&format!("\n    ...(+{more})"));
+        }
+        code.push_str("\n}");
+    }
+    Some(code)
 }
 
 fn name_token(parse: &Parse, offset: TextSize) -> Option<SyntaxToken> {
@@ -484,7 +523,11 @@ pub fn hover(parse: &Parse, names: &Names, text: &str, offset: TextSize, cx: Fil
     if let Some(path) = &path {
         let items = items_for(path, cx.game);
         if !items.is_empty() {
-            return Some(Hover { range, markdown: render_items(&items) });
+            return Some(Hover { range, markdown: render_items(path, &items) });
+        }
+        // A `---@field` of a library table (`io.stderr`).
+        if let Some(code) = library_value(path) {
+            return Some(Hover { range, markdown: format!("```lua\n{code}\n```") });
         }
     }
     // A global or a field the file gives a value, a function of it.
@@ -568,14 +611,16 @@ pub fn hover(parse: &Parse, names: &Names, text: &str, offset: TextSize, cx: Fil
     };
     let mut code = code;
     if matches!(d.kind, DeclKind::Local | DeclKind::LocalFunction | DeclKind::Param | DeclKind::ForVar | DeclKind::SelfParam) {
-        let mut types = Vec::new();
-        if let Some((ws, file)) = cx.ws
+        // What the file alone tells (literals, operators, doc tags, narrowing),
+        // else what the workspace knows (another file's export, a native).
+        let mut types: Vec<String> = crate::types::type_at(parse, names, text, range.start()).filter(|t| t != "unknown" && t != "any").into_iter().collect();
+        if types.is_empty()
+            && let Some((ws, file)) = cx.ws
             && let Some(Symbol::Decl(i)) = names.symbol_at(range.start())
         {
             let overlay = api::file_api_full(parse, text, names);
             types = ws.type_views(file, Some(&overlay), &Ref::Local(i as u32));
         }
-        // What the file alone tells: literals, operators, doc tags, narrowing.
         if types.is_empty()
             && let Some(t) = crate::types::type_at(parse, names, text, range.start())
         {

@@ -24,13 +24,30 @@ pub enum DocType {
     Table(Vec<TableField>),
     /// `[A, B]`.
     Tuple(Vec<DocType>),
-    Str(String),
+    Str(String, Quote),
     Int(i64),
     Bool(bool),
     /// `` `T` ``: a generic captured from a string argument.
     Code(String),
     /// `...` (in a name position: unknown values).
     Dots,
+}
+
+/// The quote a string type was written with (`"b"` shows with it). It takes
+/// no part in comparing types.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct Quote(pub bool);
+
+impl PartialEq for Quote {
+    fn eq(&self, _: &Self) -> bool {
+        true
+    }
+}
+
+impl Eq for Quote {}
+
+impl std::hash::Hash for Quote {
+    fn hash<H: std::hash::Hasher>(&self, _: &mut H) {}
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -130,7 +147,8 @@ const MAX_DEPTH: usize = 32;
 #[derive(Debug, Clone, PartialEq)]
 enum Tok {
     Name(String),
-    Str(String),
+    /// Content, and whether it was written with `"`.
+    Str(String, bool),
     Int(i64),
     Code(String),
     Sym(&'static str),
@@ -200,7 +218,7 @@ fn lex(s: &str) -> Lexed {
                     j += ch_len;
                 }
                 let end = (j + 1).min(b.len());
-                toks.push((Tok::Str(out), start, end));
+                toks.push((Tok::Str(out, c == b'"'), start, end));
                 i = end;
             }
             b'`' => {
@@ -380,10 +398,10 @@ impl<'a> P<'a> {
                 self.i += 1;
                 DocType::Name(n)
             }
-            Tok::Str(s) => {
-                let s = s.clone();
+            Tok::Str(s, double) => {
+                let (s, double) = (s.clone(), *double);
                 self.i += 1;
-                DocType::Str(s)
+                DocType::Str(s, Quote(double))
             }
             Tok::Int(v) => {
                 let v = *v;
@@ -480,14 +498,13 @@ impl<'a> P<'a> {
         if self.eat(":") {
             let paren = self.eat("(");
             loop {
-                // `name: T` returns, and `...: T` / `...T` for the rest.
+                // `name: T` returns, and `...: T` for the rest.
                 let mut name = None;
                 if let (Some(Tok::Name(n)), Some(Tok::Sym(":"))) = (self.peek(), self.peek_at(1)) {
                     name = Some(n.clone());
                     self.i += 2;
-                } else if matches!(self.peek(), Some(Tok::Sym("..."))) && !matches!(self.peek_at(1), None | Some(Tok::Sym("," | ")"))) {
-                    self.i += 1;
-                    self.eat(":");
+                } else if matches!(self.peek(), Some(Tok::Sym("..."))) && matches!(self.peek_at(1), Some(Tok::Sym(":"))) {
+                    self.i += 2;
                     name = Some("...".to_string());
                 }
                 let Some(ty) = self.ty() else { break };
@@ -550,7 +567,7 @@ impl<'a> P<'a> {
 }
 
 /// `T` -> `<T>` for each name of `gens` in `t`.
-fn open_generic_names(t: &mut DocType, gens: &[String]) {
+pub(crate) fn open_generic_names(t: &mut DocType, gens: &[String]) {
     match t {
         DocType::Name(n) if gens.contains(n) => *n = format!("<{n}>"),
         DocType::Generic(_, items) | DocType::Union(items) | DocType::Tuple(items) => items.iter_mut().for_each(|i| open_generic_names(i, gens)),
@@ -882,7 +899,7 @@ fn parse_line(text: &str, at: TextSize, errors: &mut Vec<DocError>) -> Option<Do
         "public" => Tag::Visibility(Visibility::Public),
         "package" => Tag::Visibility(Visibility::Package),
         "module" => match p.peek() {
-            Some(Tok::Str(s)) => Tag::Module(s.clone()),
+            Some(Tok::Str(s, _)) => Tag::Module(s.clone()),
             _ => {
                 miss(&p, "luadoc-miss-module-name", errors);
                 return None;
@@ -1181,10 +1198,13 @@ fn write_view(t: &DocType, s: &mut String, depth: usize) {
             }
             s.push(']');
         }
-        DocType::Str(v) => {
-            s.push('\'');
+        // `"'a'"`, a quoted literal in a string, shows as that literal.
+        DocType::Str(v, _) if v.len() >= 2 && (v.starts_with('\'') && v.ends_with('\'') || v.starts_with('"') && v.ends_with('"')) => s.push_str(v),
+        DocType::Str(v, q) => {
+            let c = if q.0 { '"' } else { '\'' };
+            s.push(c);
             s.push_str(v);
-            s.push('\'');
+            s.push(c);
         }
         DocType::Int(v) => s.push_str(&v.to_string()),
         DocType::Bool(v) => s.push_str(if *v { "true" } else { "false" }),
@@ -1274,7 +1294,7 @@ mod tests {
         assert_eq!(t[5], Tag::Nodiscard);
         let t = tags("---@alias Side\n---| 'client' # the client\n---| 'server'\n");
         assert!(matches!(&t[0], Tag::Alias { name, ty: None, .. } if name == "Side"));
-        assert_eq!(t[1], Tag::AliasValue { ty: DocType::Str("client".into()), desc: "the client".into() });
+        assert_eq!(t[1], Tag::AliasValue { ty: DocType::Str("client".into(), Quote::default()), desc: "the client".into() });
         let t = tags("---@field private secret string\n---@field private string\n---@generic T: table, K\n---@cast x +string\n---@operator add(vector3|number): vector3\n");
         assert!(matches!(&t[0], Tag::Field { visibility: Some(Visibility::Private), key: Key::Name(n), .. } if n == "secret"));
         assert!(matches!(&t[1], Tag::Field { visibility: None, key: Key::Name(n), .. } if n == "private"));
