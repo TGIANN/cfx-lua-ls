@@ -574,3 +574,70 @@ fn class_fields_and_names_across_files() {
     c.shutdown(handle);
     std::fs::remove_dir_all(&root).unwrap();
 }
+
+#[test]
+fn style_and_spell_checks_from_client_settings() {
+    let root = std::env::temp_dir().join(format!("cfx-lua-ls-style-{}", std::process::id()));
+    std::fs::create_dir_all(&root).unwrap();
+    let to_uri = |p: &std::path::Path| {
+        let s = p.to_string_lossy().replace('\\', "/").replace(' ', "%20");
+        if s.starts_with('/') { format!("file://{s}") } else { format!("file:///{s}") }
+    };
+    let file = to_uri(&root.join("client.lua"));
+    let (mut c, handle) = Client::start_with(json!({
+        "capabilities": {},
+        "workspaceFolders": [{ "uri": to_uri(&root), "name": "w" }],
+        "initializationOptions": { "spellAddWord": true },
+    }));
+    let any = json!({ "spell-check": "Any", "name-style-check": "Any", "codestyle-check": "Any" });
+    c.notify("workspace/didChangeConfiguration", json!({ "settings": { "Lua": { "diagnostics": { "neededFileStatus": any } } } }));
+    let text = "local playerNmae=1\nprint(playerNmae, \"abc\")\n";
+    c.notify("textDocument/didOpen", json!({ "textDocument": { "uri": file, "languageId": "lua", "version": 1, "text": text } }));
+    let codes = |d: &Value| -> Vec<(String, String)> {
+        d["diagnostics"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|x| (x["code"].as_str().unwrap().to_string(), x["message"].as_str().unwrap().to_string()))
+            .collect()
+    };
+    let d = codes(&c.diagnostics());
+    for code in ["name-style-check", "spell-check", "codestyle-check"] {
+        assert!(d.iter().any(|(c, _)| c == code), "{code}: {d:?}");
+    }
+    assert!(!d.iter().any(|(_, m)| m.contains("should be")), "{d:?}");
+    let actions = c.request(
+        "textDocument/codeAction",
+        json!({ "textDocument": { "uri": file }, "range": { "start": { "line": 0, "character": 13 }, "end": { "line": 0, "character": 13 } }, "context": { "diagnostics": [] } }),
+    );
+    let titles: Vec<&str> = actions.as_array().unwrap().iter().map(|a| a["title"].as_str().unwrap()).collect();
+    assert!(titles.contains(&"Add 'Nmae' to workspace dict"), "{titles:?}");
+    assert!(titles.contains(&"Name"), "{titles:?}");
+    // codestyle-check follows an `.editorconfig` written after the file opened.
+    std::fs::write(root.join(".editorconfig"), "root = true\n\n[*.lua]\nquote_style = single\n").unwrap();
+    c.notify(
+        "workspace/didChangeWatchedFiles",
+        json!({ "changes": [{ "uri": to_uri(&root.join(".editorconfig")), "type": 1 }] }),
+    );
+    let d = codes(&c.diagnostics());
+    assert!(d.iter().any(|(c, m)| c == "codestyle-check" && m.starts_with("\" should be '")), "{d:?}");
+    c.shutdown(handle);
+    std::fs::remove_dir_all(&root).unwrap();
+}
+
+#[test]
+fn spell_add_word_only_for_clients_that_run_it() {
+    let (mut c, handle) = Client::start(json!({}));
+    c.notify(
+        "workspace/didChangeConfiguration",
+        json!({ "settings": { "Lua": { "diagnostics": { "neededFileStatus": { "spell-check": "Any" } } } } }),
+    );
+    open(&c, URI, "local playerNmae = 1\nprint(playerNmae)\n");
+    let actions = c.request(
+        "textDocument/codeAction",
+        json!({ "textDocument": { "uri": URI }, "range": { "start": { "line": 0, "character": 13 }, "end": { "line": 0, "character": 13 } }, "context": { "diagnostics": [] } }),
+    );
+    let titles: Vec<&str> = actions.as_array().unwrap().iter().map(|a| a["title"].as_str().unwrap()).collect();
+    assert!(titles.contains(&"Name") && !titles.iter().any(|t| t.starts_with("Add '")), "{titles:?}");
+    c.shutdown(handle);
+}

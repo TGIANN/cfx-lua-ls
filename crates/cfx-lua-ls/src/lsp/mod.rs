@@ -94,6 +94,12 @@ pub(crate) fn serve(connection: &Connection) -> Result<(), Error> {
             .and_then(|w| w.inlay_hint.as_ref())
             .and_then(|h| h.refresh_support)
             .unwrap_or(false),
+        spell_add_word: params
+            .initialization_options
+            .as_ref()
+            .and_then(|o| o.get("spellAddWord"))
+            .and_then(serde_json::Value::as_bool)
+            .unwrap_or(false),
         next_id: 0,
     };
     for message in &connection.receiver {
@@ -190,6 +196,9 @@ struct Server<'c> {
     client_settings: Option<serde_json::Value>,
     /// The client asks for inlay hints again on `workspace/inlayHint/refresh`.
     inlay_refresh: bool,
+    /// The client runs `cfxLuaLs.spell.addWord` (`initializationOptions.spellAddWord`,
+    /// sent by the VS Code extension).
+    spell_add_word: bool,
     /// Ids of the requests the server sends.
     next_id: i32,
 }
@@ -848,6 +857,9 @@ impl Server<'_> {
                     let Some(path) = format::file_path(&event.uri) else { continue };
                     if crate::config::is_luarc(&path) {
                         config = true;
+                    } else if path.file_name().is_some_and(|n| n == ".editorconfig") {
+                        // codestyle-check reads it.
+                        changed = true;
                     } else if event.typ == lsp_types::FileChangeType::DELETED {
                         changed |= self.ws.remove(&path);
                     } else if !self.docs.contains_key(&event.uri) {
@@ -981,21 +993,23 @@ impl Server<'_> {
             }));
         }
         // spell-check, as LuaLS's `solveSpell`: add the word to `Lua.spell.dict`
-        // (a client command; the VS Code extension handles it), then the
+        // (a client command, offered to clients that run it), then the
         // dictionary's closest words.
         for l in lints.iter().filter(|l| l.code == "spell-check") {
             let word = &doc.text[l.range];
-            out.push(lsp_types::CodeActionOrCommand::CodeAction(lsp_types::CodeAction {
-                title: format!("Add '{word}' to workspace dict"),
-                kind: Some(lsp_types::CodeActionKind::QUICKFIX),
-                diagnostics: Some(vec![self.lint_diagnostic(doc, l)]),
-                command: Some(lsp_types::Command {
-                    title: "Add Word to dictionary".into(),
-                    command: "cfxLuaLs.spell.addWord".into(),
-                    arguments: Some(vec![serde_json::Value::String(word.to_string())]),
-                }),
-                ..Default::default()
-            }));
+            if self.spell_add_word {
+                out.push(lsp_types::CodeActionOrCommand::CodeAction(lsp_types::CodeAction {
+                    title: format!("Add '{word}' to workspace dict"),
+                    kind: Some(lsp_types::CodeActionKind::QUICKFIX),
+                    diagnostics: Some(vec![self.lint_diagnostic(doc, l)]),
+                    command: Some(lsp_types::Command {
+                        title: "Add Word to dictionary".into(),
+                        command: "cfxLuaLs.spell.addWord".into(),
+                        arguments: Some(vec![serde_json::Value::String(word.to_string())]),
+                    }),
+                    ..Default::default()
+                }));
+            }
             for suggest in cfx_lua_ide::lint::spell_suggest(word) {
                 let range = convert::range(&doc.index, l.range, self.encoding);
                 out.push(lsp_types::CodeActionOrCommand::CodeAction(lsp_types::CodeAction {

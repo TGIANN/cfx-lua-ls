@@ -439,7 +439,7 @@ fn spell_check() {
 #[test]
 fn unnecessary_assert() {
     // LuaLS's disabled positive case and its negatives (test/diagnostics/unnecessary-assert.lua).
-    let text = "assert(true)\nassert({})\nassert('x')\nlocal a\nassert(a)\n---@type boolean\nlocal b\nassert(b)\n---@type number?\nlocal f\nassert(f)\nassert(false)\nassert(nil and 5)\n---@type string\nlocal s = g()\nassert(s, 'msg')\n";
+    let text = "assert(true)\nassert({})\nassert('x')\nlocal a\nassert(a)\n---@type boolean\nlocal b\nassert(b)\n---@type number?\nlocal f\nassert(f)\nassert(false)\nassert(nil and 5)\n---@type string\nlocal s = g()\nassert(s, 'msg')\nlocal lower = assert(string.lower)\nassert(function() end)\n---@type string[]\nlocal arr = {}\nassert(arr[1])\nassert(tostring)\nlocal t = { f = print }\nassert(t.f)\n";
     assert!(only(&codes(text), "unnecessary-assert").is_empty(), "off by default");
     let mut config = LintConfig::default();
     config.severity.insert("unnecessary-assert".into(), Some(Severity::Warning));
@@ -448,5 +448,21 @@ fn unnecessary_assert() {
     let n = names(&p, text);
     let lines: Vec<usize> =
         lint(&p, text, &n, &ctx).into_iter().filter(|d| d.code == "unnecessary-assert").map(|d| text[..usize::from(d.range.start())].matches('\n').count() + 1).collect();
-    assert_eq!(lines, [1, 2, 3, 16]);
+    // Narrower than LuaLS: a typed local (16), an index (21) and a field of a
+    // local table (24) are left alone.
+    assert_eq!(lines, [1, 2, 3, 17, 18, 22]);
+}
+
+#[test]
+fn codestyle_check_first_per_start() {
+    let mut config = LintConfig::default();
+    config.severity.insert("codestyle-check".into(), Some(Severity::Warning));
+    let mut style = cfx_lua_fmt::Style::default();
+    style.apply(&[("call_arg_parentheses".to_string(), "always".to_string()), ("quote_style".to_string(), "double".to_string())].into_iter().collect());
+    let text = "local m = require 'x'\n";
+    let p = parse(text);
+    let got: Vec<String> = codestyle(&p, text, &style, &config).into_iter().map(|l| l.message).collect();
+    // LuaLS keeps the first result of a code at one place: "expected (" hides
+    // the quote and ")" findings on the same string; the space before it stays.
+    assert_eq!(got, ["expected (", "unnecessary whitespace "]);
 }

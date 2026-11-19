@@ -84,8 +84,10 @@ async function start(context: vscode.ExtensionContext): Promise<void> {
     // installed without clashing.
     synchronize: {
       configurationSection: ["Lua.format", "Lua.diagnostics", "Lua.type", "Lua.doc", "Lua.hint", "Lua.hover", "Lua.runtime", "Lua.nameStyle", "Lua.spell"],
-      fileEvents: vscode.workspace.createFileSystemWatcher("**/{*.lua,.luarc.json,.luarc.jsonc}"),
+      fileEvents: vscode.workspace.createFileSystemWatcher("**/{*.lua,.luarc.json,.luarc.jsonc,.editorconfig}"),
     },
+    // This extension runs `cfxLuaLs.spell.addWord`, the spell-check quick fix.
+    initializationOptions: { spellAddWord: true },
   };
   client = new LanguageClient("cfxLuaLs", "CfxLua Language Server", serverOptions, clientOptions);
   try {

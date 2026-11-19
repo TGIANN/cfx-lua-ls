@@ -581,11 +581,14 @@ fn is_for_body(block: &SyntaxNode) -> bool {
 }
 
 /// `---@diagnostic disable-next-line: a, b`, `disable-line`, `disable` / `enable`
-/// (to the end of the file or the matching `enable`); no codes means all.
+/// (to the end of the file or the matching `enable`); no codes means all. Of the
+/// results of one code that start at the same place only the first is kept, as
+/// LuaLS's `core/diagnostics` does (`mark[result.start]`).
 pub(crate) fn suppress(parse: &Parse, text: &str, lints: Vec<Lint>) -> Vec<Lint> {
     let line_starts: Vec<usize> =
         std::iter::once(0).chain(text.match_indices('\n').map(|(i, _)| i + 1)).collect();
     let line_of = |o: TextSize| line_starts.partition_point(|&s| s <= u32::from(o) as usize) - 1;
+    let mut first = std::collections::HashSet::new();
     // (line, kind, codes); kind: 0 next line, 1 this line, 2 disable from here, 3 enable from here.
     let mut marks: Vec<(usize, u8, Option<Vec<String>>)> = Vec::new();
     for t in parse.syntax().descendants_with_tokens().filter_map(|e| e.into_token()) {
@@ -608,7 +611,7 @@ pub(crate) fn suppress(parse: &Parse, text: &str, lints: Vec<Lint>) -> Vec<Lint>
         marks.push((line_of(t.text_range().start()), kind, codes));
     }
     if marks.is_empty() {
-        return lints;
+        return lints.into_iter().filter(|d| first.insert((d.code, d.range.start()))).collect();
     }
     let matches = |codes: &Option<Vec<String>>, code: &str| codes.as_ref().is_none_or(|c| c.iter().any(|x| x == code));
     lints
@@ -628,6 +631,7 @@ pub(crate) fn suppress(parse: &Parse, text: &str, lints: Vec<Lint>) -> Vec<Lint>
             }
             off <= 0
         })
+        .filter(|d| first.insert((d.code, d.range.start())))
         .collect()
 }
 

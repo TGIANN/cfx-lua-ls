@@ -64,7 +64,11 @@ in `.luarc.json` with LuaLS's own keys:
 }
 ```
 
-or per line with `---@diagnostic disable-next-line: <code>`.
+or per line with `---@diagnostic disable-next-line: <code>`. `diagnostics.neededFileStatus`
+turns a rule on (`"Any"`, `"Opened"`) or off (`"None"`), and
+`diagnostics.groupSeverity` / `diagnostics.groupFileStatus` do the same for
+LuaLS's groups (`codestyle`, `unused`, `type-check`, ...), with LuaLS's
+precedence: a group's value beats a code's own unless that ends in `!`.
 
 LuaLS's type switches are read too: `type.weakNilCheck`, `type.weakUnionCheck`,
 `type.castNumberToInteger`, `type.checkTableShape`,
