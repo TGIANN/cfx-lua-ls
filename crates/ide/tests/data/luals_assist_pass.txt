@@ -206,14 +206,17 @@ completion continue 2
 completion continue 3
 completion continue 4
 hover-exact 0
+hover-exact 1
 hover-exact 10
 hover-exact 100
 hover-exact 101
 hover-exact 102
 hover-exact 103
 hover-exact 104
+hover-exact 105
 hover-exact 106
 hover-exact 108
+hover-exact 109
 hover-exact 11
 hover-exact 110
 hover-exact 111
@@ -221,6 +224,7 @@ hover-exact 112
 hover-exact 113
 hover-exact 114
 hover-exact 115
+hover-exact 116
 hover-exact 117
 hover-exact 118
 hover-exact 119
@@ -258,16 +262,23 @@ hover-exact 149
 hover-exact 15
 hover-exact 150
 hover-exact 151
+hover-exact 152
 hover-exact 153
+hover-exact 154
+hover-exact 155
 hover-exact 156
 hover-exact 157
 hover-exact 158
 hover-exact 159
+hover-exact 16
 hover-exact 160
 hover-exact 161
 hover-exact 162
 hover-exact 163
 hover-exact 164
+hover-exact 165
+hover-exact 166
+hover-exact 167
 hover-exact 168
 hover-exact 169
 hover-exact 17
@@ -287,6 +298,7 @@ hover-exact 181
 hover-exact 182
 hover-exact 183
 hover-exact 184
+hover-exact 185
 hover-exact 186
 hover-exact 187
 hover-exact 188
@@ -310,7 +322,9 @@ hover-exact 33
 hover-exact 34
 hover-exact 35
 hover-exact 36
+hover-exact 37
 hover-exact 38
+hover-exact 39
 hover-exact 4
 hover-exact 41
 hover-exact 42
@@ -320,12 +334,14 @@ hover-exact 46
 hover-exact 47
 hover-exact 48
 hover-exact 49
+hover-exact 5
 hover-exact 50
 hover-exact 51
 hover-exact 52
 hover-exact 53
 hover-exact 54
 hover-exact 55
+hover-exact 56
 hover-exact 57
 hover-exact 59
 hover-exact 6
@@ -336,6 +352,7 @@ hover-exact 63
 hover-exact 64
 hover-exact 65
 hover-exact 66
+hover-exact 67
 hover-exact 68
 hover-exact 69
 hover-exact 7
@@ -367,6 +384,7 @@ hover-exact 92
 hover-exact 93
 hover-exact 94
 hover-exact 95
+hover-exact 96
 hover-exact 97
 hover-exact 98
 hover-exact 99
@@ -375,11 +393,13 @@ hover-type 101
 hover-type 104
 hover-type 106
 hover-type 108
+hover-type 109
 hover-type 11
 hover-type 110
 hover-type 113
 hover-type 114
 hover-type 115
+hover-type 116
 hover-type 117
 hover-type 118
 hover-type 119
@@ -410,6 +430,8 @@ hover-type 147
 hover-type 148
 hover-type 150
 hover-type 151
+hover-type 154
+hover-type 155
 hover-type 156
 hover-type 159
 hover-type 160
@@ -434,6 +456,7 @@ hover-type 181
 hover-type 182
 hover-type 183
 hover-type 184
+hover-type 185
 hover-type 186
 hover-type 187
 hover-type 188
@@ -448,7 +471,8 @@ hover-type 33
 hover-type 34
 hover-type 35
 hover-type 36
-hover-type 40
+hover-type 37
+hover-type 39
 hover-type 41
 hover-type 42
 hover-type 45
@@ -461,7 +485,6 @@ hover-type 53
 hover-type 54
 hover-type 55
 hover-type 56
-hover-type 58
 hover-type 59
 hover-type 60
 hover-type 61
@@ -470,6 +493,7 @@ hover-type 63
 hover-type 64
 hover-type 65
 hover-type 66
+hover-type 67
 hover-type 68
 hover-type 69
 hover-type 7
@@ -498,5 +522,6 @@ hover-type 92
 hover-type 93
 hover-type 94
 hover-type 95
+hover-type 96
 hover-type 97
 hover-type 99

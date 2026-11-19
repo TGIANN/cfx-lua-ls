@@ -235,7 +235,7 @@ error ("invalid UTF-8 code").
     chains stay linear. Checked by `crates/ide/tests/luals_types.rs` against
     LuaLS's `test/type_inference` (610 cases, extracted by
     `tools/extract_luals_types.py` with the LuaLS settings each runs under:
-    `expandAlias`, `enumsLimit`, `inferParamType`): 523 of the 608 scored
+    `expandAlias`, `enumsLimit`, `inferParamType`): 524 of the 608 scored
     cases pass; the `??` operator case (`runtime.nonstandardSymbol`) and the
     `runtime.special` one are not scored. The list of passing cases is kept so
     a regression fails the test. The inferred type prints as LuaLS prints it:
@@ -328,6 +328,24 @@ error ("invalid UTF-8 code").
     `ContinueTyping` follow-up requests and its `<function>` placeholder
     items. A completion in a 1 MB data table costs about 25 ms; the
     re-parse with a probe name runs only where a typed value is asked for.
+  - Done: hover 75 -> 183 of 183 scored cases exact (`crates/ide/src/types/hover.rs`,
+    `consts.rs`): LuaLS's titles (`(global)`, `(field)`, `(upvalue)`,
+    `(self)`, `(method)`), literal values (`= 1|2`, escapes, `0xff` as `255`,
+    constants folded through operators and calls), table shapes sorted as
+    LuaLS sorts them (50 at most, `...(+n)`), fields reached through
+    `setmetatable` and `__index`, library signatures with their doc types and
+    aliases expanded, a library table global with its members, `require` of a
+    library module, string types with the quote they were written with,
+    union members in LuaLS's order, `{...}` as an array of the vararg type,
+    `---@vararg`, `---@param` above a `for`, a `---@type` at the end of the
+    line, `---|` lines under a `---@type`, names inside doc comments
+    (`(class) A`, `(enum) A`, `(alias) A Expand to T`, `---@see A.x`), the
+    `function` keyword, a method of a string value (`('x'):sub`), and a call
+    that only an `---@overload` fits (`local f: fun(x: number):number`). Not
+    scored, with their reason in `HOVER_NOT_SCORED`: 29, 30 and 107 (LuaLS's
+    Chinese locale text), 40 and 43 (CfxLua's `utf8` has `strcmputf8i` and
+    `strlenutf8`), 58 (`_G` holds the natives in FiveM), 191 (Lua 5.5 named
+    vararg).
   - Done: inference 374 -> 397: `---@overload` resolution by argument count and
     types (literals compared as literals), a parameter without `---@param`
     typed from its overloads, an overriding method's parameters from the class

@@ -17,7 +17,8 @@
 //! `hover-type n`, `completion file n`). A listed case that fails, or a passing
 //! case not listed, fails the test. `LUALS_ASSIST_WRITE=1` rewrites the list,
 //! `LUALS_ASSIST_SHOW=hover` / `completion` prints the failing cases. Cases run
-//! with a non-default LuaLS switch (`config`) or a custom check are not scored.
+//! with a non-default LuaLS switch (`config`) or a custom check are not scored,
+//! nor the hover cases in `HOVER_NOT_SCORED`, each with its reason.
 
 use cfx_lua_ide::library::{Game, Origin, library};
 use cfx_lua_ide::manifest::FileSide;
@@ -25,6 +26,17 @@ use cfx_lua_ide::workspace::Workspace;
 use cfx_lua_ide::{CompleteOptions, CompletionKind, FileCtx, ShowWord, TextSize, complete_with, hover, names, parse};
 use serde_json::Value;
 use std::collections::BTreeSet;
+
+/// Hover cases this port does not take on, and why.
+const HOVER_NOT_SCORED: &[(u64, &str)] = &[
+    (29, "LuaLS's Chinese locale text for a string's byte and character count (`9 个字节，5 个字符`)"),
+    (30, "LuaLS's Chinese locale text for a string's byte count (`1 个字节`)"),
+    (40, "CfxLua's `utf8` holds `strcmputf8i` and `strlenutf8` too, which plain Lua 5.4 lacks"),
+    (43, "CfxLua's `utf8` holds `strcmputf8i` and `strlenutf8` too, which plain Lua 5.4 lacks"),
+    (58, "`_G` in FiveM holds the thousands of CFX and GTA natives, not only Lua 5.4's globals"),
+    (107, "LuaLS's Chinese locale text for an alias (`展开为`); this port writes `Expand to`"),
+    (191, "a named vararg (`...args`) is Lua 5.5 syntax, which CfxLua (Lua 5.4) does not parse"),
+];
 
 /// The text without LuaLS's `<?x?>` / `<??>` markers and the first marked
 /// range (a position is an empty range).
@@ -104,8 +116,11 @@ fn hover_cases(ws: &Workspace, path: &std::path::Path, show: bool, s: &mut Score
         let Some(want) = c["expect"].as_str() else { continue };
         let want = want.trim_matches(['\r', '\n']).replace("\r\n", "\n");
         let (text, Some((at, _))) = marked(c["script"].as_str().unwrap()) else { continue };
-        total += 1;
         let n = c["n"].as_u64().unwrap();
+        if HOVER_NOT_SCORED.iter().any(|(m, _)| *m == n) {
+            continue;
+        }
+        total += 1;
         let got = std::panic::catch_unwind(|| {
             let p = parse(&text);
             let names = names(&p, &text);
@@ -215,6 +230,7 @@ fn luals_hover_and_completion() {
         println!("{line}");
     }
     println!("hover: {he}/{ht} exact, types {tp}/{tt}; completion: {cp}/{ct} ({cn} with a list of items)");
+    println!("hover cases not scored: {:?}", HOVER_NOT_SCORED.iter().map(|(n, _)| n).collect::<Vec<_>>());
     if std::env::var_os("LUALS_ASSIST_WRITE").is_some() {
         let out: Vec<&str> = s.passing.iter().map(String::as_str).collect();
         std::fs::write(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/data/luals_assist_pass.txt"), out.join("\n") + "\n").unwrap();
