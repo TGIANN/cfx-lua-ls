@@ -393,7 +393,7 @@ error ("invalid UTF-8 code").
     CLI; the diagnostic harness does not score cases with settings), and
     with `Lua.doc.regengine` `lua` as Lua patterns (`string.find`; a port of
     `lstrlib.c`'s matcher, `ide/src/luapat.rs`; fixture 10 in a unit test).
-- [ ] **6. FiveM layer:** `fxmanifest.lua` resource model, client / server / shared
+- [x] **6. FiveM layer:** `fxmanifest.lua` resource model, client / server / shared
   sides, natives, exports, events, resource-scoped types (below), escrow files
   skipped.
   - Natives and runtime globals come from overextended/fivem-lls-addon (MIT,
@@ -431,7 +431,10 @@ error ("invalid UTF-8 code").
     the 100 ms line is not met there every run. After the inference work of
     2026-11-19, interleaved with the v1.0.0 build: corpus A `check` 3.7-3.9 s in
     both (the machine is slower than in the earlier lines), gate slowest 96 ms
-    at the same position.
+    at the same position. With inference at 608 of 608 (2026-11-19,
+    interleaved with the v1.0.0 build, three runs each over the whole test
+    server): `check` 3.04-3.09 s against 2.72-2.86 s for v1.0.0; gate 0 bad,
+    slowest editor position 82 ms (the same one), slowest inlay window 60 ms.
   - Checked against: corpus A (Qbox: qbx_core 1.23 with its qb bridge, ox_lib 3.39),
     corpus B (qb-core). ESX: see the ESX Legacy 1.12.4 / 1.13.4 check below.
   - Done: `fivem/net-event-same-side` (a server net event that only server code

@@ -185,6 +185,8 @@ struct Infer<'a> {
     class_members: std::cell::OnceCell<HashMap<String, HashMap<String, Vec<SyntaxNode>>>>,
     /// `a.b.c = v` targets of the file by their path (`a.b.c`), in order.
     path_writes: std::cell::OnceCell<HashMap<String, Vec<SyntaxNode>>>,
+    /// `class_var` of every class tagged on a statement, computed once.
+    class_vars: std::cell::OnceCell<HashMap<String, String>>,
     /// Locals written after their declaration.
     written: std::cell::OnceCell<std::collections::HashSet<usize>>,
     /// Field writes with a `---@type` above them, by field name: (the object
@@ -2985,6 +2987,7 @@ impl<'a> Infer<'a> {
             functions: std::cell::OnceCell::new(),
             class_members: std::cell::OnceCell::new(),
             path_writes: std::cell::OnceCell::new(),
+            class_vars: std::cell::OnceCell::new(),
             written: std::cell::OnceCell::new(),
             typed_fields: std::cell::OnceCell::new(),
             decl_stats: RefCell::default(),
@@ -5049,14 +5052,19 @@ impl<'a> Infer<'a> {
 
     /// The variable a class sits on (`---@class myClass` / `local myClass = {}`).
     fn class_var(&self, c: &str) -> Option<String> {
-        self.root.descendants().filter(|n| matches!(n.kind(), LOCAL_STAT | ASSIGN_STAT)).find_map(|st| {
-            if class_tag(self.text, &st).as_deref() != Some(c) {
-                return None;
-            }
-            let first = st.children().find(|k| matches!(k.kind(), LOCAL_NAME | VAR_LIST))?;
-            let n = if first.kind() == VAR_LIST { first.first_child()? } else { first };
-            Some(self.text[n.text_range()].trim().to_string())
-        })
+        self.class_vars
+            .get_or_init(|| {
+                let mut out = HashMap::new();
+                for st in self.root.descendants().filter(|n| matches!(n.kind(), LOCAL_STAT | ASSIGN_STAT)) {
+                    let Some(class) = class_tag(self.text, &st) else { continue };
+                    let Some(first) = st.children().find(|k| matches!(k.kind(), LOCAL_NAME | VAR_LIST)) else { continue };
+                    let Some(n) = (if first.kind() == VAR_LIST { first.first_child() } else { Some(first) }) else { continue };
+                    out.entry(class).or_insert_with(|| self.text[n.text_range()].trim().to_string());
+                }
+                out
+            })
+            .get(c)
+            .cloned()
     }
 
     /// The class (or one of its parents) declaring `---@operator op`.
