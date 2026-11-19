@@ -266,6 +266,9 @@ pub struct Context<'a> {
     /// `undefined-global` stays silent: the resource has escrow files or imports a
     /// file that is not in the workspace (they may define any global).
     pub globals_unknown: bool,
+    /// `---@alias` / `---@enum` types the other files of the resource, and the
+    /// resources its manifest names, declare.
+    pub aliases: &'a [(String, crate::luacats::DocType)],
     pub config: &'a LintConfig,
 }
 
@@ -281,6 +284,7 @@ impl Default for Context<'_> {
             defined_elsewhere: &NO,
             used_elsewhere: &NO,
             globals_unknown: false,
+            aliases: &[],
             config: CONFIG.get_or_init(LintConfig::default),
         }
     }
@@ -351,7 +355,7 @@ impl<'a> Linter<'a> {
 
     pub(crate) fn types(&self) -> &crate::types::FileTypes<'a> {
         self.types.get_or_init(|| {
-            crate::types::FileTypes::from_root(self.root.clone(), self.names, self.text).with_config(self.ctx.config)
+            crate::types::FileTypes::from_root(self.root.clone(), self.names, self.text).with_config(self.ctx.config).with_aliases(self.ctx.aliases)
         })
     }
 

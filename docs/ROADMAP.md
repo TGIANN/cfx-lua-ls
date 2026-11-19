@@ -419,8 +419,7 @@ error ("invalid UTF-8 code").
     both (the machine is slower than in the earlier lines), gate slowest 96 ms
     at the same position.
   - Checked against: corpus A (Qbox: qbx_core 1.23 with its qb bridge, ox_lib 3.39),
-    corpus B (qb-core). ESX is not modelled beyond what any resource's own code
-    shows; no ESX copy was in the corpus.
+    corpus B (qb-core). ESX: see the ESX Legacy 1.12.4 / 1.13.4 check below.
   - Done: `fivem/net-event-same-side` (a server net event that only server code
     fires). On the corpus it found `esx_license:addLicense` in ESX's own addons
     (any client can grant itself a licence), Discord-log events and framework
@@ -454,8 +453,14 @@ error ("invalid UTF-8 code").
   - Done: resource-scoped types. A class is looked up in the file's own
     resource, then in the resources its manifest names (`dependency`, `@res/`
     imports), then in the whole workspace; two resources declaring the same
-    `Config` no longer mix. Globals were already per resource and side;
-    aliases are not resolved across files.
+    `Config` no longer mix. Globals were already per resource and side.
+  - Done: aliases across files. A file's `---@alias` and `---@enum` types are
+    kept in its summary; the type diagnostics of a file see those of the other
+    files of its resource and of the resources its manifest names (the file's
+    own of the same name win). On the corpora this adds one real finding, twice
+    (two copies of tgiann-bank): a payload typed `businessName:
+    BankHistoryText` (`string | table<string, string>`) passed to a handler
+    whose doc says `businessName: string`.
 - [ ] **7. Rest of LuaLS + release:** code actions, inlay hints, workspace
   diagnostics, `.luarc.json` and `Lua.*` settings compatibility, CLI `check`,
   GitHub Action (SARIF), GitHub release, VS Code Marketplace (publisher `tgiann`,

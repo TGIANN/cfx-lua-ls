@@ -2214,6 +2214,36 @@ mod tests {
     }
 
     #[test]
+    fn aliases_of_other_files() {
+        let root = std::env::temp_dir().join(format!("cfx-alias-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        write(&root, "app/fxmanifest.lua", "shared_scripts { 'types.lua', 's.lua' }
+");
+        write(&root, "app/types.lua", "---@alias Mode 'on'|'off'
+---@alias Own 'x'
+");
+        let text = "---@alias Own 'y'
+---@param m Mode
+---@param o Own
+function Set(m, o) end
+Set('bad', 'y')
+Set('on', 'x')
+";
+        write(&root, "app/s.lua", text);
+        let ws = Workspace::scan(std::slice::from_ref(&root));
+        let p = crate::parse(text);
+        let n = crate::names(&p, text);
+        let found: Vec<String> = crate::workspace::lint_file(&ws, &root.join("app/s.lua"), &p, text, &n, &crate::lint::LintConfig::default())
+            .into_iter()
+            .filter(|l| l.code == "param-type-mismatch")
+            .map(|l| text[l.range].to_string())
+            .collect();
+        // `Mode` comes from types.lua; the file's own `Own` hides the other one.
+        assert_eq!(found, ["'bad'", "'x'"]);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
     fn undefined_doc_names() {
         let root = std::env::temp_dir().join(format!("cfx-udn-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&root);
