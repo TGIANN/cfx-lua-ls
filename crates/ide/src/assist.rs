@@ -487,6 +487,21 @@ pub fn hover(parse: &Parse, names: &Names, text: &str, offset: TextSize, cx: Fil
             return Some(Hover { range, markdown: render_items(&items) });
         }
     }
+    // A global or a field the file gives a value, a function of it.
+    let path_hover = |force: bool| {
+        crate::types::FileTypes::new(parse, names, text).path_hover(&tok, force).map(|(code, def)| {
+            let mut markdown = format!("```lua\n{code}\n```");
+            let doc = def.map(|d| leading_comments(text, d)).unwrap_or_default();
+            if !doc.is_empty() {
+                markdown.push_str("\n\n");
+                markdown.push_str(&render_doc(&doc));
+            }
+            Hover { range, markdown }
+        })
+    };
+    if let Some(h) = path_hover(false) {
+        return Some(h);
+    }
     // What another file or resource defines.
     if let Some((ws, file)) = cx.ws
         && let Some(target) = api_target(text, names, &tok)
@@ -499,6 +514,9 @@ pub fn hover(parse: &Parse, names: &Names, text: &str, offset: TextSize, cx: Fil
             };
             return Some(Hover { range, markdown: render_api(ws, &item, &prefix) });
         }
+    }
+    if let Some(h) = path_hover(true) {
+        return Some(h);
     }
     if let Some(path) = path {
         return (!path.contains('.')).then(|| Hover { range, markdown: format!("```lua\n(global) {path}\n```") });

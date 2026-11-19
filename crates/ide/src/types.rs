@@ -17,6 +17,8 @@ use cfx_lua_syntax::{SyntaxNode, SyntaxToken};
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 
+mod hover;
+
 const MAX_DEPTH: usize = 40;
 const FLOW_BUDGET: usize = 20_000;
 
