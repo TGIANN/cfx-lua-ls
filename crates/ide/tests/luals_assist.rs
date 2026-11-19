@@ -173,7 +173,8 @@ fn completion_cases(ws: &Workspace, path: &std::path::Path, show: bool, s: &mut 
             complete_with(&p, &names, &text, TextSize::from(at as u32), cx, opts)
                 .map(|r| r.items.into_iter().filter(|i| !cfx(&i.label)).map(|i| (i.label, kind_name(i.kind).to_string())).collect())
         })
-        .unwrap_or_default();
+        // A panic fails the case (it is no "no result").
+        .unwrap_or_else(|_| Some([("<panic>".to_string(), "<panic>".to_string())].into()));
         let got_set = got.clone().unwrap_or_default();
         let any = !got_set.is_empty();
         // Snippets and functions are left out on both sides (LuaLS's are built

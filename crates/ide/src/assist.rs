@@ -14,7 +14,7 @@ use crate::selection::token_at;
 use crate::{Parse, TextRange, TextSize};
 use cfx_lua_syntax::SyntaxKind::*;
 use cfx_lua_syntax::{SyntaxNode, SyntaxToken};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 pub struct Hover {
     pub range: TextRange,
@@ -226,27 +226,30 @@ fn api_completion(item: &ApiItem) -> Completion {
     }
 }
 
-/// LuaLS's kind for a global: Enum when the file first gives it a literal,
-/// Function for a function, else Field.
-fn global_kind(root: &SyntaxNode, text: &str, g: &str) -> CompletionKind {
+/// LuaLS's kind for each global the file writes, from its first write: Enum
+/// for a literal, Function for a function, else Global. A global missing from
+/// the map is only read here (a word).
+fn global_kinds<'t>(root: &SyntaxNode, text: &'t str) -> HashMap<&'t str, CompletionKind> {
+    let mut out = HashMap::new();
     for st in root.descendants().filter(|s| matches!(s.kind(), ASSIGN_STAT | FUNCTION_STAT)) {
         if st.kind() == FUNCTION_STAT {
-            if st.children().find(|c| c.kind() == FUNC_NAME).is_some_and(|n| n.text() == g) {
-                return CompletionKind::Function;
+            if let Some(n) = st.children().find(|c| c.kind() == FUNC_NAME) {
+                out.entry(&text[n.text_range()]).or_insert(CompletionKind::Function);
             }
             continue;
         }
         let Some(vars) = st.children().find(|c| c.kind() == VAR_LIST) else { continue };
-        let Some(i) = vars.children().position(|v| v.kind() == NAME_EXPR && &text[v.text_range()] == g) else { continue };
-        let value = st.children().find(|c| c.kind() == EXPR_LIST).and_then(|l| l.children().nth(i));
-        return match value.as_ref().map(|v| (v.kind(), v)) {
-            Some((LITERAL_EXPR, v)) if v.first_token().is_some_and(|t| t.kind() != NIL_KW) => CompletionKind::Enum,
-            Some((FUNCTION_EXPR, _)) => CompletionKind::Function,
-            _ => CompletionKind::Global,
-        };
+        let values: Vec<SyntaxNode> = st.children().find(|c| c.kind() == EXPR_LIST).map(|l| l.children().collect()).unwrap_or_default();
+        for (i, v) in vars.children().enumerate().filter(|(_, v)| v.kind() == NAME_EXPR) {
+            let kind = match values.get(i).map(|v| (v.kind(), v)) {
+                Some((LITERAL_EXPR, v)) if v.first_token().is_some_and(|t| t.kind() != NIL_KW) => CompletionKind::Enum,
+                Some((FUNCTION_EXPR, _)) => CompletionKind::Function,
+                _ => CompletionKind::Global,
+            };
+            out.entry(&text[v.text_range()]).or_insert(kind);
+        }
     }
-    // Only read here: a word.
-    CompletionKind::Text
+    out
 }
 
 /// `continue` inside a loop: the keyword, and a snippet that writes `goto
@@ -756,7 +759,7 @@ fn complete_triggered(parse: &Parse, names: &Names, text: &str, offset: TextSize
     }
     // The literal values the position takes: alone in a string or before
     // anything is typed, first otherwise.
-    let values = crate::doc_complete::values(parse, text, offset);
+    let values = crate::doc_complete::values(parse, names, text, offset);
     if let Some((items, true)) = values {
         return Some(Completions { items, incomplete: false });
     }
@@ -783,7 +786,7 @@ fn complete_triggered(parse: &Parse, names: &Names, text: &str, offset: TextSize
         return None;
     }
     let member_ahead = text[..start].trim_end_matches([' ', '\t']).ends_with(['.', ':']);
-    if matches!(trigger, Some('(' | ',' | '{' | '#' | ' ' | '\t')) && prefix.is_empty() && !member_ahead && param_list.is_none() {
+    if matches!(trigger, Some('(' | ',' | '{' | '#' | ' ' | '\t' | '@' | '|')) && prefix.is_empty() && !member_ahead && param_list.is_none() {
         return None;
     }
     // LuaLS's match: a prefix, or the typed letters in order of words (`zac` for `zabc`).
@@ -922,7 +925,9 @@ fn complete_triggered(parse: &Parse, names: &Names, text: &str, offset: TextSize
             let s = at + i;
             at = s + dotted.len();
             let before_ok = s == 0 || !(is_ident(bytes[s - 1]) || bytes[s - 1] == b'.');
-            let field: String = text[at..].bytes().take_while(|&b| is_ident(b)).map(char::from).collect();
+            // A slice, not bytes as chars: a name may hold non-ASCII characters.
+            let n = text[at..].bytes().take_while(|&b| is_ident(b)).count();
+            let field = text[at..at + n].to_string();
             if before_ok && !field.is_empty() && at != start && matches(&field) && !field.as_bytes()[0].is_ascii_digit() {
                 // Written here (`x.f = v`): a field, its value's kind; only read: a word.
                 let rest = text[at + field.len()..].trim_start_matches([' ', '\t']);
@@ -1003,8 +1008,17 @@ fn complete_triggered(parse: &Parse, names: &Names, text: &str, offset: TextSize
     globals.sort_unstable();
     globals.dedup();
     let root = parse.syntax();
+    let kinds = if globals.is_empty() { HashMap::new() } else { global_kinds(&root, text) };
     for g in globals {
-        push(&mut items, Completion { label: g.to_string(), kind: global_kind(&root, text, g), detail: None, deprecated: false, replace: None, insert: None, edits: Vec::new() });
+        let mut kind = kinds.get(g).copied().unwrap_or(CompletionKind::Text);
+        // Only read here, defined by another file of the resource (`Config`).
+        if kind == CompletionKind::Text
+            && let Some((ws, path)) = cx.ws
+            && ws.defined_elsewhere(path, g)
+        {
+            kind = CompletionKind::Global;
+        }
+        push(&mut items, Completion { label: g.to_string(), kind, detail: None, deprecated: false, replace: None, insert: None, edits: Vec::new() });
     }
     // `_G['a.b'] = x`: a global no name can reach, written quoted.
     if text.contains("_G[") {
@@ -1212,6 +1226,9 @@ mod tests {
         let p = parse(&t);
         let n = names(&p, &t);
         assert!(complete(&p, &n, &t, o, FileCtx::plain(Game::Gta5, FileSide::Unknown)).is_none());
+        // A non-ASCII name in a comment on the same object.
+        let (l, _) = labels("-- Config.dosyasını düzenle\nConfig = {}\nConfig.x = 1\nprint(Config.$)\n", FileSide::Unknown);
+        assert!(l.contains(&"x".to_string()), "{l:?}");
         // Members: the library's and the fields the file uses.
         let (l, _) = labels("Config = {}\nConfig.maxPlayers = 4\nprint(string.fo$)\n", FileSide::Unknown);
         assert_eq!(l, ["format"]);

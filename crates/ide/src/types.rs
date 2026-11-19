@@ -555,6 +555,11 @@ impl<'a> FileTypes<'a> {
     /// The keys a table constructor may still get from the type its position
     /// asks for (a class's `---@field`s with its parents', a `{ x: T }`
     /// shape's names), sorted, each with whether it is optional.
+    /// Whether the position of a table constructor asks for a type.
+    pub(crate) fn wants_type(&self, table: &SyntaxNode) -> bool {
+        self.inf.expected_type(table).is_some()
+    }
+
     pub(crate) fn table_keys(&self, table: &SyntaxNode) -> Vec<(String, bool)> {
         let inf = &self.inf;
         let Some(want) = inf.expected_type(table) else { return Vec::new() };
@@ -2271,6 +2276,9 @@ const OPAQUE_ENUM: &str = "<enum>";
 /// out (its type is not known).
 fn enum_aliases(root: &SyntaxNode, text: &str) -> HashMap<String, T> {
     let mut out = HashMap::new();
+    if !text.contains("@enum") {
+        return out;
+    }
     for stat in root.descendants().filter(|n| matches!(n.kind(), LOCAL_STAT | ASSIGN_STAT)) {
         let Some((name, key)) = stat_tags(text, &stat).into_iter().find_map(|t| match t {
             Tag::Enum { name, key } => Some((name, key)),
@@ -3374,7 +3382,13 @@ impl<'a> Infer<'a> {
     /// A value of a class called: the first `---@overload fun(...)` written in
     /// the class's doc block (`---@class A` / `---@overload fun(x: T)`).
     fn class_overload_info(&self, callee: &SyntaxNode) -> Option<Callee> {
+        if !self.text.contains("@overload") {
+            return None;
+        }
         let T::Name(class) = non_nil(self.expr_type(callee)) else { return None };
+        if !self.classes.contains_key(&class) {
+            return None;
+        }
         let mut lines = self.text.lines().map(str::trim_start).skip_while(|l| {
             l.strip_prefix("---@class").map(str::trim_start).and_then(|r| r.split(|c: char| c.is_whitespace() || c == ':').next()) != Some(class.as_str())
         });

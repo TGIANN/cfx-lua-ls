@@ -157,8 +157,9 @@ fn capabilities(encoding: Encoding) -> ServerCapabilities {
         hover_provider: Some(lsp_types::HoverProviderCapability::Simple(true)),
         completion_provider: Some(lsp_types::CompletionOptions {
             // `(`, `,`, `{` and a space offer only the literal values and table
-            // keys the position takes (LuaLS).
-            trigger_characters: Some([".", ":", "'", "\"", "(", ",", "{", " "].map(String::from).to_vec()),
+            // keys the position takes (LuaLS); `@` and `|` start doc tags and
+            // `---|` values.
+            trigger_characters: Some([".", ":", "'", "\"", "(", ",", "{", " ", "@", "|"].map(String::from).to_vec()),
             ..Default::default()
         }),
         signature_help_provider: Some(lsp_types::SignatureHelpOptions {
