@@ -194,6 +194,12 @@ impl FileTypes<'_> {
                 let global = p.as_ref().is_some_and(|p| matches!(p.root, Root::Global(_)));
                 let owner = if global { None } else { self.class_view(&obj) };
                 let owner = owner.or_else(|| p.as_ref().map(|p| self.path_text(&Path { root: p.root.clone(), fields: p.fields[..p.fields.len() - 1].to_vec() })))?;
+                // `obj.init` where `obj` gets `init` from its metatable.
+                if let Some(target) = self.method_target(&obj).map(|t| t.child(tok.text())).filter(|t| Some(t) != p.as_ref())
+                    && let Some(f) = self.scan(&target).0.iter().find_map(|o| o.function.clone())
+                {
+                    return Some((self.function_label(&f), Some(f.text_range())));
+                }
                 let p = p.unwrap_or(Path { root: Root::Global(String::new()), fields: vec![String::new()] });
                 (p, global, format!("{owner}.{}", tok.text()), Some(parent.clone()))
             }
@@ -202,7 +208,15 @@ impl FileTypes<'_> {
                 let m = crate::api::method_name(&parent).filter(|m| m == tok)?;
                 let p = self.method_target(&obj)?.child(m.text());
                 let (occs, _) = self.scan(&p);
-                return occs.iter().find_map(|o| o.function.as_ref().map(|f| (self.function_label(f), Some(f.text_range()))));
+                if let Some(f) = occs.iter().find_map(|o| o.function.as_ref()) {
+                    return Some((self.function_label(f), Some(f.text_range())));
+                }
+                // A value that is not a function definition (`{f = f}`).
+                if occs.is_empty() {
+                    return None;
+                }
+                let shown = self.path_text(&p);
+                (p, false, shown, None)
             }
             FUNC_NAME => {
                 let names = func_names(&parent);
@@ -220,7 +234,18 @@ impl FileTypes<'_> {
             }
             FIELD_NAMED => {
                 let value = parent.children().last()?;
-                let ty = if value.kind() == FUNCTION_EXPR { "function".to_string() } else { crate::luacats::view(&widen(&inf.expr_type(&value))) };
+                // A `---@class` or `---@type` above the entry gives its type.
+                let doc = super::last_class_tag(inf.text, &parent).map(|c| super::name(&c)).or_else(|| {
+                    super::stat_tags(inf.text, &parent).into_iter().find_map(|t| match t {
+                        Tag::Type { tys } => tys.into_iter().next(),
+                        _ => None,
+                    })
+                });
+                let ty = match doc {
+                    Some(t) => self.hover_view(&t),
+                    None if value.kind() == FUNCTION_EXPR => "function".to_string(),
+                    None => crate::luacats::view(&widen(&inf.expr_type(&value))),
+                };
                 // A constructor's entries take the place of `table`.
                 let mut shape = Shape::default();
                 if value.kind() == TABLE_EXPR {
@@ -366,15 +391,129 @@ impl FileTypes<'_> {
                 let callee = value.first_child()?;
                 let args: Vec<SyntaxNode> = value.children().find(|c| c.kind() == ARG_LIST)?.children().collect();
                 if &self.inf.text[callee.text_range()] == "setmetatable" {
-                    let mt = self.path_of(args.get(1)?)?;
-                    let (occs, _) = self.scan(&mt.child("__index"));
-                    let index = occs.iter().find_map(|o| o.value.clone())?;
+                    let mt = args.get(1)?;
+                    // `setmetatable(t, {__index = mt})` or a metatable variable.
+                    let index = if mt.kind() == TABLE_EXPR {
+                        mt.children()
+                            .filter(|f| f.kind() == FIELD_NAMED)
+                            .find(|f| f.children_with_tokens().filter_map(|x| x.into_token()).any(|t| t.kind() == NAME && t.text() == "__index"))?
+                            .children()
+                            .last()?
+                    } else {
+                        let (occs, _) = self.scan(&self.path_of(mt)?.child("__index"));
+                        occs.iter().find_map(|o| o.value.clone())?
+                    };
                     return self.value_table(&index, depth + 1);
                 }
                 let body = self.inf.function_body(&callee)?;
                 let ret = body.children().find(|c| c.kind() == BLOCK)?.children().find(|c| c.kind() == RETURN_STAT)?;
                 let e = ret.children().find(|c| c.kind() == EXPR_LIST)?.first_child()?;
                 self.value_table(&e, depth + 1)
+            }
+            _ => None,
+        }
+    }
+
+    /// The fields a local `setmetatable(t, mt)` reaches through `mt.__index`.
+    pub(super) fn metatable_shape(&self, d: usize, shape: &mut Shape) {
+        let value = self
+            .inf
+            .decl_stat(d)
+            .filter(|s| s.kind() == LOCAL_STAT)
+            .and_then(|s| s.children().find(|c| c.kind() == EXPR_LIST))
+            .and_then(|l| l.first_child());
+        let Some(value) = value.filter(|v| v.kind() == CALL_EXPR && v.first_child().is_some_and(|c| &self.inf.text[c.text_range()] == "setmetatable")) else {
+            return;
+        };
+        // `setmetatable({id = 1}, mt)`: the constructor's own entries too.
+        if let Some(t) = value.children().find(|c| c.kind() == ARG_LIST).and_then(|a| a.first_child()).filter(|t| t.kind() == TABLE_EXPR) {
+            self.constructor_shape(&t, shape);
+        }
+        let Some(path) = self.value_table(&value, 0) else { return };
+        let (_, s) = self.scan(&path);
+        for (k, e) in s.entries {
+            if !shape.entries.iter().any(|(o, _)| *o == k) {
+                shape.entries.push((k, e));
+            }
+        }
+    }
+
+    /// `f(0)` where `f` has `---@overload`s: LuaLS narrows `f` to the
+    /// definitions the argument count fits, and when the function itself is
+    /// not one of them the hover shows the overloads as its value (`local f:
+    /// fun(x: number):number`).
+    pub(crate) fn call_overloads(&self, tok: &SyntaxToken) -> Option<String> {
+        let e = tok.parent().filter(|p| p.kind() == NAME_EXPR)?;
+        let call = e.parent().filter(|c| c.kind() == CALL_EXPR && c.first_child().as_ref() == Some(&e))?;
+        let Root::Decl(d) = self.root_of(tok)? else { return None };
+        let stat = self.inf.decl_stat(d)?;
+        let tags = stat_tags(self.inf.text, &stat);
+        let overloads: Vec<crate::luacats::FunType> = tags
+            .iter()
+            .filter_map(|t| match t {
+                Tag::Overload(T::Fun(f)) => Some((**f).clone()),
+                _ => None,
+            })
+            .collect();
+        if overloads.is_empty() {
+            return None;
+        }
+        let body = stat.descendants().find(|c| c.kind() == FUNC_BODY)?;
+        let list = call.children().find(|c| c.kind() == ARG_LIST)?;
+        let args: Vec<SyntaxNode> = list.children().collect();
+        let n = if args.is_empty() && list.children_with_tokens().any(|t| matches!(t.kind(), STRING | LONG_STRING)) { 1 } else { args.len() };
+        let spread = args.last().is_some_and(|a| matches!(a.kind(), CALL_EXPR | METHOD_CALL_EXPR | VARARG_EXPR));
+        let (amin, amax) = if spread { (n - 1, usize::MAX) } else { (n, n) };
+        // (fewest, most) arguments a parameter list takes; trailing optional
+        // ones may be left out.
+        let count = |ps: &[(bool, bool)]| {
+            let max = if ps.iter().any(|(dots, _)| *dots) { usize::MAX } else { ps.len() };
+            let min = ps.iter().rposition(|(dots, opt)| !dots && !opt).map_or(0, |i| i + 1);
+            (min, max)
+        };
+        let fits = |(min, max): (usize, usize)| amin >= min && amax <= max;
+        let own: Vec<(bool, bool)> = body
+            .children()
+            .filter(|c| c.kind() == PARAM_LIST)
+            .flat_map(|l| l.children().filter(|p| p.kind() == PARAM).collect::<Vec<_>>())
+            .filter_map(|p| p.first_token())
+            .map(|t| (t.kind() == DOT3, tags.iter().any(|g| matches!(g, Tag::Param { name, optional: true, .. } if name == t.text()))))
+            .collect();
+        if fits(count(&own)) {
+            return None;
+        }
+        let views: Vec<String> = overloads
+            .into_iter()
+            .filter(|f| fits(count(&f.params.iter().map(|p| (p.name == "...", p.optional)).collect::<Vec<_>>())))
+            .map(|f| self.hover_view(&T::Fun(Box::new(f))))
+            .collect();
+        if views.is_empty() {
+            return None;
+        }
+        let here = e.ancestors().find(|a| a.kind() == FUNC_BODY);
+        let title = if stat.ancestors().find(|a| a.kind() == FUNC_BODY) == here { "local" } else { "(upvalue)" };
+        Some(format!("{title} {}: {}", tok.text(), views.join("|")))
+    }
+
+    /// The hover of the `function` keyword: the function it starts.
+    pub(crate) fn keyword_hover(&self, kw: &SyntaxToken) -> Option<String> {
+        let owner = kw.parent()?;
+        let body = owner.children().find(|c| c.kind() == FUNC_BODY)?;
+        match owner.kind() {
+            FUNCTION_STAT => Some(self.function_label(&owner)),
+            LOCAL_FUNCTION_STAT => {
+                let name = owner.descendants_with_tokens().filter_map(|e| e.into_token()).find(|t| t.kind() == NAME)?;
+                let (sig, rets, is_async) = self.signature(&body);
+                Some(function_code(is_async, "function", name.text(), &sig, &rets))
+            }
+            FUNCTION_EXPR => {
+                let (sig, rets, is_async) = self.signature(&body);
+                // `---@async` above the statement the function is written in.
+                let stat_async = owner
+                    .ancestors()
+                    .find(|a| matches!(a.kind(), CALL_STAT | LOCAL_STAT | ASSIGN_STAT | RETURN_STAT))
+                    .is_some_and(|s| stat_tags(self.inf.text, &s).iter().any(|t| matches!(t, Tag::Async)));
+                Some(function_code(is_async || stat_async, "function", "", &sig, &rets))
             }
             _ => None,
         }

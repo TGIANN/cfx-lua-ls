@@ -776,6 +776,7 @@ impl<'a> FileTypes<'a> {
         let mut shape = Shape::default();
         let own = inf.decl_stat(d).and_then(|s| last_class_tag(inf.text, &s));
         self.local_shape(d, &mut shape, None);
+        self.metatable_shape(d, &mut shape);
         let mut t = inf.expand_aliases(&non_nil(inf.decl_type(d)), 0);
         // The type the hover shows when the file alone does not know it (a
         // class of the workspace or the library).
@@ -960,6 +961,23 @@ impl<'a> FileTypes<'a> {
                             let e = shape.entry(key);
                             e.types.push(ty);
                             e.optional |= optional;
+                        }
+                    }
+                    // The functions a library class's table holds (`utf8.char`).
+                    if !inf.classes.contains_key(&c) {
+                        for (k, ty) in crate::library::class_members(&c) {
+                            let e = shape.entry(k);
+                            if e.types.is_empty() && e.values.is_empty() {
+                                e.declared = true;
+                                e.class = e.class.clone().or(Some(c.clone()));
+                                match ty {
+                                    T::Optional(i) => {
+                                        e.types.push(*i);
+                                        e.optional = true;
+                                    }
+                                    t => e.types.push(t),
+                                }
+                            }
                         }
                     }
                     // Members written on the class's own variables.
@@ -2772,6 +2790,14 @@ fn stat_tags(text: &str, n: &SyntaxNode) -> Vec<Tag> {
     }
     // `local x ---@type T`: a `---@type` after the statement on its line.
     let mut at = n.next_sibling_or_token();
+    // The last statement of a block leaves its line's comment to the parent.
+    let mut up = n.clone();
+    while at.is_none()
+        && let Some(p) = up.parent().filter(|p| p.kind() == BLOCK)
+    {
+        at = p.next_sibling_or_token();
+        up = p;
+    }
     while let Some(rowan::NodeOrToken::Token(t)) = at {
         match t.kind() {
             WHITESPACE if !t.text().contains('\n') => at = t.next_sibling_or_token(),
@@ -2785,7 +2811,23 @@ fn stat_tags(text: &str, n: &SyntaxNode) -> Vec<Tag> {
             _ => break,
         }
     }
-    crate::luacats::parse_lines(lines).0.into_iter().map(|t| t.tag).collect()
+    let mut out: Vec<Tag> = Vec::new();
+    for t in crate::luacats::parse_lines(lines).0.into_iter().map(|t| t.tag) {
+        // `---| "a"` lines under a `---@type T` add to its union.
+        if let (Tag::AliasValue { ty, .. }, Some(Tag::Type { tys })) = (&t, out.last_mut())
+            && let Some(first) = tys.first_mut()
+        {
+            let mut parts = match std::mem::replace(first, unknown()) {
+                T::Union(ps) => ps,
+                x => vec![x],
+            };
+            parts.push(ty.clone());
+            *first = T::Union(parts);
+            continue;
+        }
+        out.push(t);
+    }
+    out
 }
 
 /// The class a `---@class` tag of a statement declares.
@@ -4883,6 +4925,18 @@ impl<'a> Infer<'a> {
         if global && let Some(n) = callee_name.as_deref() {
             match n {
                 "setmetatable" => return vec![args.first().map_or_else(unknown, |a| self.expr_type(a))],
+                // `require 'utf8'`: the library module's table.
+                "require"
+                    if let Some(c) = callee
+                        .parent()
+                        .and_then(|c| c.children().find(|a| a.kind() == ARG_LIST))
+                        .and_then(|a| a.descendants_with_tokens().filter_map(|e| e.into_token()).find(|t| !matches!(t.kind(), L_PAREN | WHITESPACE)))
+                        .filter(|t| t.kind() == STRING)
+                        .and_then(|t| crate::util::unquote(t.text()).map(str::to_string))
+                        .and_then(|m| crate::library::global_class(&m)) =>
+                {
+                    return vec![name(&c)];
+                }
                 "pcall" | "xpcall" => {
                     let Some(f) = args.first() else { return vec![name("boolean")] };
                     let mut out = vec![name("boolean")];
@@ -4917,8 +4971,13 @@ impl<'a> Infer<'a> {
         if let Some(t) = self.operator(&self.expr_type(&callee), "call", None) {
             return vec![t];
         }
+        // A function of the library: `print`, or a module's `io.open`.
+        let lib_name = callee_name.or_else(|| {
+            let t: String = self.text[callee.text_range()].split_whitespace().collect();
+            (callee.kind() == INDEX_EXPR && t.split('.').all(|w| !w.is_empty() && w.chars().all(|c| c.is_alphanumeric() || c == '_'))).then_some(t)
+        });
         if global
-            && let Some(n) = callee_name
+            && let Some(n) = lib_name
             && let Some(item) = crate::library::library().get(&n).iter().find(|i| i.function)
         {
             // `---@generic K, V` (`next`): the arguments bind them, an unbound

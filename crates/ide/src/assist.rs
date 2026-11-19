@@ -439,6 +439,64 @@ fn render_items(path: &str, items: &[&LibItem]) -> String {
         .join("\n\n---\n\n")
 }
 
+/// A name in a doc comment as LuaLS's hover shows it: a type name is `(class)
+/// A`, `(enum) A` or `(alias) A Expand to T`; the name of `---@enum A` is
+/// `(enum) A`; `---@see A.x` shows the field.
+fn doc_name_hover(parse: &Parse, text: &str, offset: TextSize) -> Option<Hover> {
+    let tok = token_at(&parse.syntax(), offset).find(|t| t.kind() == COMMENT)?;
+    let t = tok.text();
+    let body = t.strip_prefix("---")?.trim_start().strip_prefix('@')?;
+    let tag: String = body.chars().take_while(|c| c.is_ascii_alphanumeric()).collect();
+    let tag_end = t.len() - body.len() + tag.len();
+    let b = t.as_bytes();
+    let at = usize::from(offset - tok.text_range().start()).min(b.len());
+    let word = |c: u8| c.is_ascii_alphanumeric() || c == b'_' || c == b'.' || c >= 0x80;
+    let mut s = at;
+    while s > tag_end && word(b[s - 1]) {
+        s -= 1;
+    }
+    let mut e = at;
+    while e < b.len() && word(b[e]) {
+        e += 1;
+    }
+    if s >= e || s < tag_end {
+        return None;
+    }
+    let name = t[s..e].trim_matches('.');
+    let range = TextRange::at(tok.text_range().start() + TextSize::from(s as u32), TextSize::of(&t[s..e]));
+    let code = |c: String| Some(Hover { range, markdown: format!("```lua\n{c}\n```") });
+    // Whether the name is the one the tag declares (`---@enum (key) A`).
+    let first = t[tag_end..s].trim().trim_start_matches("(key)").trim().is_empty();
+    match tag.as_str() {
+        "see" => {
+            let (owner, key) = name.rsplit_once('.')?;
+            let class = crate::api::doc_classes(text).into_iter().find(|c| c.name == owner)?;
+            let f = class.fields.into_iter().find(|f| f.name == key)?;
+            return code(format!("(field) {name}: {}", crate::luacats::view(&f.ty)));
+        }
+        "enum" if first => return code(format!("(enum) {name}")),
+        "class" | "alias" | "enum" if first => return None,
+        _ => {}
+    }
+    if crate::api::doc_classes(text).iter().any(|c| c.name == name) || crate::library::classes().contains_key(name) {
+        return code(format!("(class) {name}"));
+    }
+    let own = crate::types::doc_aliases(text).0;
+    if let Some(a) = own.get(name).or_else(|| crate::library::aliases().get(name)) {
+        return code(format!("(alias) {name} Expand to {}", crate::types::lib_hover_view(a)));
+    }
+    let is_enum = text.lines().any(|l| {
+        l.trim_start()
+            .strip_prefix("---")
+            .and_then(|d| d.trim_start().strip_prefix("@enum"))
+            .is_some_and(|r| r.trim_start().trim_start_matches("(key)").split(|c: char| c.is_whitespace()).find(|w| !w.is_empty()) == Some(name))
+    });
+    if is_enum {
+        return code(format!("(enum) {name}"));
+    }
+    None
+}
+
 /// `(global) utf8: utf8lib {` with the class's members, for a table global
 /// of the library or a `---@field` of one (`io.stderr: file*`).
 fn library_value(path: &str) -> Option<String> {
@@ -511,14 +569,41 @@ pub(crate) fn param_list(text: &str, range: TextRange) -> &str {
 }
 
 pub fn hover(parse: &Parse, names: &Names, text: &str, offset: TextSize, cx: FileCtx) -> Option<Hover> {
+    if let Some(h) = doc_name_hover(parse, text, offset) {
+        return Some(h);
+    }
     // A number: its value (`0xff` is `255`).
     if let Some(num) = token_at(&parse.syntax(), offset).find(|t| t.kind() == NUMBER)
         && let Some(v) = num.parent().and_then(|e| crate::consts::literal_shown(&parse.syntax(), names, text, &e))
     {
         return Some(Hover { range: num.text_range(), markdown: format!("```lua\n{v}\n```") });
     }
+    // The `function` keyword: the function it starts.
+    if let Some(kw) = token_at(&parse.syntax(), offset).find(|t| t.kind() == FUNCTION_KW)
+        && let Some(code) = crate::types::FileTypes::new(parse, names, text).keyword_hover(&kw)
+    {
+        return Some(Hover { range: kw.text_range(), markdown: format!("```lua\n{code}\n```") });
+    }
     let tok = name_token(parse, offset)?;
     let range = tok.text_range();
+    // A method of a string value (`('x'):sub()`): the library's `string.sub`.
+    if let Some(call) = tok.parent().filter(|p| p.kind() == METHOD_CALL_EXPR)
+        && crate::api::method_name(&call).as_ref() == Some(&tok)
+        && let Some(obj) = call.first_child()
+        && (obj.descendants_with_tokens().filter_map(|e| e.into_token()).filter(|t| !matches!(t.kind(), L_PAREN | R_PAREN | WHITESPACE)).count() == 1
+            && obj.descendants_with_tokens().any(|e| matches!(e.kind(), STRING | LONG_STRING))
+            || obj.kind() == NAME_EXPR && crate::types::type_at(parse, names, text, obj.text_range().start()).as_deref() == Some("string"))
+    {
+        let path = format!("string.{}", tok.text());
+        let items = items_for(&path, cx.game);
+        if !items.is_empty() {
+            return Some(Hover { range, markdown: render_items(&path, &items) });
+        }
+    }
+    // A call that only an `---@overload` of the function fits.
+    if let Some(code) = crate::types::FileTypes::new(parse, names, text).call_overloads(&tok) {
+        return Some(Hover { range, markdown: format!("```lua\n{code}\n```") });
+    }
     let path = token_path(names, &tok);
     if let Some(path) = &path {
         let items = items_for(path, cx.game);
