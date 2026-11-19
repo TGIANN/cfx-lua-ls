@@ -59,6 +59,9 @@ pub(crate) fn apply(d: &mut Diagnostics, v: &Value) {
     if let Some(names) = doc("protectedName") {
         d.lint.protected_names = names;
     }
+    if let Some(names) = doc("packageName") {
+        d.lint.package_names = names;
+    }
     if let Some(b) = get(v, "cfx", "lualsCompat").and_then(Value::as_bool) {
         d.lint.luals_compat = b;
     }

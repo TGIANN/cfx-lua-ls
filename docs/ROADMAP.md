@@ -396,6 +396,11 @@ error ("invalid UTF-8 code").
     CLI; the diagnostic harness does not score cases with settings), and
     with `Lua.doc.regengine` `lua` as Lua patterns (`string.find`; a port of
     `lstrlib.c`'s matcher, `ide/src/luapat.rs`; fixture 10 in a unit test).
+  - Done: `package` visibility across files, as LuaLS's `vm.isVisible`
+    compares them: a `---@field package` field, a field written on the class
+    under `---@package`, or one named by `Lua.doc.packageName`, used from a
+    file other than the one declaring the class, reports `invisible` (`Field
+    `x` can only be accessed in same file ...`).
 - [x] **6. FiveM layer:** `fxmanifest.lua` resource model, client / server / shared
   sides, natives, exports, events, resource-scoped types (below), escrow files
   skipped.

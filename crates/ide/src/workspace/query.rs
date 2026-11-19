@@ -1502,7 +1502,55 @@ impl Workspace {
                 }
             }
         }
+        // invisible, `package`: a field of a class declared in another file that
+        // only that file may use (`---@field package x`, a `---@package` above
+        // `C.x = v`, or a name matching `doc.packageName`), as LuaLS's
+        // `vm.isVisible` compares the files.
+        if text.contains("---@") {
+            let types = crate::types::FileTypes::from_root(parse.syntax(), names, text).with_config(config);
+            for (range, class, field) in types.class_field_uses() {
+                if let Some(file) = self.package_field(&q, cx.res, k.as_str(), &class, &field, config) {
+                    push("invisible", range, format!("Field `{field}` can only be accessed in same file `{file}`."), None);
+                }
+            }
+        }
         out
+    }
+
+    /// The file that alone may use `class.field` (or a parent's), when the
+    /// field is package-visible there and `here` is another file; None if
+    /// `here` declares the class or the field is not package-visible.
+    fn package_field(&self, q: &Q, res: Option<usize>, here: &str, class: &str, field: &str, config: &crate::lint::LintConfig) -> Option<String> {
+        let named = |n: &str| {
+            config.package_names.iter().any(|g| if config.lua_name_patterns { crate::luapat::find(n, g) } else { crate::manifest::glob_exact(g, n) })
+        };
+        let mut todo = vec![class.to_string()];
+        let mut seen = HashSet::new();
+        while let Some(c) = todo.pop() {
+            if !seen.insert(c.clone()) || seen.len() > 16 {
+                continue;
+            }
+            let files = q.class_files(&c, res);
+            if files.contains(&here) {
+                return None;
+            }
+            for file in files {
+                let Some(api) = q.api(file) else { continue };
+                for def in api.classes.iter().filter(|d| d.name == c) {
+                    if let Some(f) = def.fields.iter().find(|f| f.name == field) {
+                        return (f.visibility == Some(crate::luacats::Visibility::Package) || named(field)).then(|| file.to_string());
+                    }
+                    todo.extend(def.parents.iter().cloned());
+                }
+                for (owner, _) in api.class_binds.iter().filter(|(_, b)| *b == c) {
+                    if let Some(d) = api.defs_of(owner).iter().find(|d| d.path.len() == 1 && d.path[0] == field) {
+                        let tagged = d.doc.lines().any(|l| l.trim_start().starts_with("@package"));
+                        return (tagged || named(field)).then(|| file.to_string());
+                    }
+                }
+            }
+        }
+        None
     }
 
     /// different-requires: `require 'x'` naming a file that this file or
@@ -2704,6 +2752,44 @@ f(1)
         config.private_names = vec!["d_".into()];
         config.protected_names = vec![];
         assert_eq!(invisible(&config), ["_id_", "_id_"]);
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn package_fields() {
+        let root = std::env::temp_dir().join(format!("cfx-package-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        write(&root, "app/fxmanifest.lua", "shared_scripts { 'a.lua', 'b.lua' }
+");
+        // `---@field package`, a `---@package` above a field written on the
+        // class, and a field named by `doc.packageName`.
+        let a = "---@class A
+---@field package id number
+---@field name string
+---@field _tag string
+A = {}
+---@package
+A.count = 0
+print(A.id)
+";
+        write(&root, "app/a.lua", a);
+        let text = "---@type A
+local t
+print(t.id, t.name, t.count, t._tag)
+";
+        write(&root, "app/b.lua", text);
+        let ws = Workspace::scan(std::slice::from_ref(&root));
+        let invisible = |file: &str, text: &str, config: &crate::lint::LintConfig| -> Vec<String> {
+            let p = crate::parse(text);
+            let n = crate::names(&p, text);
+            crate::workspace::lint_file(&ws, &root.join(file), &p, text, &n, config).iter().filter(|l| l.code == "invisible").map(|l| text[l.range].to_string()).collect()
+        };
+        let mut config = crate::lint::LintConfig::default();
+        assert_eq!(invisible("app/b.lua", text, &config), ["id", "count"]);
+        // The declaring file may use them.
+        assert!(invisible("app/a.lua", a, &config).is_empty());
+        config.package_names = vec!["_*".into()];
+        assert_eq!(invisible("app/b.lua", text, &config), ["id", "count", "_tag"]);
         std::fs::remove_dir_all(&root).unwrap();
     }
 

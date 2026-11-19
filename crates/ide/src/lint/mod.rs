@@ -211,6 +211,9 @@ pub struct LintConfig {
     /// fields that are private / protected without a `---@field private`.
     pub private_names: Vec<String>,
     pub protected_names: Vec<String>,
+    /// `doc.packageName`: globs naming the fields that only the file declaring
+    /// them may use, as a `---@field package` does.
+    pub package_names: Vec<String>,
     /// `doc.regengine` is `lua`: the names are Lua patterns (`string.find`).
     pub lua_name_patterns: bool,
     /// `cfx.lualsCompat`: LuaLS's own behaviour where this server is
