@@ -70,7 +70,8 @@ LuaLS's type switches are read too: `type.weakNilCheck`, `type.weakUnionCheck`,
 `type.castNumberToInteger`, `type.checkTableShape`,
 `diagnostics.unusedLocalExclude`, `doc.privateName` / `doc.protectedName` /
 `doc.regengine`, `runtime.special` (`{ "xx.assert": "assert" }`: a name that
-narrows as the builtin does), and in the editor `hover.expandAlias`. By default this server is narrower than LuaLS in a few places
+acts as `assert`, `error`, `os.exit`, `type`, `setmetatable`, `pcall`, `xpcall`,
+`rawset` or `require` does), and in the editor `hover.expandAlias`. By default this server is narrower than LuaLS in a few places
 where it would guess on FiveM code; `"cfx.lualsCompat": true` gives LuaLS's own
 behaviour there: nil is checked against declared types (unless
 `type.weakNilCheck` is set), a local keeps the type of its first value

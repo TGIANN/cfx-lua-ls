@@ -19,9 +19,10 @@
 //! `LUALS_ASSIST_SHOW=hover` / `completion` prints the failing cases. Hover
 //! cases run with `Lua.hover.expandAlias` off get that setting; the hover
 //! cases in `HOVER_NOT_SCORED` are not scored, each with its reason. The
-//! completion cases with a switch are scored as they are: `callSnippet` only
-//! changes the call snippets left out above, `runtime.version` and
-//! `unicodeName` only the `textEdit`, not the (label, kind) compared here.
+//! completion cases with a switch are scored as they are: `runtime.version`
+//! and `unicodeName` only change the `textEdit`, not the (label, kind)
+//! compared here; the `callSnippet` case lists only a call snippet, which is
+//! left out above, so nothing is left to score.
 //! LuaLS's `ContinueTyping` follow-up requests are not scored.
 
 use cfx_lua_ide::library::{Game, Origin, library};
@@ -41,7 +42,7 @@ const HOVER_NOT_SCORED: &[(u64, &str)] = &[
     (107, "LuaLS's Chinese locale text for an alias (`展开为`); this port writes `Expand to`"),
     (191, "a named vararg (`...args`) is Lua 5.5 syntax, which CfxLua (Lua 5.4) does not parse"),
     (192, "`global *` is Lua 5.5 syntax, which CfxLua (Lua 5.4) does not parse"),
-    (139, "LuaLS reads `//` as a comment there (`runtime.nonstandardSymbol`); in CfxLua it is Lua 5.4 floor division, so `1 // 2` is 0"),
+    (139, "LuaLS reads `//` as a comment there (`runtime.nonstandardSymbol`); in CfxLua it is Lua 5.4 floor division (`TK_IDIV` in `ref/cfxlua/llex.h`), so `1 // 2` is 0"),
 ];
 
 /// The text without LuaLS's `<?x?>` / `<??>` markers and the first marked

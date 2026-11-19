@@ -267,14 +267,19 @@ pub fn type_at_with(parse: &Parse, names: &Names, text: &str, offset: TextSize, 
 
 /// `a.b.c` of a chain of names and `.name` fields, without spaces.
 fn name_path(text: &str, e: &SyntaxNode) -> Option<String> {
-    match e.kind() {
-        NAME_EXPR => Some(text[e.text_range()].to_string()),
-        INDEX_EXPR => {
-            let f = crate::lint::field_name(e)?;
-            Some(format!("{}.{}", name_path(text, &e.first_child()?)?, f.text()))
-        }
-        _ => None,
+    // A loop, not recursion: `a.b.b.b...` may be thousands of links long.
+    let mut parts = Vec::new();
+    let mut e = e.clone();
+    while e.kind() == INDEX_EXPR {
+        parts.push(crate::lint::field_name(&e)?.text().to_string());
+        e = e.first_child()?;
     }
+    if e.kind() != NAME_EXPR {
+        return None;
+    }
+    parts.push(text[e.text_range()].to_string());
+    parts.reverse();
+    Some(parts.join("."))
 }
 
 /// The functions of a field declared more than once (`---@field on fun(a: 'x')`
@@ -661,7 +666,7 @@ impl<'a> FileTypes<'a> {
         // `setmetatable(t, mt)` with `mt.__index = mt`: what the metatable's
         // `__index` table holds.
         if let Some(call) = value.as_ref().filter(|v| v.kind() == CALL_EXPR)
-            && call.first_child().is_some_and(|c| &inf.text[c.text_range()] == "setmetatable")
+            && call.first_child().is_some_and(|c| inf.builtin(&c) == "setmetatable")
             && let Some(mt) = call.children().find(|c| c.kind() == ARG_LIST).and_then(|a| a.children().nth(1))
             && let Some(Target::Decl(m)) = mt.first_token().and_then(|t| inf.ref_at(t.text_range())).map(|r| r.target)
         {
@@ -1961,7 +1966,7 @@ impl<'a> FileTypes<'a> {
                 CALL_EXPR => p.first_child().as_ref() == Some(&e),
                 ARG_LIST => {
                     p.first_child().as_ref() == Some(&e)
-                        && p.parent().and_then(|c| c.first_child()).is_some_and(|f| matches!(&inf.text[f.text_range()], "pcall" | "xpcall"))
+                        && p.parent().and_then(|c| c.first_child()).is_some_and(|f| matches!(inf.builtin(&f).as_ref(), "pcall" | "xpcall"))
                 }
                 _ => false,
             }
@@ -2277,7 +2282,7 @@ impl<'a> FileTypes<'a> {
                 return out;
             };
             // `setmetatable({}, { __index = a })`: what `a` is.
-            let value = match setmetatable_index(inf.text, &value) {
+            let value = match setmetatable_index(inf, &value) {
                 Some(index) => index,
                 None => value,
             };
@@ -2751,8 +2756,8 @@ fn widen_deep(t: &T) -> T {
 }
 
 /// `x` of `setmetatable({...}, { __index = x })`.
-fn setmetatable_index(text: &str, call: &SyntaxNode) -> Option<SyntaxNode> {
-    if call.kind() != CALL_EXPR || &text[call.first_child()?.text_range()] != "setmetatable" {
+fn setmetatable_index(inf: &Infer, call: &SyntaxNode) -> Option<SyntaxNode> {
+    if call.kind() != CALL_EXPR || inf.builtin(&call.first_child()?) != "setmetatable" {
         return None;
     }
     let args: Vec<SyntaxNode> = call.children().find(|c| c.kind() == ARG_LIST)?.children().collect();
@@ -3649,7 +3654,7 @@ impl<'a> Infer<'a> {
     /// `type(x) == 'string'` (either side): the type named.
     /// `type(x)` compared with the string `lit`: that string.
     fn type_test(&self, call: &SyntaxNode, lit: &SyntaxNode, d: usize) -> Option<String> {
-        if call.kind() != CALL_EXPR || &self.text[call.first_child()?.text_range()] != "type" {
+        if call.kind() != CALL_EXPR || self.builtin(&call.first_child()?) != "type" {
             return None;
         }
         let arg = call.children().find(|c| c.kind() == ARG_LIST)?.first_child()?;
@@ -3752,7 +3757,7 @@ impl<'a> Infer<'a> {
             // `local tp = type(x)`, then `tp == 'integer'`.
             let call = if call.kind() == NAME_EXPR { self.local_value(call)? } else { call.clone() };
             let call = &call;
-            if call.kind() != CALL_EXPR || &self.text[call.first_child()?.text_range()] != "type" {
+            if call.kind() != CALL_EXPR || self.builtin(&call.first_child()?) != "type" {
                 return None;
             }
             let arg = call.children().find(|c| c.kind() == ARG_LIST)?.first_child()?;
@@ -3809,7 +3814,7 @@ impl<'a> Infer<'a> {
                     let leaves = last.as_ref().is_some_and(|l| {
                         matches!(l.kind(), RETURN_STAT | BREAK_STAT | GOTO_STAT)
                             || l.kind() == CALL_STAT
-                                && l.first_child().and_then(|c| c.first_child()).is_some_and(|c| matches!(self.builtin(&c).as_str(), "error" | "os.exit"))
+                                && l.first_child().and_then(|c| c.first_child()).is_some_and(|c| matches!(self.builtin(&c).as_ref(), "error" | "os.exit"))
                     });
                     if leaves {
                         return Some(self.guard(&cond, d));
@@ -4007,7 +4012,7 @@ impl<'a> Infer<'a> {
                 let mut callee = call.first_child()?;
                 // `pcall(work, fn)`, `xpcall(work, handler, fn)`.
                 let args: Vec<SyntaxNode> = parent.children().collect();
-                match &self.text[callee.text_range()] {
+                match self.builtin(&callee).as_ref() {
                     "pcall" if i >= 1 => {
                         callee = args[0].clone();
                         i -= 1;
@@ -4846,7 +4851,7 @@ impl<'a> Infer<'a> {
             // `rawset(_G, 'Name', value)`.
             for call in self.root.descendants().filter(|n| n.kind() == CALL_EXPR) {
                 let Some(callee) = call.first_child() else { continue };
-                if &self.text[callee.text_range()] != "rawset" {
+                if self.builtin(&callee) != "rawset" {
                     continue;
                 }
                 let args: Vec<SyntaxNode> = call.children().find(|c| c.kind() == ARG_LIST).map(|a| a.children().collect()).unwrap_or_default();
@@ -5373,7 +5378,7 @@ impl<'a> Infer<'a> {
             let op = cond.children_with_tokens().filter_map(|x| x.into_token()).find(|t| !matches!(t.kind(), WHITESPACE | COMMENT)).map(|t| t.kind());
             let (Some(l), Some(r)) = (cond.first_child(), cond.children().nth(1)) else { continue };
             let (call, lit) = if l.kind() == CALL_EXPR { (l, r) } else { (r, l) };
-            if !matches!(op, Some(EQ2 | NEQ)) || call.kind() != CALL_EXPR || call.first_child().is_none_or(|c| &self.text[c.text_range()] != "type") {
+            if !matches!(op, Some(EQ2 | NEQ)) || call.kind() != CALL_EXPR || call.first_child().is_none_or(|c| self.builtin(&c) != "type") {
                 continue;
             }
             let Some(arg) = call.children().find(|c| c.kind() == ARG_LIST).and_then(|a| a.first_child()).filter(|a| is_g(a)) else { continue };
@@ -5426,9 +5431,14 @@ impl<'a> Infer<'a> {
 
     /// The builtin a callee stands for: its own text, or what
     /// `runtime.special` maps it to (`xx.assert` -> `assert`).
-    fn builtin(&self, callee: &SyntaxNode) -> String {
-        let text: String = self.text[callee.text_range()].split_whitespace().collect();
-        self.special.borrow().iter().find(|(k, _)| *k == text).map_or(text, |(_, v)| v.clone())
+    fn builtin(&self, callee: &SyntaxNode) -> std::borrow::Cow<'a, str> {
+        let raw = &self.text[callee.text_range()];
+        let special = self.special.borrow();
+        if special.is_empty() {
+            return std::borrow::Cow::Borrowed(raw);
+        }
+        let text: String = raw.split_whitespace().collect();
+        std::borrow::Cow::Owned(special.iter().find(|(k, _)| *k == text).map_or(text, |(_, v)| v.clone()))
     }
 
     /// The value a local is declared with (`local m = <value>`).
@@ -5637,8 +5647,11 @@ impl<'a> Infer<'a> {
             }
             return self.apply(&info, &args).into_iter().map(|t| if is(&t, "self") { object.clone() } else { t }).collect();
         }
-        let callee_name = (callee.kind() == NAME_EXPR).then(|| self.text[callee.text_range()].to_string());
-        let global = callee.first_token().and_then(|t| self.ref_at(t.text_range())).is_some_and(|r| r.target == Target::Global);
+        // `runtime.special` names (`xx.require`) count as the builtin they stand for.
+        let mapped = self.builtin(&callee);
+        let special = !self.special.borrow().is_empty() && mapped != self.text[callee.text_range()].split_whitespace().collect::<String>();
+        let callee_name = (callee.kind() == NAME_EXPR || special).then(|| mapped.into_owned());
+        let global = special || callee.first_token().and_then(|t| self.ref_at(t.text_range())).is_some_and(|r| r.target == Target::Global);
         if global && let Some(n) = callee_name.as_deref() {
             match n {
                 "setmetatable" => return vec![args.first().map_or_else(unknown, |a| self.expr_type(a))],
@@ -6882,6 +6895,39 @@ mod tests {
         let p = crate::parse(&text);
         let n = crate::names(&p, &text);
         super::type_at(&p, &n, &text, crate::TextSize::from(o as u32)).unwrap_or_default()
+    }
+
+    #[test]
+    fn runtime_special() {
+        let special = |t: &str| {
+            let o = t.find("<?").unwrap();
+            let text = t.replacen("<?", "", 1).replacen("?>", "", 1);
+            let p = crate::parse(&text);
+            let n = crate::names(&p, &text);
+            let pairs = [("lib.type", "type"), ("lib.assert", "assert"), ("mt.set", "setmetatable"), ("try", "pcall")];
+            let settings = super::TypeSettings { special: pairs.iter().map(|(a, b)| (a.to_string(), b.to_string())).collect(), ..Default::default() };
+            super::type_at_with(&p, &n, &text, crate::TextSize::from(o as u32), &settings).unwrap_or_default()
+        };
+        assert_eq!(special("---@type string|number
+local x
+if lib.type(x) == 'string' then print(<?x?>) end
+"), "string");
+        assert_eq!(special("---@type string?
+local x
+lib.assert(x)
+print(<?x?>)
+"), "string");
+        assert_eq!(special("local <?t?> = mt.set({ a = 1 }, {})
+"), "table");
+        assert_eq!(special("local ok, <?r?> = try(function() return 1 end)
+"), ty("local ok, <?r?> = pcall(function() return 1 end)
+"));
+        // Without the setting the names are plain globals.
+        assert_eq!(ty("---@type string?
+local x
+lib.assert(x)
+print(<?x?>)
+"), "string?");
     }
 
     #[test]

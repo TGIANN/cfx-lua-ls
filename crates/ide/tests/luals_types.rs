@@ -26,8 +26,9 @@ const NOT_SCORED: &[(&str, &str)] = &[
     // where it is a syntax error.
     ("common 550", "Lua 5.5 named varargs"),
     // `foo ?? 2` under `Lua.runtime.nonstandardSymbol: ['??']`: CfxLua has no
-    // `??` operator (its `?` is only safe navigation, `a?.b` / `a?[k]`), so the
-    // setting has nothing to turn on here.
+    // `??` operator. Its token list (`ref/cfxlua/llex.h`) has none, and `?` is
+    // read only in `suffixedexp` as safe navigation (`a?.b` / `a?[k]`,
+    // `GRIT_POWER_SAFENAV` in `lparser.c`), so the setting has nothing to turn on.
     ("common 382", "?? is not CfxLua syntax"),
 ];
 
