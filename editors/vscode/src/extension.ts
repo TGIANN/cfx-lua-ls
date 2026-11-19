@@ -11,6 +11,17 @@ let client: LanguageClient | undefined;
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
   context.subscriptions.push(
     vscode.commands.registerCommand("cfxLuaLs.restartServer", () => restart(context)),
+    // The `spell-check` quick fix: LuaLS's `lua.setConfig` add to `Lua.spell.dict`.
+    vscode.commands.registerCommand("cfxLuaLs.spell.addWord", async (word: string) => {
+      const config = vscode.workspace.getConfiguration("Lua");
+      const words = config.get<string[]>("spell.dict") ?? [];
+      if (!words.includes(word)) {
+        const target = vscode.workspace.workspaceFolders
+          ? vscode.ConfigurationTarget.Workspace
+          : vscode.ConfigurationTarget.Global;
+        await config.update("spell.dict", [...words, word], target);
+      }
+    }),
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (e.affectsConfiguration("cfxLuaLs.server.path")) {
         void restart(context);
@@ -67,11 +78,12 @@ async function start(context: vscode.ExtensionContext): Promise<void> {
     // LuaLS's own keys (`Lua.format.enable`, `Lua.format.defaultConfig`), sent as
     // `{ Lua: { format } }` on start and on every change.
     // `Lua.diagnostics.*`, `Lua.type.*`, `Lua.doc.*`, `Lua.hint.*` (inlay
-    // hints, off unless `Lua.hint.enable`), `Lua.hover.expandAlias` and
-    // `Lua.runtime.special` are LuaLS's own settings: read, not contributed, so
-    // both extensions can be installed without clashing.
+    // hints, off unless `Lua.hint.enable`), `Lua.hover.expandAlias`,
+    // `Lua.runtime.special`, `Lua.nameStyle.config` and `Lua.spell.dict` are
+    // LuaLS's own settings: read, not contributed, so both extensions can be
+    // installed without clashing.
     synchronize: {
-      configurationSection: ["Lua.format", "Lua.diagnostics", "Lua.type", "Lua.doc", "Lua.hint", "Lua.hover", "Lua.runtime"],
+      configurationSection: ["Lua.format", "Lua.diagnostics", "Lua.type", "Lua.doc", "Lua.hint", "Lua.hover", "Lua.runtime", "Lua.nameStyle", "Lua.spell"],
       fileEvents: vscode.workspace.createFileSystemWatcher("**/{*.lua,.luarc.json,.luarc.jsonc}"),
     },
   };

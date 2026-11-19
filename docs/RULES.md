@@ -95,6 +95,10 @@ Level: E error, W warning, I information, H hint. Fix: the quick fix that
 | `global-element` | off by default (as in LuaLS): any global written outside `diagnostics.globals` | W | |
 | `different-requires` | one file required under two names in a resource (`a.b` / `a/b`) | W | |
 | `no-unknown` | off by default (as in LuaLS): a local whose type the inference cannot tell | W | |
+| `name-style-check` | off by default (as in LuaLS): a name that breaks its `Lua.nameStyle.config` rule (EmmyLuaCodeStyle's `NameStyleChecker`, its quirks too: only the first name of a top-level `local a, b` and never a numeric `for` index); `pattern` rules use Rust's `regex` syntax, which has no look-around or back-references (such a pattern counts as `off`, as an invalid one does in LuaLS); same findings as LuaLS 3.19.2 on 158 server files, with and without a config | W | |
+| `spell-check` | off by default (as in LuaLS): a word of a name or short string missing from LuaLS's dictionaries and `Lua.spell.dict`; quick fixes: add to `Lua.spell.dict` (the VS Code extension runs it; other editors get the replacements only) and up to 14 closest words; same findings as LuaLS 3.19.2 on 158 server files | I | |
+| `codestyle-check` | off by default (as in LuaLS): where the text differs from the formatter's output (EmmyLuaCodeStyle's `CodeStyleChecker`), with the file's `.editorconfig` or `Lua.format.defaultConfig`; same messages and ranges as LuaLS 3.19.2 on 158 server files, except "must end with new line", which LuaLS ends one column past the end of the file | W | |
+| `unnecessary-assert` | off by default: `assert(x)` with an always-truthy `x`; LuaLS 3.19.2 has this check but leaves it unregistered (its positive test is disabled over `assert(arg[1])`), so only a configured severity turns it on here | W | |
 | `undefined-doc-name` | a type in a doc tag that no `---@class` / `---@alias` / `---@enum` of the workspace or the library declares (`int`, `float`, `object` get Lua's name in the message); silent when the resource, or one it depends on or imports `@res/` files from, has escrow files | W | |
 
 ## FiveM API

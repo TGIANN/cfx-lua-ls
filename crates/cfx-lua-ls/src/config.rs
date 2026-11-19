@@ -12,11 +12,22 @@ pub(crate) struct Diagnostics {
     /// `diagnostics.enable`: `false` keeps only syntax errors.
     pub(crate) enable: bool,
     pub(crate) lint: LintConfig,
+    /// `format.defaultConfig` (`codestyle-check` outside an editor: the style
+    /// when no `.editorconfig` applies).
+    pub(crate) format_default: std::collections::HashMap<String, String>,
+    /// The folders the settings were read for: the `.editorconfig` search stops
+    /// at them.
+    pub(crate) folders: Vec<std::path::PathBuf>,
 }
 
 impl Default for Diagnostics {
     fn default() -> Self {
-        Diagnostics { enable: true, lint: LintConfig::default() }
+        Diagnostics {
+            enable: true,
+            lint: LintConfig::default(),
+            format_default: Default::default(),
+            folders: Vec::new(),
+        }
     }
 }
 
@@ -62,6 +73,23 @@ pub(crate) fn apply(d: &mut Diagnostics, v: &Value) {
     if let Some(names) = doc("packageName") {
         d.lint.package_names = names;
     }
+    if let Some(words) = get(v, "spell", "dict").and_then(Value::as_array) {
+        d.lint.spell_dict = words.iter().filter_map(|w| w.as_str().map(str::to_string)).collect();
+    }
+    if let Some(map) = get(v, "format", "defaultConfig").and_then(Value::as_object) {
+        d.format_default = map
+            .iter()
+            .filter_map(|(k, v)| match v {
+                Value::String(s) => Some((k.clone(), s.clone())),
+                Value::Bool(b) => Some((k.clone(), b.to_string())),
+                Value::Number(n) => Some((k.clone(), n.to_string())),
+                _ => None,
+            })
+            .collect();
+    }
+    if let Some(c) = get(v, "nameStyle", "config") {
+        d.lint.name_style = cfx_lua_ide::lint::name_style::NameStyleConfig::parse(c);
+    }
     if let Some(b) = get(v, "cfx", "lualsCompat").and_then(Value::as_bool) {
         d.lint.luals_compat = b;
     }
@@ -100,7 +128,7 @@ pub(crate) fn apply(d: &mut Diagnostics, v: &Value) {
                     d.lint.severity.insert(code.clone(), None);
                 }
                 Some("any" | "opened") => {
-                    let level = cfx_lua_ide::lint::default_severity(code).unwrap_or(Severity::Warning);
+                    let level = cfx_lua_ide::lint::enabled_severity(code);
                     d.lint.severity.entry(code.clone()).or_insert(Some(level));
                 }
                 _ => {}
@@ -162,7 +190,7 @@ pub(crate) fn luarc(folders: &[PathBuf]) -> Option<(PathBuf, Value)> {
 
 /// `.luarc.json` settings, then the client's `Lua` section.
 pub(crate) fn load(folders: &[PathBuf], client: Option<&Value>) -> Diagnostics {
-    let mut d = Diagnostics::default();
+    let mut d = Diagnostics { folders: folders.to_vec(), ..Diagnostics::default() };
     if let Some((_, v)) = luarc(folders) {
         apply(&mut d, &v);
     }

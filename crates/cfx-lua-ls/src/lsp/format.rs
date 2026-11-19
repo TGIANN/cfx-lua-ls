@@ -56,6 +56,19 @@ pub(crate) fn style(uri: &Uri, settings: &Settings, workspace: &[PathBuf], optio
     style.with_editor_options(Some(options.tab_size as usize), Some(options.insert_spaces))
 }
 
+/// The style `codestyle-check` compares a file with: its `.editorconfig`, else
+/// `defaultConfig`, without the editor's options (LuaLS `GetStyle`).
+pub(crate) fn file_style(path: &Path, default_config: &HashMap<String, String>, workspace: &[PathBuf]) -> Style {
+    match editorconfig(path, workspace) {
+        Some(config) => config.style(&path.to_string_lossy()),
+        None => {
+            let mut style = Style::default();
+            style.apply(default_config);
+            style
+        }
+    }
+}
+
 /// The nearest `.editorconfig` from the file's folder up to the workspace folder
 /// that holds it (LuaLS `provider/formatting.lua`); a file outside every folder
 /// climbs to the root, as in LuaLS; with no workspace, only the file's own folder.

@@ -136,7 +136,7 @@ impl Fmt<'_, '_> {
             Kind::Standard => r.set_indent(indent, IndentStrategy::Relative),
             Kind::Invert => r.set_indent(indent, IndentStrategy::InvertRelative),
             Kind::WhenNewLine => {
-                if self.is_new_line() {
+                if self.is_new_line_at(n) {
                     r.set_indent(indent, IndentStrategy::Relative);
                 }
             }

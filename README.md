@@ -8,7 +8,7 @@ awareness, client / server sides, natives, the server sandbox, exports, events,
 ox_lib and the frameworks (QBCore, Qbox).
 
 **Status:** early, not released. Done: the CfxLua parser, formatter
-(EmmyLuaCodeStyle behaviour), names (definition, references, rename), 113 lint
+(EmmyLuaCodeStyle behaviour), names (definition, references, rename), 117 lint
 rules with quick fixes, hover / completion / signature help from the natives, the
 Lua library and the workspace's own resources (exports, framework objects, ox_lib's
 `lib`), event names, a `check` command and an MCP server for AI agents. The type
@@ -20,9 +20,9 @@ the workspace for completion after any expression (`ESX.GetPlayerFromId(src).`,
 `return-type-mismatch`, `missing-fields`, `need-check-nil`, `undefined-field`,
 `missing-parameter` / `redundant-parameter`, `missing-return`, `inject-field`,
 `invisible`, ...), each kept narrower than LuaLS's where it would guess. Every
-LuaLS diagnostic code is implemented except `codestyle-check`, `name-style-check`,
-`spell-check` and `unnecessary-assert`, which LuaLS ships off (the others it
-ships off stay off here too); it passes all 608 of LuaLS's scored type inference cases (the other 2 are
+LuaLS diagnostic code is implemented; the ones LuaLS ships off stay off here
+too (`codestyle-check`, `name-style-check` and `spell-check` give the same
+findings as LuaLS on 158 server files); it passes all 608 of LuaLS's scored type inference cases (the other 2 are
 Lua 5.5 syntax and a `??` operator CfxLua does not have) and all 537 of its diagnostic
 cases: by default 529, the other 8 with `cfx.lualsCompat` on, and all 537 with
 that switch on for every case (the Lua 5.5 `global` case is not scored, CfxLua
@@ -71,7 +71,10 @@ LuaLS's type switches are read too: `type.weakNilCheck`, `type.weakUnionCheck`,
 `diagnostics.unusedLocalExclude`, `doc.privateName` / `doc.protectedName` /
 `doc.packageName` / `doc.regengine`, `runtime.special` (`{ "xx.assert": "assert" }`: a name that
 acts as `assert`, `error`, `os.exit`, `type`, `setmetatable`, `pcall`, `xpcall`,
-`rawset` or `require` does), and in the editor `hover.expandAlias`. By default this server is narrower than LuaLS in a few places
+`rawset` or `require` does), `nameStyle.config` and `spell.dict` (for the
+`name-style-check` and `spell-check` codes), `format.defaultConfig` (the style
+`codestyle-check` compares with when no `.editorconfig` applies), and in the
+editor `hover.expandAlias`. By default this server is narrower than LuaLS in a few places
 where it would guess on FiveM code; `"cfx.lualsCompat": true` gives LuaLS's own
 behaviour there: nil is checked against declared types (unless
 `type.weakNilCheck` is set), a local keeps the type of its first value

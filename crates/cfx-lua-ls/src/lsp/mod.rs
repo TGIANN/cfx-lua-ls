@@ -7,7 +7,7 @@
 
 mod convert;
 mod document;
-mod format;
+pub(crate) mod format;
 mod semantic;
 
 use convert::Encoding;
@@ -910,13 +910,23 @@ impl Server<'_> {
             return Vec::new();
         }
         let config = &self.diagnostics.lint;
-        match format::file_path(uri) {
-            Some(path) => cfx_lua_ide::workspace::lint_file(&self.ws, &path, parse, &doc.text, names, config),
+        let path = format::file_path(uri);
+        let mut lints = match &path {
+            Some(path) => cfx_lua_ide::workspace::lint_file(&self.ws, path, parse, &doc.text, names, config),
             None => {
                 let ctx = cfx_lua_ide::lint::Context { config, ..Default::default() };
                 cfx_lua_ide::lint::lint(parse, &doc.text, names, &ctx)
             }
+        };
+        if config.severity.get("codestyle-check").is_some_and(Option::is_some) {
+            let style = match &path {
+                Some(p) => format::file_style(p, &self.format.default_config, &self.workspace),
+                None => format::file_style(std::path::Path::new(""), &self.format.default_config, &[]),
+            };
+            lints.extend(cfx_lua_ide::lint::codestyle(parse, &doc.text, &style, config));
+            lints.sort_by_key(|d| (d.range.start(), d.range.end()));
         }
+        lints
     }
 
     fn lint_diagnostic(&self, doc: &Document, l: &Lint) -> lsp_types::Diagnostic {
@@ -969,6 +979,33 @@ impl Server<'_> {
                 is_preferred: Some(true),
                 ..Default::default()
             }));
+        }
+        // spell-check, as LuaLS's `solveSpell`: add the word to `Lua.spell.dict`
+        // (a client command; the VS Code extension handles it), then the
+        // dictionary's closest words.
+        for l in lints.iter().filter(|l| l.code == "spell-check") {
+            let word = &doc.text[l.range];
+            out.push(lsp_types::CodeActionOrCommand::CodeAction(lsp_types::CodeAction {
+                title: format!("Add '{word}' to workspace dict"),
+                kind: Some(lsp_types::CodeActionKind::QUICKFIX),
+                diagnostics: Some(vec![self.lint_diagnostic(doc, l)]),
+                command: Some(lsp_types::Command {
+                    title: "Add Word to dictionary".into(),
+                    command: "cfxLuaLs.spell.addWord".into(),
+                    arguments: Some(vec![serde_json::Value::String(word.to_string())]),
+                }),
+                ..Default::default()
+            }));
+            for suggest in cfx_lua_ide::lint::spell_suggest(word) {
+                let range = convert::range(&doc.index, l.range, self.encoding);
+                out.push(lsp_types::CodeActionOrCommand::CodeAction(lsp_types::CodeAction {
+                    title: suggest.clone(),
+                    kind: Some(lsp_types::CodeActionKind::QUICKFIX),
+                    diagnostics: Some(vec![self.lint_diagnostic(doc, l)]),
+                    edit: Some(edit(vec![TextEdit { range, new_text: suggest }])),
+                    ..Default::default()
+                }));
+            }
         }
         let mut seen = std::collections::HashSet::new();
         for l in &lints {

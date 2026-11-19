@@ -68,6 +68,19 @@ fn truthy(t: T) -> T {
     }
 }
 
+/// LuaLS's `node:alwaysTruthy()`: a known type none of whose members may be nil
+/// or false (`boolean`, `any` and `unknown` may).
+fn always_truthy(t: &T) -> bool {
+    let members = members_of(t);
+    !members.is_empty()
+        && members.iter().all(|m| match m {
+            T::Name(n) => !matches!(n.as_str(), "nil" | "false" | "any" | "boolean" | "unknown"),
+            T::Bool(b) => *b,
+            T::Dots => false,
+            _ => true,
+        })
+}
+
 /// Only nil and `false` (`boolean` is `false`); `nil_only`: only nil.
 fn falsy(t: T, nil_only: bool) -> T {
     if has_unknown(&t) || mentions_any(&t) {
@@ -1880,6 +1893,28 @@ impl<'a> FileTypes<'a> {
             }
             if let T::Name(class) = non_nil(inf.expr_type(&object)) {
                 out.push((field.text_range(), class, field.text().to_string()));
+            }
+        }
+        out
+    }
+
+    /// unnecessary-assert (LuaLS's `script/core/diagnostics/unnecessary-assert.lua`):
+    /// the callee of each `assert(x, ...)` whose first argument is always truthy.
+    pub(crate) fn unnecessary_asserts(&self) -> Vec<TextRange> {
+        let inf = &self.inf;
+        let mut out = Vec::new();
+        for call in inf.root.descendants().filter(|c| c.kind() == CALL_EXPR) {
+            let Some(callee) = call.first_child() else { continue };
+            if inf.builtin(&callee) != "assert" {
+                continue;
+            }
+            let Some(arg) = call.children().find(|c| c.kind() == ARG_LIST).and_then(|a| a.first_child()) else { continue };
+            if inf.exhausted.get() {
+                break;
+            }
+            // A literal keeps its value (`true`), as LuaLS's node does.
+            if always_truthy(&literal_type(&arg).unwrap_or_else(|| inf.expr_type(&arg))) {
+                out.push(callee.text_range());
             }
         }
         out
