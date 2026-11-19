@@ -11,10 +11,14 @@ Each phase ends with something usable and a check that proves it.
 `lua-language-server --check --checklevel=Warning`, peak memory summed over its
 two processes:
 
-| folder | files | LuaLS 3.19.2 | target |
-|---|---|---|---|
-| corpus A `[scripts]/[tgiann]` without escrow files | 623 (6.3 MB) | 1,021 MB, 33-36 s | < 300 MB, < 2 s |
-| same folder as installed, 68 % escrow files | 1,955 | 1,673 MB, 25 s | |
+| folder | files | LuaLS 3.19.2 | target | cfx-lua-ls (2026-11-19) |
+|---|---|---|---|---|
+| corpus A `[scripts]/[tgiann]` without escrow files | 623 (6.3 MB) | 1,021 MB, 33-36 s | < 300 MB, < 2 s | 70 MB, 1.18-1.20 s |
+| same folder as installed, 68 % escrow files | 1,955 | 1,673 MB, 25 s | | same: escrow files are skipped |
+
+cfx-lua-ls column: `cfx-lua-ls check <folder> --all-files --level warning` on
+16 threads, wall time and peak working set over three runs (the command itself
+reports 0.91 s); the target is met.
 
 FiveM escrow files (encrypted, `FXAP` header) are `.lua` files, and LuaLS has no
 check for them. During the run on the installed folder LuaLS also hit an internal
