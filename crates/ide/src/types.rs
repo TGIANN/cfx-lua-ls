@@ -3605,6 +3605,20 @@ impl<'a> Infer<'a> {
     /// `self` in `function obj:m()`: the type of `obj`.
     fn self_type(&self, colon: &SyntaxToken) -> T {
         let Some(func_name) = colon.parent().filter(|p| p.kind() == FUNC_NAME) else { return unknown() };
+        // `---@param self list<T>` above `function list:foo()`: the function's
+        // own generics stay open (`<T>`); a bare generic says nothing.
+        if let Some(stat) = func_name.parent() {
+            let tags = stat_tags(self.text, &stat);
+            let gens = generics(&tags);
+            if let Some(t) = tags.into_iter().find_map(|t| match t {
+                Tag::Param { name, ty: Some(ty), .. } if name == "self" => Some(ty),
+                _ => None,
+            }) && !matches!(&t, T::Name(n) if gens.contains(n))
+            {
+                let open: HashMap<String, T> = gens.iter().map(|g| (g.clone(), name(&format!("<{g}>")))).collect();
+                return subst(&t, &open, &gens, false);
+            }
+        }
         let parts: Vec<SyntaxToken> = func_name.children_with_tokens().filter_map(|e| e.into_token()).filter(|t| t.kind() == NAME).collect();
         let Some(first) = parts.first() else { return unknown() };
         if parts.len() > 2 {
@@ -4210,6 +4224,12 @@ impl<'a> Infer<'a> {
         }
         if let Some(Some(p)) = iter.params.first() {
             bind(p, &self.expand(state), &gens, &mut map);
+            // `fun(t: V[])` over a class with a `[integer]` field.
+            if let T::Array(e) = p
+                && let Some(item) = self.member_of_type(state, &Key::Index(name("integer")))
+            {
+                bind(e, &item, &gens, &mut map);
+            }
         }
         let t = iter.rets.get(i).map_or_else(|| name("nil"), |t| subst(t, &map, &gens, true));
         if i == 0 { non_nil(t) } else { t }
@@ -4529,6 +4549,9 @@ impl<'a> Infer<'a> {
                 let Some(e) = self.root.token_at_offset(r.range.start()).right_biased().and_then(|t| t.parent()) else { continue };
                 if let Some(v) = self.assigned_value(&e) {
                     parts.push(v);
+                } else if e.kind() == FUNC_NAME {
+                    // `function Y() end`, wherever it is in the file.
+                    parts.push(name("function"));
                 }
             }
             // `rawset(_G, 'Name', value)`.
@@ -4852,8 +4875,43 @@ impl<'a> Infer<'a> {
                     }
                 }
             }
+            // `local m = setmetatable(t, { __index = x })`: the fields of `t`,
+            // then those of `x` (LuaLS treats any global `setmetatable` so).
+            if let Some(call) = self.local_value(object).filter(|c| c.kind() == CALL_EXPR)
+                && let Some(callee) = call.first_child().filter(|c| c.kind() == NAME_EXPR && &self.text[c.text_range()] == "setmetatable")
+                && callee.first_token().and_then(|t| self.ref_at(t.text_range())).is_some_and(|r| r.target == Target::Global)
+            {
+                let args: Vec<SyntaxNode> = call.children().find(|c| c.kind() == ARG_LIST).map(|a| a.children().collect()).unwrap_or_default();
+                if let Some(t) = args.first().map(|a| self.index_type(a, key)).filter(|t| !has_unknown(t)) {
+                    return t;
+                }
+                if let Some(meta) = args.get(1).filter(|m| m.kind() == TABLE_EXPR)
+                    && let Some(index) = meta
+                        .children()
+                        .filter(|f| f.kind() == FIELD_NAMED)
+                        .find(|f| f.children_with_tokens().filter_map(|x| x.into_token()).find(|t| t.kind() == NAME).is_some_and(|t| t.text() == "__index"))
+                        .and_then(|f| f.children().last())
+                {
+                    return self.index_type(&index, key);
+                }
+            }
             unknown()
         })
+    }
+
+    /// The value a local is declared with (`local m = <value>`).
+    fn local_value(&self, e: &SyntaxNode) -> Option<SyntaxNode> {
+        if e.kind() != NAME_EXPR {
+            return None;
+        }
+        let Target::Decl(d) = self.ref_at(e.first_token()?.text_range())?.target else { return None };
+        let decl = &self.names.decls[d];
+        if decl.kind != DeclKind::Local {
+            return None;
+        }
+        let stat = self.root.token_at_offset(decl.range.start()).right_biased()?.parent_ancestors().find(|a| a.kind() == LOCAL_STAT)?;
+        let i = stat.children().filter(|c| c.kind() == LOCAL_NAME).position(|c| c.text_range().start() == decl.range.start())?;
+        stat.children().find(|c| c.kind() == EXPR_LIST)?.children().nth(i)
     }
 
     /// A field of a type: class `---@field`s (parents too), `table<K, V>`,
@@ -4915,7 +4973,12 @@ impl<'a> Infer<'a> {
                             (w, k) if w == k => true,
                             (w, k) => numeric(w).is_some() && numeric(k).is_some() || is(w, "any"),
                         };
-                        return def.indexes.iter().find(|(want, _)| fits(want)).map(|(_, v)| v.clone());
+                        if let Some(v) = def.indexes.iter().find(|(want, _)| fits(want)).map(|(_, v)| v.clone()) {
+                            return Some(v);
+                        }
+                        // `---@class listB<T>: { [integer]: T }`.
+                        let parents = def.parent_types.clone();
+                        return parents.iter().filter(|p| matches!(p, T::Table(_))).find_map(|p| self.member_of_type(p, key));
                     }
                 };
                 let k = &k;
@@ -6080,6 +6143,16 @@ fn bind(pattern: &T, actual: &T, gens: &[String], out: &mut HashMap<String, T>) 
             }
         }
         (T::Array(p), T::Generic(an, aa)) if an == "table" && aa.len() == 2 => bind(p, &aa[1], gens, out),
+        // `{ [1]?: T1, [2]?: T2 }` given `[A, B]`.
+        (T::Table(pf), T::Tuple(items)) => {
+            for p in pf {
+                if let Key::Index(T::Int(i)) = &p.key
+                    && let Some(a) = usize::try_from(*i).ok().and_then(|i| i.checked_sub(1)).and_then(|i| items.get(i))
+                {
+                    bind(&p.ty, a, gens, out);
+                }
+            }
+        }
         (T::Fun(pf), T::Fun(af)) => {
             for (p, a) in pf.params.iter().zip(&af.params) {
                 if let (Some(p), Some(a)) = (&p.ty, &a.ty) {
