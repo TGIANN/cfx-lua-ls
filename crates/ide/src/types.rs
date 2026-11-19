@@ -507,6 +507,15 @@ impl<'a> FileTypes<'a> {
         self
     }
 
+    /// Aliases another file of the resource (or one its manifest names)
+    /// declares; the file's own of the same name win.
+    pub(crate) fn with_aliases(mut self, ext: &[(String, T)]) -> FileTypes<'a> {
+        for (n, t) in ext {
+            self.inf.aliases.entry(n.clone()).or_insert_with(|| t.clone());
+        }
+        self
+    }
+
     /// The expression is a string (`('%s'):`, a local holding one).
     pub(crate) fn is_string(&self, e: &SyntaxNode) -> bool {
         let t = non_nil(self.inf.expr_type(e));
@@ -2603,6 +2612,16 @@ const OPAQUE_ENUM: &str = "<enum>";
 /// `---@enum A` on a table of literal values: `A` is one of the values
 /// (`---@enum(key) A`: one of the keys). An enum with any other value is left
 /// out (its type is not known).
+/// The `---@alias` and `---@enum` types a file declares, sorted by name.
+pub(crate) fn file_aliases(root: &SyntaxNode, text: &str) -> Vec<(String, T)> {
+    if !text.contains("@alias") && !text.contains("@enum") {
+        return Vec::new();
+    }
+    let mut out: Vec<(String, T)> = doc_aliases(text).0.into_iter().chain(enum_aliases(root, text)).collect();
+    out.sort_by(|a, b| a.0.cmp(&b.0));
+    out
+}
+
 fn enum_aliases(root: &SyntaxNode, text: &str) -> HashMap<String, T> {
     let mut out = HashMap::new();
     if !text.contains("@enum") {

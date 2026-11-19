@@ -179,6 +179,8 @@ pub struct FileApi {
     pub class_binds: Vec<(Owner, String)>,
     /// `---@alias` and `---@enum` names of the file.
     pub doc_names: Vec<String>,
+    /// What each `---@alias` and `---@enum` of the file stands for.
+    pub aliases: Vec<(String, DocType)>,
 }
 
 impl FileApi {
@@ -212,7 +214,7 @@ impl FileApi {
                 && a.operators == b.operators
                 && a.indexes == b.indexes
                 && a.generics == b.generics
-        }) && self.class_binds == other.class_binds && self.doc_names == other.doc_names && all(&self.exports, &other.exports, |a, b| {
+        }) && self.class_binds == other.class_binds && self.doc_names == other.doc_names && self.aliases == other.aliases && all(&self.exports, &other.exports, |a, b| {
             a.name == b.name && a.value == b.value && deprecated(&a.doc) == deprecated(&b.doc)
         }) && all(&self.export_calls, &other.export_calls, |a, b| {
             a.callee == b.callee && a.name == b.name && a.value == b.value
@@ -1245,6 +1247,7 @@ fn finish(mut b: Builder) -> FileApi {
     b.api.defs.shrink_to_fit();
     b.api.classes = doc_classes(b.text);
     b.api.doc_names = doc_type_names(b.text);
+    b.api.aliases = crate::types::file_aliases(&b.root, b.text);
     b.api.funcs.shrink_to_fit();
     b.api
 }

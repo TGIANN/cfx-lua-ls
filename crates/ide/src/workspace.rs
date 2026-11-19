@@ -627,6 +627,25 @@ impl Workspace {
         self.related(r).into_iter().any(|i| self.resources[i].escrow)
     }
 
+    /// The `---@alias` / `---@enum` types the other files of a file's resource
+    /// declare, then those of the resources its manifest names; the first of a
+    /// name wins.
+    pub(crate) fn visible_aliases(&self, path: &Path) -> Vec<(String, crate::luacats::DocType)> {
+        let k = key(path);
+        let Some(r) = self.files.get(&k).and_then(|e| e.resource) else { return Vec::new() };
+        let mut out: Vec<(String, crate::luacats::DocType)> = Vec::new();
+        for res in std::iter::once(r).chain(self.related(r)) {
+            for f in self.resources[res].files.iter().filter(|f| **f != k) {
+                for (n, t) in self.files.get(f).map(|e| e.api.aliases.as_slice()).unwrap_or_default() {
+                    if !out.iter().any(|(o, _)| o == n) {
+                        out.push((n.clone(), t.clone()));
+                    }
+                }
+            }
+        }
+        out
+    }
+
     /// The resources a resource's manifest names: `dependency` entries and the
     /// resources of its `@res/file.lua` imports, in the workspace.
     pub(crate) fn related(&self, res: usize) -> Vec<usize> {
@@ -914,6 +933,7 @@ pub fn lint_file(
     let info = ws.info(path);
     let defined = |n: &str| ws.defined_elsewhere(path, n);
     let used = |n: &str| ws.used_elsewhere(path, n);
+    let aliases = ws.visible_aliases(path);
     let ctx = Context {
         side: info.side,
         game: info.game,
@@ -922,6 +942,7 @@ pub fn lint_file(
         defined_elsewhere: &defined,
         used_elsewhere: &used,
         globals_unknown: info.globals_unknown,
+        aliases: &aliases,
         config,
     };
     let mut lints = crate::lint::lint(parse, text, names, &ctx);
