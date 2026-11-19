@@ -19,6 +19,18 @@ fn run(script: &str, settings: &TypeSettings) -> Option<String> {
     type_at_with(&p, &n, &text, TextSize::from(at as u32), settings)
 }
 
+/// Cases left out on purpose, each with why (cases with a LuaLS setting not
+/// read here are left out too; see `settings_of`).
+const NOT_SCORED: &[(&str, &str)] = &[
+    // `function f(...args)` names the varargs: Lua 5.5 syntax. CfxLua is Lua 5.4,
+    // where it is a syntax error.
+    ("common 550", "Lua 5.5 named varargs"),
+    // `foo ?? 2` under `Lua.runtime.nonstandardSymbol: ['??']`: CfxLua has no
+    // `??` operator (its `?` is only safe navigation, `a?.b` / `a?[k]`), so the
+    // setting has nothing to turn on here.
+    ("common 382", "?? is not CfxLua syntax"),
+];
+
 /// The case's LuaLS settings; None for one not read here.
 fn settings_of(c: &Value) -> Option<TypeSettings> {
     let mut s = TypeSettings::default();
@@ -27,6 +39,11 @@ fn settings_of(c: &Value) -> Option<TypeSettings> {
             "Lua.hover.expandAlias" => s.expand_alias = v.as_bool()?,
             "Lua.hover.enumsLimit" => s.enums_limit = v.as_u64()? as usize,
             "Lua.type.inferParamType" => s.infer_param_type = v.as_bool()?,
+            // `{ ['xx.assert'] = 'assert' }`, extracted as a flat list of pairs.
+            "Lua.runtime.special" => {
+                let flat: Vec<&str> = v.as_array()?.iter().filter_map(Value::as_str).collect();
+                s.special = flat.chunks(2).filter_map(|p| Some((p.first()?.to_string(), p.get(1)?.to_string()))).collect();
+            }
             _ => return None,
         }
     }
@@ -45,7 +62,7 @@ fn luals_type_inference() {
         let id = format!("{} {}", c["file"].as_str().unwrap(), c["n"]);
         let want = c["want"].as_str().unwrap();
         let script = c["script"].as_str().unwrap();
-        let Some(settings) = settings_of(c) else {
+        let Some(settings) = settings_of(c).filter(|_| !NOT_SCORED.iter().any(|(n, _)| *n == id)) else {
             unscored.push(id);
             continue;
         };

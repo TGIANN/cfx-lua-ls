@@ -66,11 +66,12 @@ async function start(context: vscode.ExtensionContext): Promise<void> {
     ],
     // LuaLS's own keys (`Lua.format.enable`, `Lua.format.defaultConfig`), sent as
     // `{ Lua: { format } }` on start and on every change.
-    // `Lua.diagnostics.*`, `Lua.type.*`, `Lua.doc.*` and `Lua.hint.*` (inlay
-    // hints, off unless `Lua.hint.enable`) are LuaLS's own settings: read, not
-    // contributed, so both extensions can be installed without clashing.
+    // `Lua.diagnostics.*`, `Lua.type.*`, `Lua.doc.*`, `Lua.hint.*` (inlay
+    // hints, off unless `Lua.hint.enable`), `Lua.hover.expandAlias` and
+    // `Lua.runtime.special` are LuaLS's own settings: read, not contributed, so
+    // both extensions can be installed without clashing.
     synchronize: {
-      configurationSection: ["Lua.format", "Lua.diagnostics", "Lua.type", "Lua.doc", "Lua.hint"],
+      configurationSection: ["Lua.format", "Lua.diagnostics", "Lua.type", "Lua.doc", "Lua.hint", "Lua.hover", "Lua.runtime"],
       fileEvents: vscode.workspace.createFileSystemWatcher("**/{*.lua,.luarc.json,.luarc.jsonc}"),
     },
   };

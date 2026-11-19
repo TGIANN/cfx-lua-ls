@@ -228,6 +228,9 @@ pub struct LintConfig {
     pub check_table_shape: bool,
     /// `diagnostics.unusedLocalExclude`: globs of locals never unused.
     pub unused_local_exclude: Vec<String>,
+    /// `runtime.special`: a name that behaves as a builtin (`xx.assert` as
+    /// `assert`).
+    pub special: Vec<(String, String)>,
 }
 
 impl LintConfig {
