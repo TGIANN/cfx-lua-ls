@@ -44,6 +44,8 @@ enum Effect {
     Falsy,
     /// The read only happens when it is nil (`if x == nil`).
     Nil,
+    /// Not this class (`obj.type == 'a'` false where only `A` has `type: 'a'`).
+    Drop(T),
     /// An `if` above tested it (`if x ~= nil then ... end`): LuaLS's two
     /// branches merge back as `T|nil`, no longer `T?`.
     Split,
@@ -3191,18 +3193,33 @@ impl<'a> Infer<'a> {
                             break 'walk self.decl_type(d);
                         }
                         self.flow_budget.set(b - 1);
-                        match self.stat_effect(&s, d) {
-                            Some(Effect::Set(t)) => break 'walk t,
-                            Some(x) => effects.push(x),
-                            None => {}
+                        // A `do ... end` block runs straight through: its statements, last first.
+                        let mut stats = vec![s.clone()];
+                        while let Some(i) = stats.iter().position(|x| x.kind() == DO_STAT) {
+                            let inner: Vec<SyntaxNode> = stats[i].children().find(|c| c.kind() == BLOCK).map(|b| b.children().collect()).unwrap_or_default();
+                            stats.splice(i..=i, inner.into_iter().rev());
                         }
-                        for c in [self.cast_of(&s, d), self.detached_cast(&s, d)].into_iter().flatten() {
-                            effects.push(c);
+                        for st in &stats {
+                            match self.stat_effect(st, d) {
+                                Some(Effect::Set(t)) => break 'walk t,
+                                Some(x) => effects.push(x),
+                                None => {}
+                            }
+                            for c in [self.cast_of(st, d), self.detached_cast(st, d)].into_iter().flatten() {
+                                effects.push(c);
+                            }
                         }
                         prev = s.prev_sibling();
                     }
                     let Some(owner) = parent.parent() else { break self.decl_type(d) };
                     match owner.kind() {
+                        IF_STAT | ELSEIF_CLAUSE if let Some(f) = owner.first_child().and_then(|c| self.field_effect(&c, d, true)) => effects.push(f),
+                        ELSE_CLAUSE
+                            if let Some(i) = owner.parent().filter(|i| !i.children().any(|c| c.kind() == ELSEIF_CLAUSE))
+                                && let Some(f) = i.first_child().and_then(|c| self.field_effect(&c, d, false)) =>
+                        {
+                            effects.push(f)
+                        }
                         IF_STAT | ELSEIF_CLAUSE | WHILE_STAT if let Some(t) = owner.first_child().and_then(|c| self.type_check(&c, d)) => {
                             effects.push(Effect::Narrow(t))
                         }
@@ -3282,6 +3299,10 @@ impl<'a> Infer<'a> {
                 Effect::Falsy => falsy(t, false),
                 Effect::Nil => falsy(t, true),
                 Effect::Also(v) => union(std::iter::once(t).chain(v).filter(|t| !is(t, UNSET)).collect()),
+                Effect::Drop(c) => {
+                    let parts: Vec<T> = members_of(&t).iter().flat_map(|m| members_of(&self.expand(m))).filter(|m| *m != c).collect();
+                    if parts.is_empty() { t } else { union(parts) }
+                }
                 Effect::Split => match t {
                     T::Optional(inner) => union(members_of(&inner).into_iter().chain(std::iter::once(name("nil"))).collect()),
                     t => t,
@@ -3492,6 +3513,51 @@ impl<'a> Infer<'a> {
         crate::util::unquote(&self.text[lit.text_range()]).map(str::to_string)
     }
 
+    /// `obj.type == 'a'` (`truth`: the condition held) where exactly one class
+    /// of `obj`'s type has a `type` field taking `'a'`: that class, or not it
+    /// (LuaLS keeps it when the field takes other values too).
+    fn field_effect(&self, cond: &SyntaxNode, d: usize, truth: bool) -> Option<Effect> {
+        match cond.kind() {
+            PAREN_EXPR => return self.field_effect(&cond.first_child()?, d, truth),
+            BINARY_EXPR => {}
+            _ => return None,
+        }
+        let mut kids = cond.children();
+        let (l, r) = (kids.next()?, kids.next()?);
+        let op = cond.children_with_tokens().filter_map(|x| x.into_token()).find(|t| !matches!(t.kind(), WHITESPACE | COMMENT))?.kind();
+        if op == AND_KW {
+            return if truth { self.field_effect(&l, d, true).or_else(|| self.field_effect(&r, d, true)) } else { None };
+        }
+        if !matches!(op, EQ2 | NEQ) {
+            return None;
+        }
+        let (field, lit) = if l.kind() == LITERAL_EXPR { (r, l) } else { (l, r) };
+        let lit = literal_type(&lit)?;
+        if field.kind() != INDEX_EXPR {
+            return None;
+        }
+        let object = field.first_child().filter(|o| o.kind() == NAME_EXPR)?;
+        if object.first_token().and_then(|t| self.ref_at(t.text_range())).map(|r| r.target) != Some(Target::Decl(d)) {
+            return None;
+        }
+        let key = field.children_with_tokens().filter_map(|x| x.into_token()).filter(|t| t.kind() == NAME).last()?;
+        let mut hits = Vec::new();
+        for m in members_of(&self.decl_type(d)).iter().flat_map(|m| members_of(&self.expand(m))) {
+            let T::Name(c) = &m else { continue };
+            let Some(f) = self.class_def(c).and_then(|def| def.fields.iter().find(|f| f.name == key.text()).cloned()) else { continue };
+            let vals = members_of(&self.expand(&f.ty));
+            if vals.contains(&lit) {
+                hits.push((m.clone(), vals.len() > 1));
+            }
+        }
+        let [(class, in_union)] = hits.as_slice() else { return None };
+        if (op == EQ2) == truth {
+            Some(Effect::Narrow(class.clone()))
+        } else {
+            (!in_union).then(|| Effect::Drop(class.clone()))
+        }
+    }
+
     fn type_check(&self, cond: &SyntaxNode, d: usize) -> Option<T> {
         if cond.kind() == PAREN_EXPR {
             return self.type_check(&cond.first_child()?, d);
@@ -3560,11 +3626,14 @@ impl<'a> Infer<'a> {
                 let cond = s.first_child()?;
                 let then = s.children().find(|c| c.kind() == BLOCK)?;
                 let simple = !s.children().any(|c| matches!(c.kind(), ELSEIF_CLAUSE | ELSE_CLAUSE));
-                if simple && self.checks(&cond, d) == Some(false) {
+                // `else` without writes to it: after the `if`, only the else ran.
+                let plain_else = !s.children().any(|c| c.kind() == ELSEIF_CLAUSE) && writes.is_empty();
+                if (simple || plain_else) && self.checks(&cond, d) == Some(false) {
                     let last = then.children().last();
                     let leaves = last.as_ref().is_some_and(|l| {
                         matches!(l.kind(), RETURN_STAT | BREAK_STAT | GOTO_STAT)
-                            || l.kind() == CALL_STAT && l.first_child().and_then(|c| c.first_child()).is_some_and(|c| &self.text[c.text_range()] == "error")
+                            || l.kind() == CALL_STAT
+                                && l.first_child().and_then(|c| c.first_child()).is_some_and(|c| matches!(&self.text[c.text_range()], "error" | "os.exit"))
                     });
                     if leaves {
                         return Some(self.guard(&cond, d));
@@ -4231,8 +4300,8 @@ impl<'a> Infer<'a> {
                 bind(e, &item, &gens, &mut map);
             }
         }
-        let t = iter.rets.get(i).map_or_else(|| name("nil"), |t| subst(t, &map, &gens, true));
-        if i == 0 { non_nil(t) } else { t }
+        // LuaLS drops nil from every loop variable.
+        non_nil(iter.rets.get(i).map_or_else(|| name("nil"), |t| subst(t, &map, &gens, true)))
     }
 
     /// A table's key type and value types (`(all values, positional values)`).
@@ -5739,6 +5808,7 @@ impl<'a> Infer<'a> {
             _ => None,
         });
         let tags = stat.as_ref().map(|s| stat_tags(self.text, s)).unwrap_or_default();
+        let gens = generics(&tags);
         let params: Vec<Option<T>> = body
             .children()
             .find(|c| c.kind() == PARAM_LIST)
@@ -5747,6 +5817,11 @@ impl<'a> Infer<'a> {
                     .filter(|p| p.kind() == PARAM)
                     .map(|p| {
                         let n = p.first_token().map(|t| t.text().to_string()).unwrap_or_default();
+                        // `---@param x? T`: an argument's nil does not bind `T`.
+                        let optional = tags.iter().any(|t| matches!(t, Tag::Param { name, optional: true, ty: Some(T::Name(g)), .. } if *name == n && gens.contains(g)));
+                        if optional {
+                            return param_doc_type(&tags, &n).map(|t| T::Optional(Box::new(t)));
+                        }
                         // `...` under `---@vararg T`.
                         param_doc_type(&tags, &n).or_else(|| {
                             (n == "...").then(|| tags.iter().find_map(|t| match t {
@@ -6115,7 +6190,8 @@ fn bind(pattern: &T, actual: &T, gens: &[String], out: &mut HashMap<String, T>) 
                 out.entry(g.clone()).or_insert_with(|| a.clone());
             }
         }
-        (T::Optional(p), a) => bind(p, a, gens, out),
+        // `x: T?` given `boolean?`: `T` is `boolean`.
+        (T::Optional(p), a) => bind(p, &non_nil(a.clone()), gens, out),
         (T::Union(ps), a) => {
             // `K|integer` given an integer binds nothing.
             let plain = ps.iter().any(|p| p == a || (numeric(p).is_some() && numeric(a).is_some()));
