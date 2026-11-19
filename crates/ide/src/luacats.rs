@@ -863,7 +863,10 @@ fn parse_line(text: &str, at: TextSize, errors: &mut Vec<DocError>) -> Option<Do
                 } else {
                     '='
                 };
-                if matches!(op, '+' | '-') && p.eat("?") {
+                // `+?` makes it optional (`T?`); `-?` takes nil away.
+                if op == '+' && p.eat("?") {
+                    ops.push(('?', DocType::Name("nil".into())));
+                } else if op == '-' && p.eat("?") {
                     ops.push((op, DocType::Name("nil".into())));
                 } else {
                     match p.ty() {

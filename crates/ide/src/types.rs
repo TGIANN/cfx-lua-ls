@@ -44,6 +44,9 @@ enum Effect {
     Falsy,
     /// The read only happens when it is nil (`if x == nil`).
     Nil,
+    /// An `if` above tested it (`if x ~= nil then ... end`): LuaLS's two
+    /// branches merge back as `T|nil`, no longer `T?`.
+    Split,
 }
 
 /// Without nil and `false` (`boolean` is `true`).
@@ -3279,6 +3282,10 @@ impl<'a> Infer<'a> {
                 Effect::Falsy => falsy(t, false),
                 Effect::Nil => falsy(t, true),
                 Effect::Also(v) => union(std::iter::once(t).chain(v).filter(|t| !is(t, UNSET)).collect()),
+                Effect::Split => match t {
+                    T::Optional(inner) => union(members_of(&inner).into_iter().chain(std::iter::once(name("nil"))).collect()),
+                    t => t,
+                },
                 Effect::Fill(v) => union(std::iter::once(non_nil(t)).chain(v).filter(|t| !is(t, UNSET)).collect()),
                 Effect::Narrow(n) => {
                     // The members of the known type that the check keeps.
@@ -3306,6 +3313,10 @@ impl<'a> Infer<'a> {
                     for (op, c) in ops {
                         t = match op {
                             '+' => union(vec![t, c]),
+                            '?' => match t {
+                                T::Optional(_) => t,
+                                t => T::Optional(Box::new(t)),
+                            },
                             '-' => {
                                 let gone = |p: &T| *p == c;
                                 match t {
@@ -3561,6 +3572,18 @@ impl<'a> Infer<'a> {
                     if !writes.is_empty() {
                         return Some(Effect::Fill(writes.iter().filter_map(|w| value_of(w)).collect()));
                     }
+                }
+                // `x ~= nil` / `x == nil` (a truthiness test keeps `T?`).
+                let mut c = cond.clone();
+                while c.kind() == PAREN_EXPR && let Some(inner) = c.first_child() {
+                    c = inner;
+                }
+                let nil_compare = c.kind() == BINARY_EXPR
+                    && c.children_with_tokens().filter_map(|x| x.into_token()).any(|t| matches!(t.kind(), EQ2 | NEQ))
+                    && c.children().any(|k| k.kind() == LITERAL_EXPR && k.first_token().is_some_and(|t| t.kind() == NIL_KW))
+                    && self.checks(&c, d).is_some();
+                if writes.is_empty() && nil_compare {
+                    return Some(Effect::Split);
                 }
                 (!writes.is_empty()).then(|| Effect::Also(writes.iter().filter_map(|w| value_of(w)).collect()))
             }
@@ -4753,6 +4776,10 @@ impl<'a> Infer<'a> {
                 if has_unknown(&lt) || !ms.iter().any(|m| falsy(m) || is(m, "boolean")) {
                     return lt;
                 }
+                // `n or error('')`: a call that gives no value adds nothing.
+                if matches!(r.kind(), CALL_EXPR | METHOD_CALL_EXPR) && self.call_returns(&r).is_empty() {
+                    return bool_union(ms.into_iter().filter(|m| !falsy(m)).collect());
+                }
                 bool_union(ms.into_iter().filter(|m| !falsy(m)).chain(std::iter::once(rt)).collect())
             }
             DOT2 => {
@@ -4865,7 +4892,8 @@ impl<'a> Infer<'a> {
                     let Key::Index(k) = key else { return None };
                     fields.iter().find(|f| matches!(&f.key, Key::Index(w) if numeric(w).is_some() && numeric(k).is_some()))
                 })
-                .map(|f| f.ty.clone()),
+                // `{ x?: integer }`: `t.x` is `integer?`.
+                .map(|f| if f.optional && !matches!(f.ty, T::Optional(_)) { T::Optional(Box::new(f.ty.clone())) } else { f.ty.clone() }),
             T::Generic(n, args) if self.class_def(n).is_some_and(|c| !c.generics.is_empty()) => {
                 let c = self.class_def(n)?;
                 let map: HashMap<String, T> = c.generics.iter().cloned().zip(args.iter().cloned()).collect();
