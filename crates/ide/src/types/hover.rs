@@ -277,12 +277,12 @@ impl FileTypes<'_> {
         }
         let ty = if types.is_empty() { unknown() } else { union(types) };
         let t = inf.expand_aliases(&non_nil(ty.clone()), 0);
-        let view = crate::luacats::view(&ty);
-        if !(is(&t, "string") || matches!(t, T::Str(_))) {
+        let view = self.hover_view(&ty);
+        if !(is(&t, "string") || matches!(t, T::Str(..))) {
             self.type_shape(&t, own.as_deref(), &mut shape, None);
         }
         let literal = crate::consts::literals_shown(&inf.root, inf.names, inf.text, &values);
-        let fields = if is(&t, "string") || matches!(t, T::Str(_)) { None } else { shape.lines(self) };
+        let fields = if is(&t, "string") || matches!(t, T::Str(..)) { None } else { shape.lines(self) };
         let title = if global { "(global)" } else { "(field)" };
         let mut code = format!("{title} {shown}:");
         if !(fields.is_some() && matches!(view.as_str(), "table" | "any" | "unknown" | "nil")) {

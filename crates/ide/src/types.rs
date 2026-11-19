@@ -242,6 +242,38 @@ pub fn type_at_with(parse: &Parse, names: &Names, text: &str, offset: TextSize, 
     Some(infer_view(&t, settings.enums_limit))
 }
 
+/// A type of the library as LuaLS's hover shows it: its aliases expanded
+/// (`hover.expandAlias`), a union's members in LuaLS's order.
+pub(crate) fn lib_hover_view(t: &T) -> String {
+    infer_view(&expand_with(t, &HashMap::new(), 0), 5)
+}
+
+/// `t` with the aliases of `own` (then the library's) replaced by what they
+/// stand for.
+fn expand_with(t: &T, own: &HashMap<String, T>, depth: usize) -> T {
+    if depth > 8 {
+        return t.clone();
+    }
+    match t {
+        T::Name(n) => match own.get(n).or_else(|| crate::library::aliases().get(n)) {
+            Some(a) if !matches!(a, T::Generic(g, _) if g == OPAQUE_ENUM) => expand_with(a, own, depth + 1),
+            _ => t.clone(),
+        },
+        T::Union(ps) => {
+            let mut out = Vec::new();
+            for p in ps {
+                match expand_with(p, own, depth + 1) {
+                    T::Union(inner) => out.extend(inner),
+                    x => out.push(x),
+                }
+            }
+            T::Union(out)
+        }
+        T::Optional(inner) => T::Optional(Box::new(expand_with(inner, own, depth + 1))),
+        t => t.clone(),
+    }
+}
+
 /// An inferred type as LuaLS prints it: a union's members once each, basic
 /// types first (`boolean`, `string`, `number`, `integer`, `function`,
 /// `table`), `true`, `false`, the rest by name, `nil` last; more than five
@@ -299,7 +331,7 @@ pub fn decl_type(parse: &Parse, names: &Names, text: &str, decl: usize) -> Optio
 /// A literal type as its base type (`'x'` as `string`, `1` as `integer`).
 fn widen(t: &T) -> T {
     match t {
-        T::Str(_) => name("string"),
+        T::Str(..) => name("string"),
         T::Int(_) => name("integer"),
         T::Bool(_) => name("boolean"),
         t => t.clone(),
@@ -361,8 +393,13 @@ impl Shape {
             types.retain(|t| !is(t, "unknown") || false);
             let ty = if types.is_empty() { unknown() } else { union(types) };
             let literal = crate::consts::literals_shown(&inf.root, inf.names, inf.text, &e.values);
-            let key = if e.optional { format!("{key}?") } else { key };
-            rows.push((key, crate::luacats::view(&ty), literal));
+            // `T?` shows as an optional key (`f?: file*`).
+            let (ty, optional) = match ty {
+                T::Optional(i) => (*i, true),
+                t => (t, e.optional),
+            };
+            let key = if optional { format!("{key}?") } else { key };
+            rows.push((key, ft.hover_view(&ty), literal));
         }
         let rank = |k: &str| (if k.starts_with('_') { 10 } else { 0 }) + i32::from(k.starts_with('['));
         let numbers: Option<Vec<f64>> = rows.iter().map(|r| r.2.as_deref().and_then(|l| l.parse::<f64>().ok())).collect();
@@ -473,7 +510,7 @@ impl<'a> FileTypes<'a> {
     /// The expression is a string (`('%s'):`, a local holding one).
     pub(crate) fn is_string(&self, e: &SyntaxNode) -> bool {
         let t = non_nil(self.inf.expr_type(e));
-        is(&t, "string") || matches!(t, T::Str(_))
+        is(&t, "string") || matches!(t, T::Str(..))
     }
 
     /// The fields completion offers after `e.` by its type: a class's
@@ -531,7 +568,7 @@ impl<'a> FileTypes<'a> {
                     }
                     // `---@field ['with quotes'] integer`.
                     for (k, _) in &def.indexes {
-                        if let T::Str(s) = k
+                        if let T::Str(s, _) = k
                             && !out.iter().any(|(n, _)| n == s)
                         {
                             out.push((s.clone(), MemberKind::Field));
@@ -547,7 +584,7 @@ impl<'a> FileTypes<'a> {
                 let name = match &f.key {
                     Key::Name(n) => n.clone(),
                     Key::Index(T::Int(i)) => i.to_string(),
-                    Key::Index(T::Str(s)) => s.clone(),
+                    Key::Index(T::Str(s, _)) => s.clone(),
                     _ => continue,
                 };
                 out.push((name, MemberKind::Field));
@@ -747,11 +784,17 @@ impl<'a> FileTypes<'a> {
         {
             t = name(c);
         }
-        if is(&t, "string") || matches!(t, T::Str(_)) {
+        if is(&t, "string") || matches!(t, T::Str(..)) {
             return None;
         }
         self.type_shape(&t, own.as_deref(), &mut shape, Some(d));
         shape.lines(self)
+    }
+
+    /// A type as LuaLS's hover shows it: aliases expanded, union members in
+    /// LuaLS's order.
+    pub(crate) fn hover_view(&self, t: &T) -> String {
+        infer_view(&expand_with(t, &self.inf.aliases, 0), 5)
     }
 
     /// The shape of the class `self` stands for in a method of it.
@@ -905,7 +948,7 @@ impl<'a> FileTypes<'a> {
                         for (k, v) in &def.indexes {
                             let key = match k {
                                 T::Int(i) => format!("[{i}]"),
-                                T::Str(s) => s.clone(),
+                                T::Str(s, _) => s.clone(),
                                 _ => continue,
                             };
                             let (ty, optional) = match v {
@@ -2558,7 +2601,7 @@ fn enum_aliases(root: &SyntaxNode, text: &str) -> HashMap<String, T> {
         for field in table.children() {
             let m = if key {
                 match field.kind() {
-                    FIELD_NAMED => field.children_with_tokens().filter_map(|x| x.into_token()).find(|t| t.kind() == NAME).map(|t| T::Str(t.text().to_string())),
+                    FIELD_NAMED => field.children_with_tokens().filter_map(|x| x.into_token()).find(|t| t.kind() == NAME).map(|t| T::Str(t.text().to_string(), Default::default())),
                     FIELD_INDEXED => field.first_child().and_then(|k| literal_type(&k)),
                     _ => None,
                 }
@@ -2624,7 +2667,7 @@ fn literal_type(e: &SyntaxNode) -> Option<T> {
     let t = e.first_token()?;
     match t.kind() {
         NUMBER => t.text().parse::<i64>().ok().map(T::Int),
-        STRING => crate::util::unquote(t.text()).filter(|_| !t.text().contains('\\')).map(|s| T::Str(s.to_string())),
+        STRING => crate::util::unquote(t.text()).filter(|_| !t.text().contains('\\')).map(|s| T::Str(s.to_string(), Default::default())),
         TRUE_KW => Some(T::Bool(true)),
         FALSE_KW => Some(T::Bool(false)),
         _ => None,
@@ -2655,7 +2698,7 @@ fn float_misfits(t: &T) -> bool {
     ms.iter().any(|m| is(m, "integer"))
         && ms.iter().all(|m| match m {
             T::Name(n) => BASIC.contains(&n.as_str()) && !matches!(n.as_str(), "number" | "any" | "unknown"),
-            T::Str(_) | T::Int(_) | T::Bool(_) => true,
+            T::Str(..) | T::Int(_) | T::Bool(_) => true,
             _ => false,
         })
 }
@@ -3161,7 +3204,7 @@ impl<'a> Infer<'a> {
                     let fits = |m: &T| {
                         let kind = match m {
                             T::Fun(_) => Some("function"),
-                            T::Str(_) => Some("string"),
+                            T::Str(..) => Some("string"),
                             T::Bool(_) => Some("boolean"),
                             T::Int(_) => Some("integer"),
                             T::Table(_) | T::Array(_) | T::Tuple(_) => Some("table"),
@@ -3783,7 +3826,7 @@ impl<'a> Infer<'a> {
         let literal = |a: &SyntaxNode| -> Option<T> {
             let tok = a.first_token().filter(|_| a.kind() == LITERAL_EXPR)?;
             match tok.kind() {
-                STRING => Some(T::Str(crate::util::unquote(tok.text())?.to_string())),
+                STRING => Some(T::Str(crate::util::unquote(tok.text())?.to_string(), Default::default())),
                 NUMBER => tok.text().parse::<i64>().ok().map(T::Int),
                 TRUE_KW => Some(T::Bool(true)),
                 FALSE_KW => Some(T::Bool(false)),
@@ -3803,11 +3846,11 @@ impl<'a> Infer<'a> {
             }
         }
         let literal_mismatch = |a: &T, p: &T| match (a, p) {
-            (T::Str(x), T::Str(y)) => x != y,
+            (T::Str(x, _), T::Str(y, _)) => x != y,
             (T::Int(x), T::Int(y)) => x != y,
             (T::Bool(x), T::Bool(y)) => x != y,
-            (T::Str(_) | T::Int(_) | T::Bool(_), T::Union(parts)) => {
-                parts.iter().all(|q| matches!(q, T::Str(_) | T::Int(_) | T::Bool(_)) && *q != *a)
+            (T::Str(..) | T::Int(_) | T::Bool(_), T::Union(parts)) => {
+                parts.iter().all(|q| matches!(q, T::Str(..) | T::Int(_) | T::Bool(_)) && *q != *a)
             }
             _ => false,
         };
@@ -3833,8 +3876,8 @@ impl<'a> Infer<'a> {
             let mut score = 0.0;
             for (a, p) in arg_types.iter().zip(&f.params) {
                 let lits: Vec<&T> = match &p.ty {
-                    Some(T::Union(ps)) => ps.iter().filter(|q| matches!(q, T::Str(_) | T::Int(_) | T::Bool(_))).collect(),
-                    Some(q @ (T::Str(_) | T::Int(_) | T::Bool(_))) => vec![q],
+                    Some(T::Union(ps)) => ps.iter().filter(|q| matches!(q, T::Str(..) | T::Int(_) | T::Bool(_))).collect(),
+                    Some(q @ (T::Str(..) | T::Int(_) | T::Bool(_))) => vec![q],
                     _ => Vec::new(),
                 };
                 if !lits.is_empty() && lits.contains(&a) {
@@ -4145,7 +4188,7 @@ impl<'a> Infer<'a> {
             return Some(true);
         }
         match (c, p) {
-            (T::Str(a), T::Str(b)) => return Some(a == b),
+            (T::Str(a, _), T::Str(b, _)) => return Some(a == b),
             (T::Int(a), T::Int(b)) => return Some(a == b),
             (T::Bool(a), T::Bool(b)) => return Some(a == b),
             _ => {}
@@ -4190,7 +4233,7 @@ impl<'a> Infer<'a> {
         let (ck, pk) = (self.cast_kind(c), self.cast_kind(p));
         // A literal declaration (`'a'|'b'`) takes a value of its base type only
         // when the value's literal is known.
-        if matches!(p, T::Str(_) | T::Int(_) | T::Bool(_)) {
+        if matches!(p, T::Str(..) | T::Int(_) | T::Bool(_)) {
             return match (&ck, &pk) {
                 (Kind::Basic(a), Kind::Basic(b)) if a == b || matches!((*a, *b), ("integer", "number") | ("number", "integer")) => None,
                 (Kind::Basic(_), Kind::Basic(_)) => Some(false),
@@ -4237,7 +4280,7 @@ impl<'a> Infer<'a> {
             T::Name(n) if matches!(n.as_str(), "nil" | "any" | "unknown") => Some(true),
             T::Name(n) if let Some(a) = self.aliases.get(n) => self.takes_nil(a, depth + 1),
             T::Name(n) if BASIC.contains(&n.as_str()) || self.classes.contains_key(n) => Some(false),
-            T::Table(_) | T::Array(_) | T::Tuple(_) | T::Fun(_) | T::Str(_) | T::Int(_) | T::Bool(_) => Some(false),
+            T::Table(_) | T::Array(_) | T::Tuple(_) | T::Fun(_) | T::Str(..) | T::Int(_) | T::Bool(_) => Some(false),
             T::Generic(n, _) if n == "table" => Some(false),
             _ => None,
         }
@@ -4274,7 +4317,7 @@ impl<'a> Infer<'a> {
                 None if self.classes.contains_key(n) && !self.aliases.contains_key(n) => Kind::Class(n.clone()),
                 None => Kind::Unknown,
             },
-            T::Str(_) => Kind::Basic("string"),
+            T::Str(..) => Kind::Basic("string"),
             T::Int(_) => Kind::Basic("integer"),
             T::Bool(_) => Kind::Basic("boolean"),
             T::Table(_) | T::Array(_) | T::Tuple(_) => Kind::Basic("table"),
@@ -4288,7 +4331,7 @@ impl<'a> Infer<'a> {
     /// through aliases and enums.
     fn wants_literal(&self, t: &T, depth: usize) -> bool {
         match t {
-            T::Str(_) | T::Int(_) | T::Bool(_) => true,
+            T::Str(..) | T::Int(_) | T::Bool(_) => true,
             T::Optional(i) => self.wants_literal(i, depth),
             T::Union(ps) => ps.iter().any(|p| self.wants_literal(p, depth)),
             T::Name(n) if depth < 8 => self.aliases.get(n).is_some_and(|a| self.wants_literal(a, depth + 1)),
@@ -4668,7 +4711,7 @@ impl<'a> Infer<'a> {
                 _ => None,
             },
             T::Generic(n, args) if n == "table" && args.len() == 2 => Some(args[1].clone()),
-            T::Str(_) => self.member_of_type(&name("string"), key),
+            T::Str(..) => self.member_of_type(&name("string"), key),
             T::Table(fields) => fields
                 .iter()
                 .find(|f| &f.key == key)
@@ -5124,7 +5167,7 @@ impl<'a> Infer<'a> {
             return;
         }
         match t {
-            T::Str(s) => {
+            T::Str(s, _) => {
                 // `'"aaa"'`: LuaLS reads the inner quotes as the string's.
                 let s = crate::util::unquote(s).unwrap_or(s);
                 out.push(Choice::Str(s.to_string()));

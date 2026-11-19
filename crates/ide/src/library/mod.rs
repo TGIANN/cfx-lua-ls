@@ -156,6 +156,57 @@ pub fn module_members(class: &str) -> Option<&'static std::collections::HashSet<
         .get(class)
 }
 
+/// The members of a library class as LuaLS's hover lists them: its
+/// `---@field`s (name, type) and the functions written on the table the class
+/// is declared on (`---@class file*` / `local file = {}` / `function
+/// file:close()`), typed `function`.
+pub fn class_members(class: &str) -> Vec<(String, crate::luacats::DocType)> {
+    static TABLES: OnceLock<HashMap<String, String>> = OnceLock::new();
+    let tables = TABLES.get_or_init(|| {
+        let mut out = HashMap::new();
+        for (_, text) in files::FILES {
+            let mut class: Option<&str> = None;
+            for line in text.lines() {
+                let t = line.trim();
+                if let Some(c) = t.strip_prefix("---@class ") {
+                    class = c.split_whitespace().next();
+                    continue;
+                }
+                if t.starts_with("---") {
+                    continue;
+                }
+                if let (Some(c), Some(g)) = (class.take(), t.strip_suffix("= {}").map(|g| g.trim().trim_start_matches("local ").trim()))
+                    && !g.is_empty()
+                    && g.chars().all(|ch| ch.is_alphanumeric() || ch == '_')
+                {
+                    out.entry(c.to_string()).or_insert_with(|| g.to_string());
+                }
+            }
+        }
+        out
+    });
+    let mut out: Vec<(String, crate::luacats::DocType)> = Vec::new();
+    for def in classes().get(class).into_iter().flatten() {
+        for f in def.fields.iter().filter(|f| f.visibility.is_none()) {
+            if !out.iter().any(|(n, _)| *n == f.name) {
+                out.push((f.name.clone(), f.ty.clone()));
+            }
+        }
+    }
+    if let Some(table) = tables.get(class) {
+        let prefix = format!("{table}.");
+        for (n, items) in library().names() {
+            let Some(m) = n.strip_prefix(&prefix).filter(|m| !m.contains('.')) else { continue };
+            if out.iter().any(|(o, _)| o == m) {
+                continue;
+            }
+            let ty = if items.iter().any(|i| i.function) { "function".to_string() } else { global_class(n).unwrap_or_else(|| "table".to_string()) };
+            out.push((m.to_string(), crate::luacats::DocType::Name(ty)));
+        }
+    }
+    out
+}
+
 /// Every `---@class`, `---@alias` and `---@enum` name of the library.
 pub fn doc_names() -> &'static std::collections::HashSet<String> {
     static NAMES: OnceLock<std::collections::HashSet<String>> = OnceLock::new();
@@ -265,6 +316,67 @@ impl Library {
         } else {
             text[item.range].to_string()
         }
+    }
+
+    /// A function's hover as LuaLS writes it: `function string.sub(s:
+    /// string|number, i: integer, j?: integer)` and its return lines.
+    pub fn signature(&self, item: &LibItem) -> String {
+        let decl = self.declaration(item);
+        let Some((head, rest)) = decl.split_once('(') else { return decl };
+        let list = rest.rsplit_once(')').map_or(rest, |(l, _)| l);
+        let tags = item.doc.map(|r| crate::luacats::parse_block(&file_text(item.file)[r], TextSize::from(0)).0).unwrap_or_default();
+        // A generic of the function shows open: `t: <T>`.
+        let gens: Vec<String> = tags
+            .iter()
+            .filter_map(|t| match &t.tag {
+                crate::luacats::Tag::Generic { names } => Some(names.iter().map(|(g, _)| g.clone()).collect::<Vec<_>>()),
+                _ => None,
+            })
+            .flatten()
+            .collect();
+        let view = |t: &crate::luacats::DocType| {
+            let mut t = t.clone();
+            crate::luacats::open_generic_names(&mut t, &gens);
+            crate::types::lib_hover_view(&t)
+        };
+        let params: Vec<String> = list
+            .split(',')
+            .map(str::trim)
+            .filter(|p| !p.is_empty())
+            .map(|p| {
+                let tag = tags.iter().find_map(|t| match &t.tag {
+                    crate::luacats::Tag::Param { name, optional, ty, .. } if name == p => Some((*optional, ty.clone())),
+                    _ => None,
+                });
+                let ty = tag.as_ref().and_then(|(_, t)| t.as_ref()).map_or_else(|| "any".to_string(), view);
+                match (p, tag.is_some_and(|(o, _)| o)) {
+                    ("...", _) => format!("...{ty}"),
+                    (p, true) => format!("{p}?: {ty}"),
+                    (p, false) => format!("{p}: {ty}"),
+                }
+            })
+            .collect();
+        let mut out = format!("{head}({})", params.join(", "));
+        let rets = tags.iter().filter_map(|t| match &t.tag {
+            crate::luacats::Tag::Return { rets, .. } => Some(rets.clone()),
+            _ => None,
+        });
+        for (i, r) in rets.flatten().enumerate() {
+            let ty = if r.optional && !matches!(r.ty, crate::luacats::DocType::Optional(_)) {
+                crate::luacats::DocType::Optional(Box::new(r.ty.clone()))
+            } else {
+                r.ty.clone()
+            };
+            let head = if i == 0 { "\n  -> ".to_string() } else { format!("\n  {}. ", i + 1) };
+            out.push_str(&head);
+            match r.name.as_deref() {
+                Some("...") => out.push_str(&format!("...{}", view(&ty))),
+                Some(n) => out.push_str(&format!("{n}: {}", view(&ty))),
+                None if ty == crate::luacats::DocType::Dots => out.push_str("...unknown"),
+                None => out.push_str(&view(&ty)),
+            }
+        }
+        out
     }
 
     /// A function's parameters with the type of their `---@param` line.

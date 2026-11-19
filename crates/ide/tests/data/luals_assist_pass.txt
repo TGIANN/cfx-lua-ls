@@ -212,6 +212,8 @@ hover-exact 101
 hover-exact 102
 hover-exact 103
 hover-exact 104
+hover-exact 106
+hover-exact 108
 hover-exact 11
 hover-exact 110
 hover-exact 111
@@ -241,6 +243,8 @@ hover-exact 135
 hover-exact 136
 hover-exact 137
 hover-exact 138
+hover-exact 14
+hover-exact 141
 hover-exact 142
 hover-exact 143
 hover-exact 144
@@ -249,6 +253,8 @@ hover-exact 146
 hover-exact 147
 hover-exact 148
 hover-exact 149
+hover-exact 15
+hover-exact 150
 hover-exact 151
 hover-exact 153
 hover-exact 156
@@ -283,8 +289,10 @@ hover-exact 186
 hover-exact 187
 hover-exact 188
 hover-exact 189
+hover-exact 19
 hover-exact 190
 hover-exact 2
+hover-exact 20
 hover-exact 21
 hover-exact 22
 hover-exact 23
@@ -296,11 +304,14 @@ hover-exact 28
 hover-exact 3
 hover-exact 31
 hover-exact 32
+hover-exact 33
 hover-exact 34
 hover-exact 35
 hover-exact 36
 hover-exact 38
 hover-exact 4
+hover-exact 41
+hover-exact 42
 hover-exact 44
 hover-exact 45
 hover-exact 46
@@ -313,6 +324,7 @@ hover-exact 52
 hover-exact 53
 hover-exact 54
 hover-exact 55
+hover-exact 57
 hover-exact 59
 hover-exact 6
 hover-exact 60
@@ -338,6 +350,7 @@ hover-exact 80
 hover-exact 85
 hover-exact 86
 hover-exact 88
+hover-exact 89
 hover-exact 9
 hover-exact 90
 hover-exact 91
@@ -351,6 +364,8 @@ hover-exact 99
 hover-type 10
 hover-type 101
 hover-type 104
+hover-type 106
+hover-type 108
 hover-type 11
 hover-type 110
 hover-type 113
@@ -376,6 +391,7 @@ hover-type 132
 hover-type 134
 hover-type 137
 hover-type 138
+hover-type 141
 hover-type 142
 hover-type 143
 hover-type 144
@@ -383,6 +399,7 @@ hover-type 145
 hover-type 146
 hover-type 147
 hover-type 148
+hover-type 150
 hover-type 151
 hover-type 156
 hover-type 159
@@ -422,6 +439,9 @@ hover-type 33
 hover-type 34
 hover-type 35
 hover-type 36
+hover-type 40
+hover-type 41
+hover-type 42
 hover-type 45
 hover-type 46
 hover-type 47
@@ -432,6 +452,7 @@ hover-type 53
 hover-type 54
 hover-type 55
 hover-type 56
+hover-type 58
 hover-type 59
 hover-type 60
 hover-type 61
@@ -453,6 +474,7 @@ hover-type 8
 hover-type 85
 hover-type 86
 hover-type 88
+hover-type 89
 hover-type 9
 hover-type 90
 hover-type 91
