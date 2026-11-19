@@ -3203,6 +3203,8 @@ impl<'a> Infer<'a> {
         }
         self.decls.borrow_mut().insert(d, None);
         let t = self.deeper(|| self.decl_type_inner(d));
+        // `---@type _, number`: LuaLS gives `_` no type.
+        let t = if is(&t, "_") { unknown() } else { t };
         self.decls.borrow_mut().insert(d, Some(t.clone()));
         t
     }
@@ -4989,7 +4991,12 @@ impl<'a> Infer<'a> {
     fn operator(&self, t: &T, op: &str, other: Option<&T>) -> Option<T> {
         // `Box<string>`: the class's `T` is `string` in its operators.
         let (c, map) = match self.expand(t) {
-            T::Name(c) => (c, HashMap::new()),
+            // A generic class named bare (`---@type Box`): its `T` stays open (`<T>`).
+            T::Name(c) => {
+                let gens = self.class_def(&c).map(|d| d.generics.clone()).unwrap_or_default();
+                let map: HashMap<String, T> = gens.into_iter().map(|g| (g.clone(), name(&format!("<{g}>")))).collect();
+                (c, map)
+            }
             T::Generic(c, args) => {
                 let gens = self.class_def(&c).map(|d| d.generics.clone()).unwrap_or_default();
                 let map: HashMap<String, T> = gens.into_iter().zip(args).collect();
@@ -5013,7 +5020,8 @@ impl<'a> Infer<'a> {
                         T::Union(v) => v.iter().collect(),
                         p => vec![p],
                     };
-                    parts.iter().any(|p| **p == *o || (numeric(p).is_some() && numeric(o).is_some()))
+                    // `vec3: number` fits a `number` operand (LuaLS `vm.isSubType`).
+                    parts.iter().any(|p| **p == *o || (numeric(p).is_some() && numeric(o).is_some()) || self.cast(o, p, 0) == Some(true))
                 }
                 _ => true,
             };
@@ -5489,7 +5497,7 @@ impl<'a> Infer<'a> {
         if call.kind() == METHOD_CALL_EXPR {
             let Some(m) = crate::api::method_name(call) else { return vec![unknown()] };
             let object = self.expr_type(&callee);
-            let info = self.method_info(&callee, m.text()).or_else(|| {
+            let info = self.method_info(&callee, m.text()).or_else(|| self.method_by_args(&object, m.text(), &args)).or_else(|| {
                 let ft = self.index_type(&callee, &Key::Name(m.text().to_string()));
                 fun_info(&ft)
             });
@@ -5691,6 +5699,31 @@ impl<'a> Infer<'a> {
             _ => return None,
         };
         self.class_member_body(&class, m)
+    }
+
+    /// `function A:f(s)` written more than once on a class (or a parent):
+    /// the first whose documented parameters take the arguments.
+    fn method_by_args(&self, object: &T, m: &str, args: &[SyntaxNode]) -> Option<Callee> {
+        let (T::Name(class) | T::Generic(class, _)) = non_nil(object.clone()) else { return None };
+        let mut todo = vec![class];
+        let mut seen = std::collections::HashSet::new();
+        while let Some(c) = todo.pop() {
+            if !seen.insert(c.clone()) || seen.len() > 16 {
+                continue;
+            }
+            if let Some(vs) = self.class_members().get(&c).and_then(|f| f.get(m)).filter(|vs| vs.len() > 1) {
+                return vs.iter().filter(|v| v.kind() == FUNC_NAME).filter_map(|v| v.parent()?.children().find(|c| c.kind() == FUNC_BODY)).map(|b| self.body_info(&b)).find(|info| {
+                    args.iter().zip(&info.params).all(|(a, p)| match p {
+                        Some(p) if !info.generics.iter().any(|g| is(p, g)) => self.cast(&widen(&self.expr_type(a)), p, 0) != Some(false),
+                        _ => true,
+                    })
+                });
+            }
+            if let Some(def) = self.classes.get(&c) {
+                todo.extend(def.parents.iter().cloned());
+            }
+        }
+        None
     }
 
     /// The function written on the variable of a class (or a parent) as `m`.
@@ -6351,7 +6384,23 @@ impl<'a> Infer<'a> {
             let open: Vec<String> = info.generics.iter().filter(|g| map.contains_key(*g)).cloned().collect();
             return info.rets.iter().map(|t| subst(t, &map, &open, true)).collect();
         }
-        info.rets.iter().map(|t| subst(t, &map, &info.generics, true)).collect()
+        info.rets
+            .iter()
+            .map(|t| {
+                let r = subst(t, &map, &info.generics, true);
+                // `---@return list<T>` with `---@class list<T>: {[integer]: T}`:
+                // LuaLS's resolved sign carries the parent table too.
+                if let T::Generic(c, args) = &r
+                    && matches!(t, T::Generic(..))
+                    && let Some(def) = self.class_def(c)
+                    && let Some(table) = def.parent_types.iter().find(|p| matches!(p, T::Table(_)))
+                {
+                    let cmap: HashMap<String, T> = def.generics.iter().cloned().zip(args.iter().cloned()).collect();
+                    return union(vec![r.clone(), subst(table, &cmap, &def.generics, false)]);
+                }
+                r
+            })
+            .collect()
     }
 
     /// The key and value types of a table constructor's fields (`nil` for `{}`).
