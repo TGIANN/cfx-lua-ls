@@ -2990,19 +2990,50 @@ impl<'a> Infer<'a> {
         if tok.kind() != NAME {
             return None;
         }
+        // A local `---@enum A` sits on: LuaLS shows it as `enum A`.
+        if matches!(parent.kind(), LOCAL_NAME | NAME_EXPR)
+            && let Some(d) = self.decl_at(tok.text_range()).or_else(|| match self.ref_at(tok.text_range())?.target {
+                Target::Decl(d) => Some(d),
+                Target::Global => None,
+            })
+            && let Some(e) = self.decl_stat(d).and_then(|st| {
+                stat_tags(self.text, &st).into_iter().find_map(|t| match t {
+                    Tag::Enum { name: n, .. } => Some(n),
+                    _ => None,
+                })
+            })
+        {
+            return Some(name(&format!("enum {e}")));
+        }
         Some(match parent.kind() {
             LOCAL_NAME | PARAM | NUMERIC_FOR_STAT | GENERIC_FOR_STAT => self.decl_type(self.decl_at(tok.text_range())?),
             LOCAL_FUNCTION_STAT | FUNC_NAME => self.function_name_type(&parent),
             NAME_EXPR => {
                 let r = self.ref_at(tok.text_range());
-                if r.is_some_and(|r| r.access == Access::Write)
-                    && let Some(v) = self.assigned_value(&parent)
-                {
-                    return Some(v);
+                if let Some(r) = r.filter(|r| r.access == Access::Write) {
+                    // `t = {}` with `---@type table<number, boolean>` on the local: a
+                    // table written takes the declared type.
+                    if let Target::Decl(d) = r.target
+                        && self.write_value(&parent).is_some_and(|v| v.kind() == TABLE_EXPR)
+                        && self.decl_stat(d).is_some_and(|st| stat_tags(self.text, &st).iter().any(|t| matches!(t, Tag::Type { .. })))
+                    {
+                        return Some(self.decl_type(d));
+                    }
+                    if let Some(v) = self.assigned_value(&parent) {
+                        return Some(v);
+                    }
                 }
                 self.expr_type(&parent)
             }
             INDEX_EXPR => {
+                // `m.x = true` where the class declares `x`: the declared type.
+                if self.assigned_value(&parent).is_some()
+                    && let Some(object) = parent.first_child()
+                    && let T::Name(c) = non_nil(self.expr_type(&object))
+                    && let Some(f) = self.class_def(&c).and_then(|def| def.fields.iter().find(|f| f.name == tok.text()).cloned())
+                {
+                    return Some(f.ty);
+                }
                 if let Some(v) = self.assigned_value(&parent) {
                     return Some(v);
                 }
@@ -3058,6 +3089,14 @@ impl<'a> Infer<'a> {
             }
         }
         Some(self.value_at(&values, i))
+    }
+
+    /// The expression written to an assignment target, when it has its own.
+    fn write_value(&self, target: &SyntaxNode) -> Option<SyntaxNode> {
+        let list = target.parent().filter(|p| p.kind() == VAR_LIST)?;
+        let stat = list.parent().filter(|p| p.kind() == ASSIGN_STAT)?;
+        let i = list.children().position(|c| c == *target)?;
+        stat.children().find(|c| c.kind() == EXPR_LIST)?.children().nth(i)
     }
 
     /// The `i`th value of an expression list (the last expression spreads).
@@ -3671,9 +3710,18 @@ impl<'a> Infer<'a> {
                     if leaves {
                         return Some(self.guard(&cond, d));
                     }
-                    if !writes.is_empty() {
+                    if simple && !writes.is_empty() {
                         return Some(Effect::Fill(writes.iter().filter_map(|w| value_of(w)).collect()));
                     }
+                }
+                // `if t then return end` with `t` itself: falsy after it.
+                if simple
+                    && writes.is_empty()
+                    && cond.kind() == NAME_EXPR
+                    && self.checks(&cond, d) == Some(true)
+                    && then.children().last().is_some_and(|l| matches!(l.kind(), RETURN_STAT | BREAK_STAT | GOTO_STAT))
+                {
+                    return Some(Effect::Falsy);
                 }
                 // `x ~= nil` / `x == nil` (a truthiness test keeps `T?`).
                 let mut c = cond.clone();
@@ -4267,6 +4315,13 @@ impl<'a> Infer<'a> {
     fn for_var_type(&self, tok: &SyntaxToken) -> T {
         let Some(stat) = tok.parent() else { return unknown() };
         if stat.kind() == NUMERIC_FOR_STAT {
+            // `---@type integerA` above the loop.
+            if let Some(t) = stat_tags(self.text, &stat).into_iter().find_map(|t| match t {
+                Tag::Type { tys } => tys.into_iter().next(),
+                _ => None,
+            }) {
+                return t;
+            }
             return name("integer");
         }
         if stat.kind() != GENERIC_FOR_STAT {
@@ -5215,8 +5270,11 @@ impl<'a> Infer<'a> {
                         todo.extend(def.parents.iter().map(|p| (p.clone(), HashMap::new())));
                     }
                 }
-                // Written on the class's variable, seen through any value of it.
-                chain.iter().find_map(|c| self.written_member(c, k))
+                // Written on the class's variable, seen through any value of it;
+                // else a `---@field [string] T` of the class.
+                chain.iter().find_map(|c| self.written_member(c, k)).or_else(|| {
+                    chain.iter().find_map(|c| self.class_def(c).and_then(|def| def.indexes.iter().find(|(kt, _)| is(kt, "string")).map(|(_, v)| v.clone())))
+                })
             }
             _ => None,
         }
