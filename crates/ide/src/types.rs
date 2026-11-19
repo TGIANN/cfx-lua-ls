@@ -1906,8 +1906,9 @@ impl<'a> FileTypes<'a> {
     /// truthy is left alone: it is what LuaLS leaves the check unregistered over
     /// (`assert(arg[1])`), and on the test servers those asserts guard lookups
     /// (`CLASSES[invType]`), `---@param` values checked at run time and locals
-    /// assigned in a loop.
-    pub(crate) fn unnecessary_asserts(&self) -> Vec<TextRange> {
+    /// assigned in a loop. A library function comes with its name, for the
+    /// caller's game, version and side checks.
+    pub(crate) fn unnecessary_asserts(&self) -> Vec<(TextRange, Option<String>)> {
         let inf = &self.inf;
         let mut out = Vec::new();
         for call in inf.root.descendants().filter(|c| c.kind() == CALL_EXPR) {
@@ -1919,14 +1920,15 @@ impl<'a> FileTypes<'a> {
             if inf.exhausted.get() {
                 break;
             }
-            let certain = match arg.kind() {
-                LITERAL_EXPR => literal_type(&arg).is_some_and(|t| always_truthy(&t)),
-                TABLE_EXPR | FUNCTION_EXPR => true,
-                NAME_EXPR | INDEX_EXPR => self.library_function(&arg),
-                _ => false,
-            };
-            if certain {
-                out.push(callee.text_range());
+            match arg.kind() {
+                LITERAL_EXPR if literal_type(&arg).is_some_and(|t| always_truthy(&t)) => out.push((callee.text_range(), None)),
+                TABLE_EXPR | FUNCTION_EXPR => out.push((callee.text_range(), None)),
+                NAME_EXPR | INDEX_EXPR => {
+                    if let Some(path) = self.library_function(&arg) {
+                        out.push((callee.text_range(), Some(path)));
+                    }
+                }
+                _ => {}
             }
         }
         out
@@ -1934,24 +1936,23 @@ impl<'a> FileTypes<'a> {
 
     /// `string.lower`, `GetHashKey`: a global (not shadowed by a local) or a field
     /// path on one that the library defines as a function.
-    fn library_function(&self, e: &SyntaxNode) -> bool {
+    fn library_function(&self, e: &SyntaxNode) -> Option<String> {
         let inf = &self.inf;
         let mut root = e.clone();
         while root.kind() == INDEX_EXPR {
             // Only `a.b` paths: `a[k]` is a lookup.
             if !root.children_with_tokens().any(|c| c.kind() == DOT) {
-                return false;
+                return None;
             }
-            let Some(base) = root.first_child() else { return false };
-            root = base;
+            root = root.first_child()?;
         }
         if root.kind() != NAME_EXPR
             || !root.first_token().and_then(|t| inf.ref_at(t.text_range())).is_some_and(|r| r.target == Target::Global)
         {
-            return false;
+            return None;
         }
         let path: String = inf.text[e.text_range()].split_whitespace().collect();
-        crate::library::library().get(&path).iter().any(|i| i.function)
+        crate::library::library().get(&path).iter().any(|i| i.function).then_some(path)
     }
 
     /// await-in-sync and not-yieldable, over `---@async` functions of the file

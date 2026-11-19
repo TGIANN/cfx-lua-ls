@@ -201,6 +201,28 @@ pub const RULES: &[(&str, Option<Severity>)] = &[
     ("naming/const", Some(Severity::Information)),
 ];
 
+/// A library function surely there when this file runs: in this game, in Lua 5.4
+/// (not `unpack`), not written by the file itself, and a native of this file's
+/// side (a shared or unlisted file takes one there on both sides).
+fn library_function_present(l: &Linter, path: &str) -> bool {
+    use crate::library::{Origin, Side, library, other_version};
+    let lib = library();
+    if !lib.has_global(path, l.ctx.game) || other_version(path).is_some() {
+        return false;
+    }
+    let root = path.split('.').next().unwrap_or(path);
+    if l.names.refs.iter().any(|r| r.target == Target::Global && r.access == Access::Write && l.src(r.range) == root) {
+        return false;
+    }
+    let items: Vec<_> = lib.get(path).iter().filter(|i| i.game == Game::Any || i.game == l.ctx.game).collect();
+    let on = |side: Side| items.iter().any(|i| i.origin != Origin::Native || i.side == Side::Shared || i.side == side);
+    match l.ctx.side {
+        FileSide::Client => on(Side::Client),
+        FileSide::Server => on(Side::Server),
+        FileSide::Shared | FileSide::Unknown => on(Side::Client) && on(Side::Server),
+    }
+}
+
 pub fn default_severity(code: &str) -> Option<Severity> {
     RULES.iter().find(|(c, _)| *c == code).and_then(|(_, s)| *s)
 }
@@ -520,8 +542,10 @@ pub fn lint(parse: &Parse, text: &str, names: &Names, ctx: &Context) -> Vec<Lint
         spell::run(&mut l);
     }
     if l.enabled("unnecessary-assert") && text.contains("assert") {
-        for range in l.types().unnecessary_asserts() {
-            l.push("unnecessary-assert", range, "Unnecessary assert: this expression is always truthy.");
+        for (range, path) in l.types().unnecessary_asserts() {
+            if path.is_none_or(|p| library_function_present(&l, &p)) {
+                l.push("unnecessary-assert", range, "Unnecessary assert: this expression is always truthy.");
+            }
         }
     }
     if (l.enabled("await-in-sync") || l.enabled("not-yieldable")) && (text.contains("async") || text.contains("coroutine.yield")) {
