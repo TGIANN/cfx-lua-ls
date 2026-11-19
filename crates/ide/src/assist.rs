@@ -462,23 +462,6 @@ fn function_body_in(parse: &Parse, range: TextRange) -> Option<SyntaxNode> {
     node.descendants().find(|n| n.kind() == FUNC_BODY)
 }
 
-/// The literal a local starts with (`1`, `-1000`, `'a'`, `true`), as written.
-fn literal_value(parse: &Parse, text: &str, d: &crate::Decl) -> Option<String> {
-    let stat = parse.syntax().covering_element(d.range).ancestors().find(|a| a.kind() == LOCAL_STAT)?;
-    let index = stat.children().filter(|c| c.kind() == LOCAL_NAME).position(|n| n.text_range().contains_range(d.range))?;
-    let value = stat.children().find(|c| c.kind() == EXPR_LIST)?.children().nth(index)?;
-    let (literal, minus) = match value.kind() {
-        LITERAL_EXPR => (value.clone(), false),
-        UNARY_EXPR if text[value.text_range()].starts_with('-') => (value.children().find(|c| c.kind() == LITERAL_EXPR)?, true),
-        _ => return None,
-    };
-    let lit = &text[literal.text_range()];
-    if lit == "nil" || lit.starts_with('[') || (minus && !lit.starts_with(|c: char| c.is_ascii_digit())) {
-        return None;
-    }
-    Some(if minus { format!("-{lit}") } else { lit.to_string() })
-}
-
 /// `(a, b)` of the function in `range`.
 pub(crate) fn param_list(text: &str, range: TextRange) -> &str {
     let s = &text[range];
@@ -489,6 +472,12 @@ pub(crate) fn param_list(text: &str, range: TextRange) -> &str {
 }
 
 pub fn hover(parse: &Parse, names: &Names, text: &str, offset: TextSize, cx: FileCtx) -> Option<Hover> {
+    // A number: its value (`0xff` is `255`).
+    if let Some(num) = token_at(&parse.syntax(), offset).find(|t| t.kind() == NUMBER)
+        && let Some(v) = num.parent().and_then(|e| crate::consts::literal_shown(&parse.syntax(), names, text, &e))
+    {
+        return Some(Hover { range: num.text_range(), markdown: format!("```lua\n{v}\n```") });
+    }
     let tok = name_token(parse, offset)?;
     let range = tok.text_range();
     let path = token_path(names, &tok);
@@ -544,14 +533,23 @@ pub fn hover(parse: &Parse, names: &Names, text: &str, offset: TextSize, cx: Fil
         }
         return Some(Hover { range, markdown });
     }
+    // A local read inside a function nested in the one that declares it.
+    let func_of = |r: TextRange| parse.syntax().covering_element(r).ancestors().find(|a| a.kind() == FUNC_BODY);
+    let upvalue = range != d.range && func_of(range) != func_of(d.range);
+    let title = match d.kind {
+        DeclKind::Param => "(parameter)",
+        DeclKind::SelfParam => "(self)",
+        DeclKind::Label => "",
+        _ if upvalue => "(upvalue)",
+        _ => "local",
+    };
     let code = match d.kind {
-        DeclKind::Param => format!("(parameter) {}", d.name),
-        DeclKind::SelfParam => "(self) self".to_string(),
         DeclKind::Label => format!("::{}::", d.name),
-        _ => format!("local {}{attrib}", d.name),
+        DeclKind::Param | DeclKind::SelfParam => format!("{title} {}", d.name),
+        _ => format!("{title} {}{attrib}", d.name),
     };
     let mut code = code;
-    if matches!(d.kind, DeclKind::Local | DeclKind::LocalFunction | DeclKind::Param | DeclKind::ForVar) {
+    if matches!(d.kind, DeclKind::Local | DeclKind::LocalFunction | DeclKind::Param | DeclKind::ForVar | DeclKind::SelfParam) {
         let mut types = Vec::new();
         if let Some((ws, file)) = cx.ws
             && let Some(Symbol::Decl(i)) = names.symbol_at(range.start())
@@ -570,15 +568,21 @@ pub fn hover(parse: &Parse, names: &Names, text: &str, offset: TextSize, cx: Fil
         }
         code.push_str(": ");
         code.push_str(&types.join("|"));
-        if let Some(v) = literal_value(parse, text, d) {
+        if let Some(v) = crate::consts::decl_value(&parse.syntax(), names, text, di) {
             code.push_str(" = ");
             code.push_str(&v);
         }
         // The fields under it, as LuaLS lists them: a constructor's shape takes
         // the type's place (`local t: {`), a class's follow it (`local c: C {`).
-        if let Some((fields, constructor)) = crate::types::FileTypes::new(parse, names, text).hover_fields(di) {
-            if constructor {
-                code = format!("local {}{attrib}: {{", d.name);
+        let ft = crate::types::FileTypes::new(parse, names, text);
+        let fields = match d.kind {
+            DeclKind::SelfParam => types.first().and_then(|c| ft.class_hover_fields(c)),
+            _ => ft.hover_fields(di, types.first().map(String::as_str)),
+        };
+        if let Some(fields) = fields {
+            // LuaLS leaves out a type that says nothing more than the fields.
+            if matches!(types.join("|").as_str(), "table" | "any" | "unknown" | "nil") {
+                code = format!("{title} {}{attrib}: {{", d.name);
             } else {
                 code.push_str(" {");
             }

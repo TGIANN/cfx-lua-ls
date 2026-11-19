@@ -4,6 +4,7 @@
 
 pub mod api;
 pub(crate) mod assist;
+mod consts;
 mod diagnostics;
 mod doc_complete;
 mod fields;
