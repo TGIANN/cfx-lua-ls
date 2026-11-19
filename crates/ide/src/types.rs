@@ -316,6 +316,10 @@ pub(crate) fn infer_view(t: &T, limit: usize) -> String {
             views.push(v);
         }
     }
+    // LuaLS's trim: `boolean` takes in `true` and `false`.
+    if views.iter().any(|v| v == "boolean") {
+        views.retain(|v| v != "true" && v != "false");
+    }
     let rank = |v: &str| -> i32 {
         match v {
             "boolean" => -100,
@@ -4703,7 +4707,7 @@ impl<'a> Infer<'a> {
                 let Some(tok) = e.first_token() else { return unknown() };
                 match self.ref_at(tok.text_range()).map(|r| r.target) {
                     Some(Target::Decl(d)) => self.read_type(e, d),
-                    Some(Target::Global) => self.global_type(tok.text()),
+                    Some(Target::Global) => self.global_read(e, tok.text()),
                     None => unknown(),
                 }
             }
@@ -4860,6 +4864,13 @@ impl<'a> Infer<'a> {
                 if lt == T::Bool(false) {
                     return rt;
                 }
+                // `x or y` with `y` an undefined global: only what `x` is when truthy.
+                if self.empty_value(&r) && !has_unknown(&lt) {
+                    let ms: Vec<T> = members_of(&lt).into_iter().filter(|m| !is(m, "nil") && !matches!(m, T::Bool(false))).collect();
+                    if !ms.is_empty() {
+                        return bool_union(ms);
+                    }
+                }
                 if matches!(&lt, T::Name(n) if n == "nil" || n == "boolean" && self.text[l.text_range()].trim() == "false") {
                     return rt;
                 }
@@ -4966,6 +4977,71 @@ impl<'a> Infer<'a> {
             }
             unknown()
         })
+    }
+
+    /// A global the file never sets and the library does not know: LuaLS
+    /// gives it no type at all, so it adds nothing to a union.
+    fn empty_value(&self, e: &SyntaxNode) -> bool {
+        e.kind() == NAME_EXPR
+            && e.first_token().and_then(|t| self.ref_at(t.text_range())).is_some_and(|r| r.target == Target::Global)
+            && has_unknown(&self.global_type(&self.text[e.text_range()]))
+            && crate::library::library().get(&self.text[e.text_range()]).is_empty()
+    }
+
+    /// A global read inside `if X then` / `if type(X) == 'number' then`
+    /// (`~=` too): its type narrowed by the conditions around it, when the
+    /// block does not set it before the read.
+    fn global_read(&self, e: &SyntaxNode, g: &str) -> T {
+        let mut t = self.global_type(g);
+        let is_g = |n: &SyntaxNode| {
+            n.kind() == NAME_EXPR && &self.text[n.text_range()] == g && n.first_token().and_then(|t| self.ref_at(t.text_range())).is_some_and(|r| r.target == Target::Global)
+        };
+        for block in e.ancestors().filter(|a| a.kind() == BLOCK) {
+            let Some(owner) = block.parent().filter(|o| matches!(o.kind(), IF_STAT | ELSEIF_CLAUSE)) else { continue };
+            let Some(cond) = owner.first_child() else { continue };
+            // Only a condition that names it costs the scan for writes.
+            if !cond.descendants().any(|n| is_g(&n)) {
+                continue;
+            }
+            let from = self.names.refs.partition_point(|r| r.range.start() < block.text_range().start());
+            let written = self.names.refs[from..]
+                .iter()
+                .take_while(|r| r.range.start() < e.text_range().start())
+                .any(|r| r.target == Target::Global && r.access == Access::Write && &self.text[r.range] == g);
+            if written {
+                break;
+            }
+            if is_g(&cond) {
+                t = truthy(t);
+                continue;
+            }
+            if cond.kind() != BINARY_EXPR {
+                continue;
+            }
+            let op = cond.children_with_tokens().filter_map(|x| x.into_token()).find(|t| !matches!(t.kind(), WHITESPACE | COMMENT)).map(|t| t.kind());
+            let (Some(l), Some(r)) = (cond.first_child(), cond.children().nth(1)) else { continue };
+            let (call, lit) = if l.kind() == CALL_EXPR { (l, r) } else { (r, l) };
+            if !matches!(op, Some(EQ2 | NEQ)) || call.kind() != CALL_EXPR || call.first_child().is_none_or(|c| &self.text[c.text_range()] != "type") {
+                continue;
+            }
+            let Some(arg) = call.children().find(|c| c.kind() == ARG_LIST).and_then(|a| a.first_child()).filter(|a| is_g(a)) else { continue };
+            let _ = arg;
+            let Some(want) = crate::util::unquote(&self.text[lit.text_range()]).map(str::to_string) else { continue };
+            let fits = |m: &T| {
+                is(m, &want)
+                    || (want == "number" && numeric(m).is_some())
+                    || (want == "boolean" && matches!(m, T::Bool(_)))
+                    || (want == "string" && matches!(m, T::Str(..)))
+                    || (want == "table" && matches!(m, T::Table(_) | T::Array(_) | T::Tuple(_)))
+                    || (want == "function" && matches!(m, T::Fun(_)))
+            };
+            let parts = members_of(&t);
+            let kept: Vec<T> = parts.into_iter().filter(|m| fits(m) == (op == Some(EQ2))).collect();
+            if !kept.is_empty() {
+                t = union(kept);
+            }
+        }
+        t
     }
 
     /// The value a local is declared with (`local m = <value>`).
@@ -6030,6 +6106,7 @@ impl<'a> Infer<'a> {
             }
         }
         let mut cols: Vec<Vec<T>> = Vec::new();
+        let mut empties: Vec<bool> = Vec::new();
         let mut returns = 0;
         for r in body.descendants().filter(|n| n.kind() == RETURN_STAT) {
             // Only the function's own returns.
@@ -6043,12 +6120,26 @@ impl<'a> Infer<'a> {
                 _ => values.len(),
             };
             for i in 0..n.max(cols.len()) {
-                let t = if i < n { self.value_at(&values, i) } else { name("nil") };
                 if cols.len() <= i {
                     // Earlier returns gave nothing here.
                     cols.push(if returns > 1 { vec![name("nil")] } else { Vec::new() });
                 }
+                // An undefined global adds nothing (LuaLS: an empty node), but
+                // `unknown` when nothing else but nil comes back.
+                if values.get(i).is_some_and(|v| self.empty_value(v)) {
+                    if empties.len() <= i {
+                        empties.resize(i + 1, false);
+                    }
+                    empties[i] = true;
+                    continue;
+                }
+                let t = if i < n { self.value_at(&values, i) } else { name("nil") };
                 cols[i].push(t);
+            }
+        }
+        for (i, col) in cols.iter_mut().enumerate() {
+            if empties.get(i) == Some(&true) && col.iter().all(|t| is(t, "nil")) {
+                col.insert(0, unknown());
             }
         }
         cols.into_iter().map(union).collect()
