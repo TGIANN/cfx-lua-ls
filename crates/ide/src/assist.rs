@@ -569,6 +569,11 @@ pub(crate) fn param_list(text: &str, range: TextRange) -> &str {
 }
 
 pub fn hover(parse: &Parse, names: &Names, text: &str, offset: TextSize, cx: FileCtx) -> Option<Hover> {
+    hover_with(parse, names, text, offset, cx, &crate::types::TypeSettings::default())
+}
+
+/// `hover` with LuaLS's settings (`Lua.hover.expandAlias`).
+pub fn hover_with(parse: &Parse, names: &Names, text: &str, offset: TextSize, cx: FileCtx, settings: &crate::types::TypeSettings) -> Option<Hover> {
     if let Some(h) = doc_name_hover(parse, text, offset) {
         return Some(h);
     }
@@ -617,7 +622,7 @@ pub fn hover(parse: &Parse, names: &Names, text: &str, offset: TextSize, cx: Fil
     }
     // A global or a field the file gives a value, a function of it.
     let path_hover = |force: bool| {
-        crate::types::FileTypes::new(parse, names, text).path_hover(&tok, force).map(|(code, def)| {
+        crate::types::FileTypes::new(parse, names, text).expand_alias(settings.expand_alias).path_hover(&tok, force).map(|(code, def)| {
             let mut markdown = format!("```lua\n{code}\n```");
             let doc = def.map(|d| leading_comments(text, d)).unwrap_or_default();
             if !doc.is_empty() {
@@ -698,7 +703,7 @@ pub fn hover(parse: &Parse, names: &Names, text: &str, offset: TextSize, cx: Fil
     if matches!(d.kind, DeclKind::Local | DeclKind::LocalFunction | DeclKind::Param | DeclKind::ForVar | DeclKind::SelfParam) {
         // What the file alone tells (literals, operators, doc tags, narrowing),
         // else what the workspace knows (another file's export, a native).
-        let mut types: Vec<String> = crate::types::type_at(parse, names, text, range.start()).filter(|t| t != "unknown" && t != "any").into_iter().collect();
+        let mut types: Vec<String> = crate::types::type_at_with(parse, names, text, range.start(), settings).filter(|t| t != "unknown" && t != "any").into_iter().collect();
         if types.is_empty()
             && let Some((ws, file)) = cx.ws
             && let Some(Symbol::Decl(i)) = names.symbol_at(range.start())
@@ -707,7 +712,7 @@ pub fn hover(parse: &Parse, names: &Names, text: &str, offset: TextSize, cx: Fil
             types = ws.type_views(file, Some(&overlay), &Ref::Local(i as u32));
         }
         if types.is_empty()
-            && let Some(t) = crate::types::type_at(parse, names, text, range.start())
+            && let Some(t) = crate::types::type_at_with(parse, names, text, range.start(), settings)
         {
             types.push(t);
         }

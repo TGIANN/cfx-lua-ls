@@ -16,14 +16,18 @@
 //! `data/luals_assist_pass.txt` lists the cases that pass (`hover-exact n`,
 //! `hover-type n`, `completion file n`). A listed case that fails, or a passing
 //! case not listed, fails the test. `LUALS_ASSIST_WRITE=1` rewrites the list,
-//! `LUALS_ASSIST_SHOW=hover` / `completion` prints the failing cases. Cases run
-//! with a non-default LuaLS switch (`config`) or a custom check are not scored,
-//! nor the hover cases in `HOVER_NOT_SCORED`, each with its reason.
+//! `LUALS_ASSIST_SHOW=hover` / `completion` prints the failing cases. Hover
+//! cases run with `Lua.hover.expandAlias` off get that setting; the hover
+//! cases in `HOVER_NOT_SCORED` are not scored, each with its reason. The
+//! completion cases with a switch are scored as they are: `callSnippet` only
+//! changes the call snippets left out above, `runtime.version` and
+//! `unicodeName` only the `textEdit`, not the (label, kind) compared here.
+//! LuaLS's `ContinueTyping` follow-up requests are not scored.
 
 use cfx_lua_ide::library::{Game, Origin, library};
 use cfx_lua_ide::manifest::FileSide;
 use cfx_lua_ide::workspace::Workspace;
-use cfx_lua_ide::{CompleteOptions, CompletionKind, FileCtx, ShowWord, TextSize, complete_with, hover, names, parse};
+use cfx_lua_ide::{CompleteOptions, CompletionKind, FileCtx, ShowWord, TextSize, TypeSettings, complete_with, hover_with, names, parse};
 use serde_json::Value;
 use std::collections::BTreeSet;
 
@@ -36,6 +40,8 @@ const HOVER_NOT_SCORED: &[(u64, &str)] = &[
     (58, "`_G` in FiveM holds the thousands of CFX and GTA natives, not only Lua 5.4's globals"),
     (107, "LuaLS's Chinese locale text for an alias (`展开为`); this port writes `Expand to`"),
     (191, "a named vararg (`...args`) is Lua 5.5 syntax, which CfxLua (Lua 5.4) does not parse"),
+    (192, "`global *` is Lua 5.5 syntax, which CfxLua (Lua 5.4) does not parse"),
+    (139, "LuaLS reads `//` as a comment there (`runtime.nonstandardSymbol`); in CfxLua it is Lua 5.4 floor division, so `1 // 2` is 0"),
 ];
 
 /// The text without LuaLS's `<?x?>` / `<??>` markers and the first marked
@@ -110,9 +116,9 @@ fn hover_cases(ws: &Workspace, path: &std::path::Path, show: bool, s: &mut Score
     let data: Vec<Value> = serde_json::from_str(include_str!("data/luals_hover.json")).unwrap();
     let (mut total, mut exact, mut typed, mut typed_ok) = (0, 0, 0, 0);
     for c in &data {
-        if !c["config"].as_array().unwrap().is_empty() {
-            continue;
-        }
+        // The only other switch in these cases: `Lua.hover.expandAlias`, whose
+        // value there differs from the suite's `true`.
+        let settings = TypeSettings { expand_alias: !c["config"].as_array().unwrap().iter().any(|k| k == "Lua.hover.expandAlias"), ..Default::default() };
         let Some(want) = c["expect"].as_str() else { continue };
         let want = want.trim_matches(['\r', '\n']).replace("\r\n", "\n");
         let (text, Some((at, _))) = marked(c["script"].as_str().unwrap()) else { continue };
@@ -125,7 +131,7 @@ fn hover_cases(ws: &Workspace, path: &std::path::Path, show: bool, s: &mut Score
             let p = parse(&text);
             let names = names(&p, &text);
             let cx = FileCtx { game: Game::Any, side: FileSide::Unknown, ws: Some((ws, path)) };
-            hover(&p, &names, &text, TextSize::from(at as u32), cx).and_then(|h| first_lua_block(&h.markdown))
+            hover_with(&p, &names, &text, TextSize::from(at as u32), cx, &settings).and_then(|h| first_lua_block(&h.markdown))
         })
         .unwrap_or_else(|_| Some("<panic>".to_string()))
         .unwrap_or_default();
@@ -151,7 +157,7 @@ fn completion_cases(ws: &Workspace, path: &std::path::Path, show: bool, s: &mut 
     let data: Vec<Value> = serde_json::from_str(include_str!("data/luals_completion.json")).unwrap();
     let (mut total, mut passed, mut nonempty) = (0, 0, 0);
     for c in &data {
-        if !c["config"].as_array().unwrap().is_empty() || c["flags"].as_array().unwrap().iter().any(|f| f == "ContinueTyping") {
+        if c["flags"].as_array().unwrap().iter().any(|f| f == "ContinueTyping") {
             continue;
         }
         let expect = &c["expect"];

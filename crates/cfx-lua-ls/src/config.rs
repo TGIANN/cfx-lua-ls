@@ -68,6 +68,9 @@ pub(crate) fn apply(d: &mut Diagnostics, v: &Value) {
     if let Some(b) = get(v, "type", "weakUnionCheck").and_then(Value::as_bool) {
         d.lint.weak_union_check = b;
     }
+    if let Some(m) = get(v, "runtime", "special").and_then(Value::as_object) {
+        d.lint.special = m.iter().filter_map(|(k, b)| Some((k.clone(), b.as_str()?.to_string()))).collect();
+    }
     if let Some(b) = get(v, "type", "castNumberToInteger").and_then(Value::as_bool) {
         d.lint.cast_number_to_integer = b;
     }
@@ -218,6 +221,8 @@ mod tests {
         // `weakNilCheck` set wins over the compat default.
         apply(&mut d, &serde_json::json!({ "type.weakNilCheck": true }));
         assert!(!d.lint.strict_nil());
+        apply(&mut d, &serde_json::json!({ "runtime": { "special": { "xx.assert": "assert" } } }));
+        assert_eq!(d.lint.special, [("xx.assert".to_string(), "assert".to_string())]);
     }
 
     #[test]

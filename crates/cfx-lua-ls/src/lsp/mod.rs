@@ -409,7 +409,10 @@ impl Server<'_> {
         let (doc, offset) = self.at(p)?;
         let path = format::file_path(&p.text_document.uri);
         let cx = self.ide_context(&p.text_document.uri, path.as_deref());
-        let h = cfx_lua_ide::hover(doc.parse.as_ref()?, doc.names()?, &doc.text, offset, cx)?;
+        // `Lua.hover.expandAlias` (on unless the client turns it off, as in LuaLS).
+        let expand_alias = self.client_settings.as_ref().and_then(|s| s.get("hover")).and_then(|h| h.get("expandAlias")).and_then(|v| v.as_bool()).unwrap_or(true);
+        let settings = cfx_lua_ide::TypeSettings { expand_alias, ..Default::default() };
+        let h = cfx_lua_ide::hover_with(doc.parse.as_ref()?, doc.names()?, &doc.text, offset, cx, &settings)?;
         Some(lsp_types::Hover {
             contents: lsp_types::HoverContents::Markup(lsp_types::MarkupContent {
                 kind: lsp_types::MarkupKind::Markdown,

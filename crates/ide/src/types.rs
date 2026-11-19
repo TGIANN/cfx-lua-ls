@@ -46,6 +46,8 @@ enum Effect {
     Nil,
     /// Not this class (`obj.type == 'a'` false where only `A` has `type: 'a'`).
     Drop(T),
+    /// The read cannot happen (`not x and x`): nothing is left.
+    Never,
     /// An `if` above tested it (`if x ~= nil then ... end`): LuaLS's two
     /// branches merge back as `T|nil`, no longer `T?`.
     Split,
@@ -192,6 +194,10 @@ struct Infer<'a> {
     decl_stats: RefCell<HashMap<usize, Option<SyntaxNode>>>,
     /// nil is checked against declared types (`Lua.type.weakNilCheck` off).
     strict_nil: Cell<bool>,
+    /// `runtime.special`: names that behave as builtins.
+    special: RefCell<Vec<(String, String)>>,
+    /// `hover.expandAlias`: hover shows what an alias stands for.
+    expand_alias: Cell<bool>,
     /// A local typed by its first value keeps that type.
     first_value: Cell<bool>,
     /// `Lua.type.inferParamType`.
@@ -225,6 +231,9 @@ pub struct TypeSettings {
     pub expand_alias: bool,
     /// `Lua.hover.enumsLimit`: union members shown before `...(+N)`.
     pub enums_limit: usize,
+    /// `Lua.runtime.special`: names that behave as builtins (`xx.assert` as
+    /// `assert`).
+    pub special: Vec<(String, String)>,
     /// `Lua.type.inferParamType`: an undocumented parameter takes the type of
     /// the arguments the file passes.
     pub infer_param_type: bool,
@@ -232,7 +241,7 @@ pub struct TypeSettings {
 
 impl Default for TypeSettings {
     fn default() -> Self {
-        TypeSettings { expand_alias: true, enums_limit: 5, infer_param_type: false }
+        TypeSettings { expand_alias: true, enums_limit: 5, special: Vec::new(), infer_param_type: false }
     }
 }
 
@@ -242,6 +251,7 @@ pub fn type_at_with(parse: &Parse, names: &Names, text: &str, offset: TextSize, 
     let tok = root.token_at_offset(offset).right_biased()?;
     let inf = Infer::new(root, names, text);
     inf.infer_params.set(settings.infer_param_type);
+    *inf.special.borrow_mut() = settings.special.clone();
     let mut t = match inf.token_type(&tok) {
         Some(t) => t,
         None if tok.kind() == COMMENT => inf.doc_self_type(&tok, offset)?,
@@ -545,6 +555,7 @@ impl<'a> FileTypes<'a> {
         self.inf.weak_union.set(c.weak_union_check);
         self.inf.number_to_integer.set(c.cast_number_to_integer);
         self.inf.table_shape.set(c.check_table_shape);
+        *self.inf.special.borrow_mut() = c.special.clone();
         self
     }
 
@@ -845,7 +856,16 @@ impl<'a> FileTypes<'a> {
     /// A type as LuaLS's hover shows it: aliases expanded, union members in
     /// LuaLS's order.
     pub(crate) fn hover_view(&self, t: &T) -> String {
+        if !self.inf.expand_alias.get() {
+            return infer_view(t, 5);
+        }
         infer_view(&expand_with(t, &self.inf.aliases, 0), 5)
+    }
+
+    /// `hover.expandAlias` off: hover shows an alias by its name.
+    pub(crate) fn expand_alias(self, on: bool) -> Self {
+        self.inf.expand_alias.set(on);
+        self
     }
 
     /// The shape of the class `self` stands for in a method of it.
@@ -2969,6 +2989,8 @@ impl<'a> Infer<'a> {
             typed_fields: std::cell::OnceCell::new(),
             decl_stats: RefCell::default(),
             strict_nil: Cell::new(false),
+            special: RefCell::new(Vec::new()),
+            expand_alias: Cell::new(true),
             first_value: Cell::new(false),
             infer_params: Cell::new(false),
             generic_args: Cell::new(false),
@@ -3068,7 +3090,8 @@ impl<'a> Infer<'a> {
                     return Some(f.ty);
                 }
                 if let Some(v) = self.assigned_value(&parent) {
-                    return Some(v);
+                    // `mt.x = nil`: LuaLS shows the field as `unknown`.
+                    return Some(if is(&v, "nil") { unknown() } else { v });
                 }
                 self.expr_type(&parent)
             }
@@ -3184,12 +3207,16 @@ impl<'a> Infer<'a> {
                     return tail(&rets);
                 }
             }
-            // `return a, ...` / `return a, f()`.
-            let open = body.descendants().filter(|n| n.kind() == RETURN_STAT).any(|r| {
-                r.ancestors().find(|a| a.kind() == FUNC_BODY).as_ref() == Some(&body)
-                    && r.children().find(|c| c.kind() == EXPR_LIST).and_then(|l| l.children().last()).is_some_and(|v| matches!(v.kind(), VARARG_EXPR | CALL_EXPR | METHOD_CALL_EXPR))
-            });
-            return open.then(unknown);
+            // `return a, ...` / `return a, f()`; with another `return` of fixed
+            // values also nil (LuaLS: `unknown|nil`).
+            let own: Vec<SyntaxNode> = body.descendants().filter(|n| n.kind() == RETURN_STAT && n.ancestors().find(|a| a.kind() == FUNC_BODY).as_ref() == Some(&body)).collect();
+            let is_open = |r: &SyntaxNode| {
+                r.children().find(|c| c.kind() == EXPR_LIST).and_then(|l| l.children().last()).is_some_and(|v| matches!(v.kind(), VARARG_EXPR | CALL_EXPR | METHOD_CALL_EXPR))
+            };
+            if !own.iter().any(is_open) {
+                return None;
+            }
+            return Some(if own.iter().all(is_open) { unknown() } else { T::Union(vec![unknown(), name("nil")]) });
         }
         match non_nil(self.expr_type(&callee)) {
             T::Fun(f) => tail(&f.rets),
@@ -3304,6 +3331,7 @@ impl<'a> Infer<'a> {
                     }
                     let Some(owner) = parent.parent() else { break self.decl_type(d) };
                     match owner.kind() {
+                        IF_STAT | ELSEIF_CLAUSE if owner.first_child().is_some_and(|c| self.contradicts(&c, d)) => effects.push(Effect::Never),
                         IF_STAT | ELSEIF_CLAUSE if let Some(f) = owner.first_child().and_then(|c| self.field_effect(&c, d, true)) => effects.push(f),
                         ELSE_CLAUSE
                             if let Some(i) = owner.parent().filter(|i| !i.children().any(|c| c.kind() == ELSEIF_CLAUSE))
@@ -3411,8 +3439,12 @@ impl<'a> Infer<'a> {
                 }
                 Effect::Split => match t {
                     T::Optional(inner) => union(members_of(&inner).into_iter().chain(std::iter::once(name("nil"))).collect()),
+                    // `local x` with nothing in it: the `== nil` branch is nil, the
+                    // other has nothing left (LuaLS: `unknown|nil`).
+                    t if is(&t, UNSET) => T::Union(vec![unknown(), name("nil")]),
                     t => t,
                 },
+                Effect::Never => unknown(),
                 Effect::Fill(v) => union(std::iter::once(non_nil(t)).chain(v).filter(|t| !is(t, UNSET)).collect()),
                 Effect::Narrow(n) => {
                     // The members of the known type that the check keeps.
@@ -3625,6 +3657,19 @@ impl<'a> Infer<'a> {
         crate::util::unquote(&self.text[lit.text_range()]).map(str::to_string)
     }
 
+    /// `not x and x`: both that `x` is nil and that it is set.
+    fn contradicts(&self, cond: &SyntaxNode, d: usize) -> bool {
+        let mut c = cond.clone();
+        while c.kind() == PAREN_EXPR && let Some(i) = c.first_child() {
+            c = i;
+        }
+        if c.kind() != BINARY_EXPR || !c.children_with_tokens().filter_map(|x| x.into_token()).any(|t| t.kind() == AND_KW) {
+            return false;
+        }
+        let sides: Vec<Option<bool>> = c.children().map(|k| self.checks(&k, d)).collect();
+        sides.contains(&Some(true)) && sides.contains(&Some(false))
+    }
+
     /// `obj.type == 'a'` (`truth`: the condition held) where exactly one class
     /// of `obj`'s type has a `type` field taking `'a'`: that class, or not it
     /// (LuaLS keeps it when the field takes other values too).
@@ -3761,7 +3806,7 @@ impl<'a> Infer<'a> {
                     let leaves = last.as_ref().is_some_and(|l| {
                         matches!(l.kind(), RETURN_STAT | BREAK_STAT | GOTO_STAT)
                             || l.kind() == CALL_STAT
-                                && l.first_child().and_then(|c| c.first_child()).is_some_and(|c| matches!(&self.text[c.text_range()], "error" | "os.exit"))
+                                && l.first_child().and_then(|c| c.first_child()).is_some_and(|c| matches!(self.builtin(&c).as_str(), "error" | "os.exit"))
                     });
                     if leaves {
                         return Some(self.guard(&cond, d));
@@ -3796,7 +3841,7 @@ impl<'a> Infer<'a> {
             CALL_STAT => {
                 let call = s.first_child()?;
                 let callee = call.first_child()?;
-                if &self.text[callee.text_range()] == "assert"
+                if self.builtin(&callee) == "assert"
                     && let Some(a) = call.children().find(|c| c.kind() == ARG_LIST).and_then(|a| a.first_child())
                 {
                     if self.checks(&a, d) == Some(true) {
@@ -4952,6 +4997,16 @@ impl<'a> Infer<'a> {
                     }
                 }
             }
+            // `function a.b.c() end`.
+            for f in self.root.descendants().filter(|n| n.kind() == FUNC_NAME) {
+                if f.children_with_tokens().any(|e| e.kind() == COLON) {
+                    continue;
+                }
+                let parts: Vec<String> = f.children_with_tokens().filter_map(|e| e.into_token()).filter(|t| t.kind() == NAME).map(|t| t.text().to_string()).collect();
+                if parts.len() > 1 {
+                    out.entry(parts.join(".")).or_default().push(f);
+                }
+            }
             out
         })
     }
@@ -4961,7 +5016,20 @@ impl<'a> Infer<'a> {
     /// none when a write's value is not known.
     fn path_write(&self, e: &SyntaxNode) -> Option<T> {
         let path = name_path(self.text, e)?;
-        let writes = self.path_writes_map().get(&path)?;
+        let writes = match self.path_writes_map().get(&path) {
+            Some(w) => w,
+            // `class.has.nested.fn` with `class: myClass`: written as `myClass.has.nested.fn`.
+            None => {
+                let mut root = e.clone();
+                while let Some(o) = root.first_child().filter(|_| root.kind() == INDEX_EXPR) {
+                    root = o;
+                }
+                let T::Name(c) = non_nil(self.expr_type(&root)) else { return None };
+                let var = self.class_var(&c)?;
+                let rest = path.strip_prefix(&self.text[root.text_range()])?;
+                self.path_writes_map().get(&format!("{var}{rest}"))?
+            }
+        };
         let mut parts = Vec::new();
         for w in writes {
             let stat = w.parent()?.parent()?;
@@ -4971,15 +5039,24 @@ impl<'a> Infer<'a> {
             }) {
                 return Some(name(&c));
             }
-            let v = self.assigned_value(w)?;
-            if has_unknown(&v) {
-                return None;
-            }
+            let v = if w.kind() == FUNC_NAME { name("function") } else { self.assigned_value(w)? };
             if !is(&v, "nil") {
                 parts.push(widen(&v));
             }
         }
         (!parts.is_empty()).then(|| union(parts))
+    }
+
+    /// The variable a class sits on (`---@class myClass` / `local myClass = {}`).
+    fn class_var(&self, c: &str) -> Option<String> {
+        self.root.descendants().filter(|n| matches!(n.kind(), LOCAL_STAT | ASSIGN_STAT)).find_map(|st| {
+            if class_tag(self.text, &st).as_deref() != Some(c) {
+                return None;
+            }
+            let first = st.children().find(|k| matches!(k.kind(), LOCAL_NAME | VAR_LIST))?;
+            let n = if first.kind() == VAR_LIST { first.first_child()? } else { first };
+            Some(self.text[n.text_range()].trim().to_string())
+        })
     }
 
     /// The class (or one of its parents) declaring `---@operator op`.
@@ -5196,7 +5273,7 @@ impl<'a> Infer<'a> {
             // `local m = setmetatable(t, { __index = x })`: the fields of `t`,
             // then those of `x` (LuaLS treats any global `setmetatable` so).
             if let Some(call) = self.local_value(object).filter(|c| c.kind() == CALL_EXPR)
-                && let Some(callee) = call.first_child().filter(|c| c.kind() == NAME_EXPR && &self.text[c.text_range()] == "setmetatable")
+                && let Some(callee) = call.first_child().filter(|c| c.kind() == NAME_EXPR && self.builtin(c) == "setmetatable")
                 && callee.first_token().and_then(|t| self.ref_at(t.text_range())).is_some_and(|r| r.target == Target::Global)
             {
                 let args: Vec<SyntaxNode> = call.children().find(|c| c.kind() == ARG_LIST).map(|a| a.children().collect()).unwrap_or_default();
@@ -5337,6 +5414,13 @@ impl<'a> Infer<'a> {
         let stat = tok.parent_ancestors().find(|n| n.kind() == FUNCTION_STAT)?;
         let colon = stat.children().find(|c| c.kind() == FUNC_NAME)?.children_with_tokens().filter_map(|e| e.into_token()).find(|t| t.kind() == COLON)?;
         Some(self.self_type(&colon))
+    }
+
+    /// The builtin a callee stands for: its own text, or what
+    /// `runtime.special` maps it to (`xx.assert` -> `assert`).
+    fn builtin(&self, callee: &SyntaxNode) -> String {
+        let text: String = self.text[callee.text_range()].split_whitespace().collect();
+        self.special.borrow().iter().find(|(k, _)| *k == text).map_or(text, |(_, v)| v.clone())
     }
 
     /// The value a local is declared with (`local m = <value>`).

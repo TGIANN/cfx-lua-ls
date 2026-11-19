@@ -22,14 +22,15 @@ the workspace for completion after any expression (`ESX.GetPlayerFromId(src).`,
 `invisible`, ...), each kept narrower than LuaLS's where it would guess. Every
 LuaLS diagnostic code is implemented except `codestyle-check`, `name-style-check`,
 `spell-check` and `unnecessary-assert`, which LuaLS ships off (the others it
-ships off stay off here too); it passes 600 of LuaLS's 608 scored type inference cases and all 537 of its diagnostic
+ships off stay off here too); it passes all 608 of LuaLS's scored type inference cases (the other 2 are
+Lua 5.5 syntax and a `??` operator CfxLua does not have) and all 537 of its diagnostic
 cases: by default 529, the other 8 with `cfx.lualsCompat` on, and all 537 with
 that switch on for every case (the Lua 5.5 `global` case is not scored, CfxLua
 is 5.4). Hover follows LuaLS's layout (`function f(a: any)` with its return lines,
-`local x: integer = 1`, a table's or a class's fields) and matches all 183 scored
-of its 190 hover cases word for word (the other 7 want LuaLS's Chinese locale
-text, plain Lua 5.4's `utf8` and `_G`, or Lua 5.5 syntax); completion passes
-all 207 of its completion cases.
+`local x: integer = 1`, a table's or a class's fields) and matches all 184 scored
+of its 193 hover cases word for word (the other 9 want LuaLS's Chinese locale
+text, plain Lua 5.4's `utf8` and `_G`, `//` as a comment, or Lua 5.5 syntax);
+completion passes all 209 of its completion cases.
 See [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## Check a server
@@ -68,7 +69,8 @@ or per line with `---@diagnostic disable-next-line: <code>`.
 LuaLS's type switches are read too: `type.weakNilCheck`, `type.weakUnionCheck`,
 `type.castNumberToInteger`, `type.checkTableShape`,
 `diagnostics.unusedLocalExclude`, `doc.privateName` / `doc.protectedName` /
-`doc.regengine`. By default this server is narrower than LuaLS in a few places
+`doc.regengine`, `runtime.special` (`{ "xx.assert": "assert" }`: a name that
+narrows as the builtin does), and in the editor `hover.expandAlias`. By default this server is narrower than LuaLS in a few places
 where it would guess on FiveM code; `"cfx.lualsCompat": true` gives LuaLS's own
 behaviour there: nil is checked against declared types (unless
 `type.weakNilCheck` is set), a local keeps the type of its first value

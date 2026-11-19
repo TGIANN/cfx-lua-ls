@@ -176,7 +176,9 @@ completion common 66
 completion common 67
 completion common 68
 completion common 69
+completion common 70
 completion common 71
+completion common 72
 completion common 73
 completion common 74
 completion common 78
@@ -250,6 +252,7 @@ hover-exact 136
 hover-exact 137
 hover-exact 138
 hover-exact 14
+hover-exact 140
 hover-exact 141
 hover-exact 142
 hover-exact 143
@@ -420,6 +423,7 @@ hover-type 132
 hover-type 134
 hover-type 137
 hover-type 138
+hover-type 140
 hover-type 141
 hover-type 142
 hover-type 143

@@ -205,7 +205,7 @@ error ("invalid UTF-8 code").
     (undefined `ok` / `multiplier`, a trailing comma that turns a call into a
     value, `source` after `Wait`, `local _, b = c and f() or g()` truncating to
     one value, duplicate table keys).
-- [ ] **5. Types:** LuaCATS doc parser, type engine (semantics of LuaLS `script/vm`,
+- [x] **5. Types:** LuaCATS doc parser, type engine (semantics of LuaLS `script/vm`,
   not its memory model), Lua 5.4 standard library meta, hover, completion,
   signature help, type diagnostics.
   - Done: the embedded library (`crates/ide/library`, 150 files, 5 MB): LuaLS's
@@ -238,10 +238,11 @@ error ("invalid UTF-8 code").
     chains stay linear. Checked by `crates/ide/tests/luals_types.rs` against
     LuaLS's `test/type_inference` (610 cases, extracted by
     `tools/extract_luals_types.py` with the LuaLS settings each runs under:
-    `expandAlias`, `enumsLimit`, `inferParamType`): 600 of the 608 scored
-    cases pass; the `??` operator case (`runtime.nonstandardSymbol`) and the
-    `runtime.special` one are not scored. The list of passing cases is kept so
-    a regression fails the test. The inferred type prints as LuaLS prints it:
+    `expandAlias`, `enumsLimit`, `inferParamType`, `runtime.special`): all 608
+    scored cases pass. Not scored, each with its reason in `NOT_SCORED`: the
+    `??` operator case (`runtime.nonstandardSymbol`; CfxLua has no `??`, its
+    `?` is only safe navigation) and `function f(...args)` (Lua 5.5 named
+    varargs). The list of passing cases is kept so a regression fails the test. The inferred type prints as LuaLS prints it:
     union members sorted (basic types first, `nil` last), five then
     `...(+N)`, aliases expanded.
   - Done: `undefined-doc-name`, silent when the resource or one it depends on
@@ -326,12 +327,13 @@ error ("invalid UTF-8 code").
     `UNICODE_NAME` error, as LuaLS does). How the harness scores: snippets and
     LuaLS's `function` call snippets are dropped on both sides (ours are
     written for CfxLua), globals score as `Field`, the trigger is the
-    character before the cursor as in LuaLS's tests. Not scored, with their
-    reason in the extractor: cases that need non-default settings, LuaLS's
-    `ContinueTyping` follow-up requests and its `<function>` placeholder
-    items. A completion in a 1 MB data table costs about 25 ms; the
+    character before the cursor as in LuaLS's tests. The three cases run
+    with a switch are scored too (`callSnippet` only changes the call
+    snippets left out, `runtime.version` and `unicodeName` only the
+    `textEdit`): 209 of 209. Not scored: LuaLS's `ContinueTyping` follow-up
+    requests and its `<function>` placeholder items. A completion in a 1 MB data table costs about 25 ms; the
     re-parse with a probe name runs only where a typed value is asked for.
-  - Done: hover 75 -> 183 of 183 scored cases exact (`crates/ide/src/types/hover.rs`,
+  - Done: hover 75 -> 184 of 184 scored cases exact (`crates/ide/src/types/hover.rs`,
     `consts.rs`): LuaLS's titles (`(global)`, `(field)`, `(upvalue)`,
     `(self)`, `(method)`), literal values (`= 1|2`, escapes, `0xff` as `255`,
     constants folded through operators and calls), table shapes sorted as
@@ -348,7 +350,10 @@ error ("invalid UTF-8 code").
     scored, with their reason in `HOVER_NOT_SCORED`: 29, 30 and 107 (LuaLS's
     Chinese locale text), 40 and 43 (CfxLua's `utf8` has `strcmputf8i` and
     `strlenutf8`), 58 (`_G` holds the natives in FiveM), 191 (Lua 5.5 named
-    vararg).
+    vararg), 192 (Lua 5.5 `global *`), 139 (LuaLS reads `//` as a comment
+    under `runtime.nonstandardSymbol`; in CfxLua `1 // 2` is floor division,
+    0). Case 140 runs with `Lua.hover.expandAlias` off, which the server reads
+    from the client's settings (`local uri: uri` instead of `string`).
   - Done: inference 374 -> 397: `---@overload` resolution by argument count and
     types (literals compared as literals), a parameter without `---@param`
     typed from its overloads, an overriding method's parameters from the class
@@ -366,13 +371,22 @@ error ("invalid UTF-8 code").
     `else` of `if x`, `x == nil`, `not x and x`), a truthy `boolean` is
     `true`, a `type(x)` test inside `a and b` narrows. On the corpora one
     `param-type-mismatch` false alarm gone (`x ~= nil and type(x) == 'number'`).
-  - Not done: 196 inference cases, sorted by cost: values past a call's last `---@return`, operators of generic
-    classes (`Box<string>`), `stringlib` members on string values, overload
-    choice, generics bound through returned `fun`s and callbacks, members
-    written onto a class table seen through an instance, union print order,
-    alias expansion in the shown type (the harness has no settings, so it
-    would trade cases), and 16 cases that need non-default LuaLS settings or
-    are LuaLS-internal views.
+  - Done: inference 414 -> 608 of 608: values past a call's last `---@return`
+    (`unknown`, `unknown|nil` when another `return` is fixed), operators of
+    generic classes (`Box<string>`, open `<T>` on a bare generic class, an
+    operand taking a subclass), `stringlib` members on string values, overload
+    choice (by argument types and literals, method overloads through the
+    object, a method written twice chosen by its arguments), generics bound
+    through returned `fun`s, callbacks and functions passed by name, a
+    `list<T>` return carrying its parent table, members written onto a class
+    table seen through an instance (all writes of an `a.b.c` path, `function
+    a.b.c()`, the class variable), discriminated unions (`obj.type == 'a'`),
+    nil comparisons splitting `T|nil`, contradictions (`not x and x`),
+    `x or error()`, `os.exit` / `error` leaving a branch, `---@cast` on
+    globals and `+?`, `(partial)` aliases, the alias view as LuaLS shows it
+    (`Lua.hover.expandAlias`), union print order, `---@type _`, and
+    `Lua.runtime.special` (`xx.assert` as `assert`, read from `.luarc.json` and
+    the client's settings). No `+` / `-` line on the five corpora at the end.
   - Done: `Lua.doc.privateName` / `protectedName` globs for `invisible`, from
     `.luarc.json` or the client's settings, on `---@field`s and on the class's
     own table fields (LuaLS fixtures 6-9 give the same results through the
@@ -471,7 +485,8 @@ error ("invalid UTF-8 code").
   - Done: `cfx-lua-ls check <paths>` with `--format text|json|sarif`, `--level`,
     `--fail-on`, `--fix`, `--all-files`. corpus A (3,922 files, 404 resources) in
     1.1-1.6 s and about 65 MB peak; LuaLS needs 33 s and 1 GB on a sixth of it, but
-    it also infers types, so the gap will narrow once phase 5 is done.
+    it also infers types; with the type layer done, corpus A's `check` takes
+    3.7-3.9 s (phase 6).
   - Done: `cfx-lua-ls mcp`, a Model Context Protocol server (stdio) for AI
     agents: `check` (diagnostics of a path or unsaved text, with fixed text),
     `lint_snippet` (code before it is written to a file), `native` (look up or
