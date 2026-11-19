@@ -240,8 +240,9 @@ error ("invalid UTF-8 code").
     `tools/extract_luals_types.py` with the LuaLS settings each runs under:
     `expandAlias`, `enumsLimit`, `inferParamType`, `runtime.special`): all 608
     scored cases pass. Not scored, each with its reason in `NOT_SCORED`: the
-    `??` operator case (`runtime.nonstandardSymbol`; CfxLua has no `??`, its
-    `?` is only safe navigation) and `function f(...args)` (Lua 5.5 named
+    `??` operator case (`runtime.nonstandardSymbol`; CfxLua's lexer,
+    `ref/cfxlua/llex.h`, has no `??` token, and its `?` is only safe
+    navigation) and `function f(...args)` (Lua 5.5 named
     varargs). The list of passing cases is kept so a regression fails the test. The inferred type prints as LuaLS prints it:
     union members sorted (basic types first, `nil` last), five then
     `...(+N)`, aliases expanded.
@@ -327,11 +328,12 @@ error ("invalid UTF-8 code").
     `UNICODE_NAME` error, as LuaLS does). How the harness scores: snippets and
     LuaLS's `function` call snippets are dropped on both sides (ours are
     written for CfxLua), globals score as `Field`, the trigger is the
-    character before the cursor as in LuaLS's tests. The three cases run
-    with a switch are scored too (`callSnippet` only changes the call
-    snippets left out, `runtime.version` and `unicodeName` only the
-    `textEdit`): 209 of 209. Not scored: LuaLS's `ContinueTyping` follow-up
-    requests and its `<function>` placeholder items. A completion in a 1 MB data table costs about 25 ms; the
+    character before the cursor as in LuaLS's tests. Two of the three cases
+    run with a switch are scored too (`runtime.version` and `unicodeName`
+    only change the `textEdit`): 209 of 209. Not scored: the `callSnippet`
+    case (it lists only a call snippet, which is left out on both sides),
+    LuaLS's `ContinueTyping` follow-up requests and its `<function>`
+    placeholder items. A completion in a 1 MB data table costs about 25 ms; the
     re-parse with a probe name runs only where a typed value is asked for.
   - Done: hover 75 -> 184 of 184 scored cases exact (`crates/ide/src/types/hover.rs`,
     `consts.rs`): LuaLS's titles (`(global)`, `(field)`, `(upvalue)`,
@@ -385,8 +387,9 @@ error ("invalid UTF-8 code").
     `x or error()`, `os.exit` / `error` leaving a branch, `---@cast` on
     globals and `+?`, `(partial)` aliases, the alias view as LuaLS shows it
     (`Lua.hover.expandAlias`), union print order, `---@type _`, and
-    `Lua.runtime.special` (`xx.assert` as `assert`, read from `.luarc.json` and
-    the client's settings). No `+` / `-` line on the five corpora at the end.
+    `Lua.runtime.special` (a name standing for `assert`, `error`, `os.exit`,
+    `type`, `setmetatable`, `pcall`, `xpcall`, `rawset` or `require`; read from
+    `.luarc.json` and the client's settings, used by the diagnostics and hover). No `+` / `-` line on the five corpora at the end.
   - Done: `Lua.doc.privateName` / `protectedName` globs for `invisible`, from
     `.luarc.json` or the client's settings, on `---@field`s and on the class's
     own table fields (LuaLS fixtures 6-9 give the same results through the
