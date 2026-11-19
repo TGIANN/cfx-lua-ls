@@ -242,7 +242,7 @@ pub fn type_at_with(parse: &Parse, names: &Names, text: &str, offset: TextSize, 
     inf.infer_params.set(settings.infer_param_type);
     let mut t = inf.token_type(&tok)?;
     if settings.expand_alias {
-        t = inf.expand_aliases(&t, 0);
+        t = inf.view_aliases(&t);
     }
     Some(infer_view(&t, settings.enums_limit))
 }
@@ -2983,6 +2983,10 @@ impl<'a> Infer<'a> {
             }
             return Some(self.expr_type(&parent));
         }
+        // The `{` of a table given where a class is expected: that class.
+        if tok.kind() == L_CURLY && parent.kind() == TABLE_EXPR {
+            return self.expected_type(&parent).filter(|t| !has_unknown(t));
+        }
         if tok.kind() != NAME {
             return None;
         }
@@ -3009,7 +3013,16 @@ impl<'a> Infer<'a> {
                 let t = self.index_type(&object, &Key::Name(tok.text().to_string()));
                 if is(&t, "unknown") { name("function") } else { t }
             }
-            FIELD_NAMED => parent.children().last().map_or_else(unknown, |v| self.expr_type(&v)),
+            FIELD_NAMED => match parent.children().last() {
+                Some(v) => self.expr_type(&v),
+                // `{ x = , }` while typing: the field the table's place declares.
+                None => parent
+                    .parent()
+                    .filter(|t| t.kind() == TABLE_EXPR)
+                    .and_then(|t| self.expected_type(&t))
+                    .and_then(|t| self.member_of_type(&t, &Key::Name(tok.text().to_string())))
+                    .unwrap_or_else(unknown),
+            },
             _ => return None,
         })
     }
@@ -3576,10 +3589,26 @@ impl<'a> Infer<'a> {
         if op == AND_KW {
             return self.type_check(&l, d).or_else(|| self.type_check(&r, d));
         }
+        // `type(x) == 'integer' or type(x) == 'boolean'`: either.
+        if op == OR_KW {
+            return Some(union(vec![self.type_check(&l, d)?, self.type_check(&r, d)?]));
+        }
         if op != EQ2 {
             return None;
         }
+        let is_d = |n: &SyntaxNode| n.kind() == NAME_EXPR && n.first_token().and_then(|t| self.ref_at(t.text_range())).is_some_and(|r| r.target == Target::Decl(d));
+        // `x == 1`: the literal's type (LuaLS narrows to its name).
+        for (a, b) in [(&l, &r), (&r, &l)] {
+            if is_d(a)
+                && let Some(t) = literal_type(b)
+            {
+                return Some(widen(&t));
+            }
+        }
         let side = |call: &SyntaxNode, lit: &SyntaxNode| -> Option<T> {
+            // `local tp = type(x)`, then `tp == 'integer'`.
+            let call = if call.kind() == NAME_EXPR { self.local_value(call)? } else { call.clone() };
+            let call = &call;
             if call.kind() != CALL_EXPR || &self.text[call.first_child()?.text_range()] != "type" {
                 return None;
             }
@@ -3665,9 +3694,13 @@ impl<'a> Infer<'a> {
                 let callee = call.first_child()?;
                 if &self.text[callee.text_range()] == "assert"
                     && let Some(a) = call.children().find(|c| c.kind() == ARG_LIST).and_then(|a| a.first_child())
-                    && self.checks(&a, d) == Some(true)
                 {
-                    return Some(self.guard(&a, d));
+                    if self.checks(&a, d) == Some(true) {
+                        return Some(self.guard(&a, d));
+                    }
+                    if let Some(t) = self.type_check(&a, d) {
+                        return Some(Effect::Narrow(t));
+                    }
                 }
                 None
             }
@@ -5657,6 +5690,68 @@ impl<'a> Infer<'a> {
     }
 
     /// Aliases replaced by what they stand for, members too (`A|B`).
+    /// Aliases expanded for a view, as LuaLS does: the declared alias resolves
+    /// to its value, whose aliases expand once more; an alias met again
+    /// inside itself stays a name, or leaves a union (`---@alias A 'x' | A`).
+    fn view_aliases(&self, t: &T) -> T {
+        let alias = |n: &str| self.aliases.get(n).filter(|a| !matches!(a, T::Generic(g, _) if g == OPAQUE_ENUM)).cloned();
+        match t {
+            T::Name(n) if let Some(a) = alias(n) => {
+                let mut stack = Vec::new();
+                let out = self.view_aliases_in(&a, &mut stack, 0);
+                // A union naming itself: its own name leaves too.
+                match out {
+                    T::Union(ps) => union(ps.into_iter().filter(|p| !matches!(p, T::Name(m) if m == n)).collect()),
+                    x => x,
+                }
+            }
+            t => self.view_aliases_in(t, &mut Vec::new(), 0),
+        }
+    }
+
+    fn view_aliases_in(&self, t: &T, stack: &mut Vec<String>, depth: usize) -> T {
+        if depth > 8 {
+            return t.clone();
+        }
+        match t {
+            T::Name(n) => match self.aliases.get(n) {
+                Some(a) if !stack.contains(n) && !matches!(a, T::Generic(g, _) if g == OPAQUE_ENUM) => {
+                    stack.push(n.clone());
+                    let out = self.view_aliases_in(&a.clone(), stack, depth + 1);
+                    stack.pop();
+                    out
+                }
+                _ => t.clone(),
+            },
+            T::Union(ps) => {
+                let mut out = Vec::new();
+                for p in ps {
+                    if matches!(p, T::Name(m) if stack.contains(m)) {
+                        continue;
+                    }
+                    match self.view_aliases_in(p, stack, depth + 1) {
+                        T::Union(inner) => out.extend(inner),
+                        x => out.push(x),
+                    }
+                }
+                T::Union(out)
+            }
+            T::Optional(inner) => T::Optional(Box::new(self.view_aliases_in(inner, stack, depth + 1))),
+            // `---@alias xxx xxx[]`, `---@alias f fun(x: f)`: the name inside expands once.
+            T::Array(e) if matches!(&**e, T::Name(m) if self.aliases.contains_key(m)) => T::Array(Box::new(self.view_aliases_in(e, stack, depth + 1))),
+            T::Fun(f) if f.params.iter().any(|p| matches!(&p.ty, Some(T::Name(m)) if self.aliases.get(m).is_some_and(|a| matches!(a, T::Fun(_) | T::Array(_))))) => {
+                let mut f = (**f).clone();
+                for p in &mut f.params {
+                    if let Some(ty @ T::Name(_)) = &p.ty {
+                        p.ty = Some(self.view_aliases_in(&ty.clone(), stack, depth + 1));
+                    }
+                }
+                T::Fun(Box::new(f))
+            }
+            t => t.clone(),
+        }
+    }
+
     fn expand_aliases(&self, t: &T, depth: usize) -> T {
         if depth > 8 {
             return t.clone();
