@@ -57,16 +57,23 @@ impl FileTypes<'_> {
     }
 
     fn path_of(&self, e: &SyntaxNode) -> Option<Path> {
-        match e.kind() {
-            NAME_EXPR => Some(Path { root: self.root_of(&e.first_token()?)?, fields: Vec::new() }),
-            INDEX_EXPR => {
-                let mut p = self.path_of(&e.first_child()?)?;
-                p.fields.push(index_key(e)?);
-                Some(p)
+        // A loop, not recursion: `a.b.b.b...` may be thousands of links long.
+        let mut fields = Vec::new();
+        let mut e = e.clone();
+        loop {
+            match e.kind() {
+                NAME_EXPR => break,
+                // Past 64 links the path is no name anyone reads: no hover.
+                INDEX_EXPR if fields.len() < 64 => {
+                    fields.push(index_key(&e)?);
+                    e = e.first_child()?;
+                }
+                PAREN_EXPR => e = e.first_child()?,
+                _ => return None,
             }
-            PAREN_EXPR => self.path_of(&e.first_child()?),
-            _ => None,
         }
+        fields.reverse();
+        Some(Path { root: self.root_of(&e.first_token()?)?, fields })
     }
 
     /// The path of the first `n` names of `function a.b:c()`.
@@ -390,7 +397,7 @@ impl FileTypes<'_> {
             CALL_EXPR => {
                 let callee = value.first_child()?;
                 let args: Vec<SyntaxNode> = value.children().find(|c| c.kind() == ARG_LIST)?.children().collect();
-                if &self.inf.text[callee.text_range()] == "setmetatable" {
+                if self.inf.builtin(&callee) == "setmetatable" {
                     let mt = args.get(1)?;
                     // `setmetatable(t, {__index = mt})` or a metatable variable.
                     let index = if mt.kind() == TABLE_EXPR {
@@ -422,7 +429,7 @@ impl FileTypes<'_> {
             .filter(|s| s.kind() == LOCAL_STAT)
             .and_then(|s| s.children().find(|c| c.kind() == EXPR_LIST))
             .and_then(|l| l.first_child());
-        let Some(value) = value.filter(|v| v.kind() == CALL_EXPR && v.first_child().is_some_and(|c| &self.inf.text[c.text_range()] == "setmetatable")) else {
+        let Some(value) = value.filter(|v| v.kind() == CALL_EXPR && v.first_child().is_some_and(|c| self.inf.builtin(&c) == "setmetatable")) else {
             return;
         };
         // `setmetatable({id = 1}, mt)`: the constructor's own entries too.
