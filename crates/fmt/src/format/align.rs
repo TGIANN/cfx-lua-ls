@@ -365,8 +365,9 @@ impl Fmt<'_, '_> {
                 self.align.groups[g].pos = max;
             }
             Strategy::ToFirst => {
-                if !nodes.is_empty() && !self.is_new_line() {
-                    self.align.groups[g].pos = self.width;
+                if !nodes.is_empty() && !self.is_new_line_at(nodes[0]) {
+                    // Diagnostic mode writes nothing: the source column stands in.
+                    self.align.groups[g].pos = if self.diagnostic { t.start_col(nodes[0]) } else { self.width };
                     for &n in &nodes {
                         self.align.resolve[n] = Some(g);
                     }

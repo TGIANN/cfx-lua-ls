@@ -9,6 +9,8 @@ mod flow;
 mod framework;
 mod luadoc;
 mod luals;
+pub mod name_style;
+mod spell;
 mod ox;
 mod signature;
 mod style;
@@ -133,6 +135,10 @@ pub const RULES: &[(&str, Option<Severity>)] = &[
     ("missing-local-export-doc", None),
     ("global-element", None),
     ("no-unknown", None),
+    ("name-style-check", None),
+    ("spell-check", None),
+    ("codestyle-check", None),
+    ("unnecessary-assert", None),
     // FiveM
     ("fivem/wrong-side-native", Some(Severity::Error)),
     ("fivem/backtick-hash", Some(Severity::Warning)),
@@ -199,6 +205,35 @@ pub fn default_severity(code: &str) -> Option<Severity> {
     RULES.iter().find(|(c, _)| *c == code).and_then(|(_, s)| *s)
 }
 
+pub use spell::spell_suggest;
+
+/// `codestyle-check` (off by default, as in LuaLS): where the file differs from
+/// what the formatter would write with `style`, through the same off switches as
+/// the other rules.
+pub fn codestyle(parse: &Parse, text: &str, style: &cfx_lua_fmt::Style, config: &LintConfig) -> Vec<Lint> {
+    let Some(severity) = config.severity_of("codestyle-check", None) else { return Vec::new() };
+    let lints = cfx_lua_fmt::diagnose(text, style)
+        .into_iter()
+        .map(|d| Lint {
+            // An empty range shows one character wide, as LuaLS's `GetEndOffset`
+            // makes it (at the end of the file editors clamp it anyway).
+            range: TextRange::at((d.start as u32).into(), ((d.len.max(usize::from(d.start < text.len()))) as u32).into()),
+            code: "codestyle-check",
+            message: d.message,
+            severity,
+            tag: None,
+            fix: None,
+        })
+        .collect();
+    suppress(parse, text, lints)
+}
+
+/// The level a rule gets when a setting turns it on without naming one: its
+/// default, or LuaLS's level for the rules that are off by default.
+pub fn enabled_severity(code: &str) -> Severity {
+    default_severity(code).unwrap_or(if code == "spell-check" { Severity::Information } else { Severity::Warning })
+}
+
 /// The configured switches (`.luarc.json` `diagnostics.*`, `Lua.diagnostics.*`).
 #[derive(Debug, Clone, Default)]
 pub struct LintConfig {
@@ -234,6 +269,10 @@ pub struct LintConfig {
     /// `runtime.special`: a name that behaves as a builtin (`xx.assert` as
     /// `assert`).
     pub special: Vec<(String, String)>,
+    /// `Lua.nameStyle.config`.
+    pub name_style: name_style::NameStyleConfig,
+    /// `Lua.spell.dict`: words `spell-check` accepts.
+    pub spell_dict: Vec<String>,
 }
 
 impl LintConfig {
@@ -476,6 +515,15 @@ pub fn lint(parse: &Parse, text: &str, names: &Names, ctx: &Context) -> Vec<Lint
     flow::duplicate_set_fields(&mut l);
     luadoc::run(&mut l);
     signature::run(&mut l);
+    if parse.errors().is_empty() {
+        name_style::run(&mut l);
+        spell::run(&mut l);
+    }
+    if l.enabled("unnecessary-assert") && text.contains("assert") {
+        for range in l.types().unnecessary_asserts() {
+            l.push("unnecessary-assert", range, "Unnecessary assert: this expression is always truthy.");
+        }
+    }
     if (l.enabled("await-in-sync") || l.enabled("not-yieldable")) && (text.contains("async") || text.contains("coroutine.yield")) {
         let found = l.types().async_calls();
         for (range, code, message) in found {

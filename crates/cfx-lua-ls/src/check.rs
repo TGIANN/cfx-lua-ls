@@ -60,7 +60,11 @@ pub(crate) fn diagnose(ws: &Workspace, path: &Path, text: &str, config: &crate::
         .collect();
     if config.enable {
         let names = cfx_lua_ide::names(&parse, text);
-        let lints = lint_file(ws, path, &parse, text, &names, &config.lint);
+        let mut lints = lint_file(ws, path, &parse, text, &names, &config.lint);
+        if config.lint.severity.get("codestyle-check").is_some_and(Option::is_some) {
+            let style = crate::lsp::format::file_style(path, &config.format_default, &config.folders);
+            lints.extend(cfx_lua_ide::lint::codestyle(&parse, text, &style, &config.lint));
+        }
         out.extend(lints.iter().map(|l| found(path, &index, text, l)));
     }
     out

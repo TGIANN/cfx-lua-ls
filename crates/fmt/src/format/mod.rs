@@ -7,6 +7,7 @@
 //! format doc.
 
 mod align;
+mod check;
 mod indent;
 mod line_break;
 mod space;
@@ -14,6 +15,7 @@ mod token;
 
 use crate::style::{EndOfLine, IndentStyle, LineSpace, LineSpaceType, Style};
 use crate::tree::{Eol, Tk, Tree, utf8_len};
+pub use check::StyleDiagnostic;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum NextSpace {
@@ -127,6 +129,10 @@ pub(crate) struct Fmt<'t, 'a> {
     indent: indent::State,
     align: align::State,
     token: token::State,
+    /// `FormatState::Mode::Diagnostic`: `codestyle-check` instead of output.
+    diagnostic: bool,
+    diags: Vec<StyleDiagnostic>,
+    keyed: std::collections::BTreeMap<usize, StyleDiagnostic>,
 }
 
 impl<'t, 'a> Fmt<'t, 'a> {
@@ -145,6 +151,9 @@ impl<'t, 'a> Fmt<'t, 'a> {
             indent: indent::State::new(n),
             align: align::State::new(n),
             token: token::State::new(n),
+            diagnostic: false,
+            diags: Vec::new(),
+            keyed: std::collections::BTreeMap::new(),
         }
     }
 
@@ -233,6 +242,16 @@ impl<'t, 'a> Fmt<'t, 'a> {
 
     fn is_new_line(&self) -> bool {
         self.width == 0
+    }
+
+    /// `FormatState::IsNewLine`: the output width when formatting; in diagnostic
+    /// mode whether the source puts `n` first on its line.
+    fn is_new_line_at(&self, n: usize) -> bool {
+        if !self.diagnostic {
+            return self.is_new_line();
+        }
+        let prev = self.t.prev_token(n);
+        !self.t.is_token(prev) || self.t.end_line(prev) != self.t.start_line(n)
     }
 
     fn end_of_line(&self) -> &'static str {
@@ -334,7 +353,11 @@ impl<'t, 'a> Fmt<'t, 'a> {
             if self.check_range(n, &r) {
                 return;
             }
-            self.resolve(n, &r);
+            if self.diagnostic {
+                self.check(n, &r);
+            } else {
+                self.resolve(n, &r);
+            }
         }
     }
 

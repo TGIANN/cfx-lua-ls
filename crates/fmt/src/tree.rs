@@ -1508,6 +1508,10 @@ impl<'a> Tree<'a> {
         line_of(&self.line_starts, offset)
     }
 
+    pub(crate) fn line_start(&self, offset: usize) -> usize {
+        self.line_starts[self.line(offset)]
+    }
+
     pub(crate) fn column(&self, offset: usize) -> usize {
         let start = self.line_starts[self.line(offset)];
         if offset > start { utf8_len(&self.text.as_bytes()[start..offset]) } else { 0 }

@@ -8,7 +8,8 @@ license.workspace = true
 [dependencies]
 rayon.workspace = true
 cfx-lua-syntax.workspace = true
+cfx-lua-fmt.workspace = true
 rowan.workspace = true
-
-[dev-dependencies]
 serde_json.workspace = true
+regex = { version = "1", default-features = false, features = ["std", "unicode-perl"] }
+

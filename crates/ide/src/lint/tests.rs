@@ -399,3 +399,54 @@ fn closures_and_globals_in_loops() {
     let f = run("for i = 1, 9 do\n  print(math.floor(i), math.floor(i / 2), math.max(i, 1))\nend\nfor i = 1, 9 do\n  print(math.floor(i))\n  Wait(0)\nend\n", &ctx);
     assert_eq!(only(&f, "perf/global-in-loop"), ["math.floor", "math.max"], "{f:?}");
 }
+
+#[test]
+fn name_style_check() {
+    let text = "local Mod = {}\nlocal a, B = 1, 2\nlocal C <const> = 3\nlocal Json = require 'json'\nGlobalX = 1\nMod.FieldY = 2\nfunction Mod.DoIt(Param, ...)\n    local Inner = Param\n    for K, v in pairs(Inner) do end\n    for I = 1, 2 do end\n    return function(Arg) end\nend\nlocal function __index() end\nlocal function LocalF() end\nreturn Mod\n";
+    assert!(only(&codes(text), "name-style-check").is_empty(), "off by default");
+    let mut config = LintConfig::default();
+    config.severity.insert("name-style-check".into(), Some(Severity::Warning));
+    let ctx = Context { config: &config, ..Context::default() };
+    let found = run(text, &ctx);
+    // `Mod` is the module (snake_case), only the first name of a top-level
+    // `local a, B` is checked, `Json` passes as a required module and the `for`
+    // index is never checked, as in EmmyLuaCodeStyle.
+    assert_eq!(only(&found, "name-style-check"), ["Mod", "GlobalX", "FieldY", "DoIt", "Param", "Inner", "K", "Arg", "LocalF"]);
+    let p = parse(text);
+    let n = names(&p, text);
+    let first = lint(&p, text, &n, &ctx).into_iter().find(|d| d.code == "name-style-check").unwrap();
+    assert_eq!(first.message, "Name 'Mod' does not match rule 'ModuleName', which require 'snake-case'");
+    config.name_style = name_style::NameStyleConfig::parse(&serde_json::json!({ "module_name_style": "pascal_case", "global_variable_name_style": ["pascal_case"] }));
+    let ctx = Context { config: &config, ..Context::default() };
+    let found = only(&run(text, &ctx), "name-style-check");
+    assert!(!found.contains(&"Mod".to_string()) && !found.contains(&"GlobalX".to_string()));
+}
+
+#[test]
+fn spell_check() {
+    let text = "local plyerName = 'helo wrld here'\nlocal ok_name = \"x\tvalue\"\nprint(plyerName, ok_name)\n";
+    assert!(only(&codes(text), "spell-check").is_empty(), "off by default");
+    let mut config = LintConfig::default();
+    config.severity.insert("spell-check".into(), Some(Severity::Information));
+    let ctx = Context { config: &config, ..Context::default() };
+    assert_eq!(only(&run(text, &ctx), "spell-check"), ["plyer", "helo", "wrld", "plyer"]);
+    config.spell_dict = vec!["plyer".into()];
+    let ctx = Context { config: &config, ..Context::default() };
+    assert_eq!(only(&run(text, &ctx), "spell-check"), ["helo", "wrld"]);
+    assert_eq!(spell_suggest("Plyer").first().map(String::as_str), Some("Player"));
+}
+
+#[test]
+fn unnecessary_assert() {
+    // LuaLS's disabled positive case and its negatives (test/diagnostics/unnecessary-assert.lua).
+    let text = "assert(true)\nassert({})\nassert('x')\nlocal a\nassert(a)\n---@type boolean\nlocal b\nassert(b)\n---@type number?\nlocal f\nassert(f)\nassert(false)\nassert(nil and 5)\n---@type string\nlocal s = g()\nassert(s, 'msg')\n";
+    assert!(only(&codes(text), "unnecessary-assert").is_empty(), "off by default");
+    let mut config = LintConfig::default();
+    config.severity.insert("unnecessary-assert".into(), Some(Severity::Warning));
+    let ctx = Context { config: &config, ..Context::default() };
+    let p = parse(text);
+    let n = names(&p, text);
+    let lines: Vec<usize> =
+        lint(&p, text, &n, &ctx).into_iter().filter(|d| d.code == "unnecessary-assert").map(|d| text[..usize::from(d.range.start())].matches('\n').count() + 1).collect();
+    assert_eq!(lines, [1, 2, 3, 16]);
+}

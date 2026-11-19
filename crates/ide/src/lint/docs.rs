@@ -156,6 +156,22 @@ pub const RULE_DOCS: &[(&str, &str)] = &[
         "Off by default, as in LuaLS. A local or loop variable whose type the inference cannot tell. Only locals: LuaLS also checks globals and fields.",
     ),
     (
+        "name-style-check",
+        "Off by default, as in LuaLS. A local, parameter, function, global, table field, module, required module, `class(...)` result or `<const>` name that breaks its rule in `Lua.nameStyle.config` (EmmyLuaCodeStyle's keys: `local_name_style`, `function_name_style`, ...; `snake_case`, `upper_snake_case`, `camel_case`, `pascal_case`, `ignore` lists and `pattern` regexes with `$1` group rules). The defaults are EmmyLuaCodeStyle's: snake_case, globals and constants also UPPER_SNAKE, classes and required modules also PascalCase.",
+    ),
+    (
+        "spell-check",
+        "Off by default, as in LuaLS. A lower-case word of more than three letters in a name (`getPlayerNmae` -> `Nmae`) or in a short string that is not in LuaLS's English and Lua dictionaries or `Lua.spell.dict`. The quick fixes add the word to `Lua.spell.dict` or replace it with one of the closest dictionary words.",
+    ),
+    (
+        "codestyle-check",
+        "Off by default, as in LuaLS. Where the file differs from what the formatter would write: indentation, spaces around tokens, quote style, statement semicolons, call parentheses and the final line break, with the style of the file's `.editorconfig` (else `Lua.format.defaultConfig`).",
+    ),
+    (
+        "unnecessary-assert",
+        "Off by default; LuaLS 3.19.2 has the check but does not register it. `assert(x)` whose first argument can never be nil or false (`assert({})`, a `---@type string` local).",
+    ),
+    (
         "undefined-field",
         "A field read (`v.f`, `v:m()`) on a value of a `---@class` that neither the class nor its parents declare and no code writes under that name. Narrower than LuaLS: only classes declared in this file alone (parents too), without `[K]` index fields or a basic parent such as `table`; a name written as a field anywhere in the file or in another file of the resource, or a computed write in the file, keeps it silent.",
     ),

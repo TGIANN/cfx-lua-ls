@@ -289,11 +289,14 @@ error ("invalid UTF-8 code").
     `different-requires`, and off by default as in LuaLS `await-in-sync`,
     `not-yieldable`, `incomplete-signature-doc`, `missing-global-doc`,
     `missing-local-export-doc`, `global-element`, `no-unknown` (a configured
-    severity or `diagnostics.neededFileStatus` turns them on). Left out:
-    `codestyle-check` (the `format` command and the formatter's range
-    formatting cover it), `name-style-check` and `spell-check` (EmmyLuaCodeStyle
-    configuration and a dictionary), `unnecessary-assert` (LuaLS ships it
-    disabled). `deprecated` also sees the
+    severity or `diagnostics.neededFileStatus` turns them on). Also off by
+    default: `name-style-check` (`Lua.nameStyle.config`), `spell-check` (LuaLS's
+    two dictionaries, `Lua.spell.dict`, quick fixes) and `codestyle-check` (the
+    formatter run in EmmyLuaCodeStyle's diagnostic mode, with the file's
+    `.editorconfig`); on 158 server files all three give LuaLS 3.19.2's
+    findings (9,862 of them, with and without a name-style config), the one
+    difference the end column of "must end with new line". `unnecessary-assert`
+    too, which LuaLS 3.19.2 has but does not register. `deprecated` also sees the
     file's own `---@deprecated` definitions and marks `T.x` / `T:f` whole, as
     LuaLS does. `inject-field` takes the object's type where it is written
     (`x = x or {}` makes it `C|table`, which takes anything). Over the five

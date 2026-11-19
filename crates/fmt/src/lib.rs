@@ -10,6 +10,7 @@ pub mod style;
 mod tree;
 
 pub use editorconfig::EditorConfig;
+pub use format::StyleDiagnostic;
 pub use style::Style;
 
 /// The whole file formatted, or `None` when it must be left alone: an escrow file,
@@ -53,6 +54,27 @@ pub fn format_range(text: &str, style: &Style, start_line: usize, end_line: usiz
         text.insert_str(0, bom);
     }
     Some(RangeEdit { text, start_line, end_line })
+}
+
+/// `codestyle-check`: where the text differs from what [`format`] would write,
+/// as EmmyLuaCodeStyle's `CodeStyleChecker` reports it (indentation, spaces,
+/// quotes, semicolons, parentheses, the final line break). Empty when the file
+/// must be left alone (as for [`format`]).
+pub fn diagnose(text: &str, style: &Style) -> Vec<StyleDiagnostic> {
+    if text.starts_with("FXAP") {
+        return Vec::new();
+    }
+    let bom = if text.starts_with('\u{feff}') { '\u{feff}'.len_utf8() } else { 0 };
+    let body = &text[bom..];
+    if !cfx_lua_syntax::parse(body).errors().is_empty() {
+        return Vec::new();
+    }
+    let Some(tree) = tree::Tree::new(body) else { return Vec::new() };
+    let mut out = format::Fmt::new(&tree, style).diagnose();
+    for d in &mut out {
+        d.start += bom;
+    }
+    out
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
