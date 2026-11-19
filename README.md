@@ -26,7 +26,7 @@ ships off stay off here too); it passes 518 of LuaLS's 608 scored type inference
 cases: by default 529, the other 8 with `cfx.lualsCompat` on, and all 537 with
 that switch on for every case (the Lua 5.5 `global` case is not scored, CfxLua
 is 5.4). Hover follows LuaLS's layout (`function f(a: any)` with its return lines,
-`local x: integer = 1`, a table's or a class's fields) and matches 114 of its 190
+`local x: integer = 1`, a table's or a class's fields) and matches 143 of its 190
 hover cases word for word; completion passes all 207 of its completion cases.
 See [docs/ROADMAP.md](docs/ROADMAP.md).
 
