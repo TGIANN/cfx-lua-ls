@@ -309,10 +309,11 @@ error ("invalid UTF-8 code").
     `diagnostics.groupSeverity` / `groupFileStatus` work with LuaLS's groups
     and precedence. `unnecessary-assert` too, which LuaLS 3.19.2 has but does
     not register; ours only flags values the code fixes (literals, table and
-    function expressions, library functions), because LuaLS's type-based
-    version flags guarded lookups and `---@param` checks (on the test servers:
-    120 findings, all `local lower = assert(string.lower)` in menuv). `deprecated` also sees the
-    file's own `---@deprecated` definitions and marks `T.x` / `T:f` whole, as
+    function expressions, library functions present on the file's side and
+    in Lua 5.4), because LuaLS's type-based version flags guarded lookups and
+    `---@param` checks (on the test servers: 113 findings, all of the
+    `local lower = assert(string.lower)` kind, in menuv). `deprecated` also
+    sees the file's own `---@deprecated` definitions and marks `T.x` / `T:f` whole, as
     LuaLS does. `inject-field` takes the object's type where it is written
     (`x = x or {}` makes it `C|table`, which takes anything). Over the five
     corpora: 19 hits, all fields ox_inventory and ox_target write that their

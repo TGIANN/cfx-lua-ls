@@ -451,6 +451,24 @@ fn unnecessary_assert() {
     // Narrower than LuaLS: a typed local (16), an index (21) and a field of a
     // local table (24) are left alone.
     assert_eq!(lines, [1, 2, 3, 17, 18, 22]);
+
+    // Library functions only where they surely exist: not other Lua versions'
+    // (nil in CfxLua), not a native of the other side, not one the file replaces.
+    let text = "assert(unpack)\nassert(loadstring)\nassert(setfenv)\nassert(GetNumPlayerIdentifiers)\nassert(PlayerPedId)\nassert(GetHashKey)\nassert(table.unpack)\n";
+    let side_lines = |side: FileSide, text: &str| -> Vec<usize> {
+        let ctx = Context { config: &config, side, ..Context::default() };
+        let p = parse(text);
+        let n = names(&p, text);
+        lint(&p, text, &n, &ctx)
+            .into_iter()
+            .filter(|d| d.code == "unnecessary-assert")
+            .map(|d| text[..usize::from(d.range.start())].matches('\n').count() + 1)
+            .collect()
+    };
+    assert_eq!(side_lines(FileSide::Client, text), [5, 6, 7]);
+    assert_eq!(side_lines(FileSide::Server, text), [4, 6, 7]);
+    assert_eq!(side_lines(FileSide::Shared, text), [6, 7]);
+    assert_eq!(side_lines(FileSide::Client, "GetHashKey = nil\nassert(GetHashKey)\n"), Vec::<usize>::new());
 }
 
 #[test]

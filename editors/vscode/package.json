@@ -54,6 +54,19 @@
           ],
           "default": "off",
           "description": "Log the messages between VS Code and the server to the output channel."
+        },
+        "Lua.spell.dict": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "markdownDescription": "Words `spell-check` accepts besides its dictionaries (the same key as lua-language-server). The spell-check quick fix adds words here."
+        },
+        "Lua.nameStyle.config": {
+          "type": "object",
+          "default": {},
+          "markdownDescription": "Rules for `name-style-check`, with EmmyLuaCodeStyle's keys (`local_name_style`, `function_name_style`, ...), the same key as lua-language-server."
         }
       }
     },

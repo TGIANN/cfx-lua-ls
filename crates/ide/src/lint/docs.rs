@@ -169,7 +169,7 @@ pub const RULE_DOCS: &[(&str, &str)] = &[
     ),
     (
         "unnecessary-assert",
-        "Off by default; LuaLS 3.19.2 has the check but does not register it. `assert(x)` whose first argument the code fixes as never nil or false: a literal, a table or function expression, a library or native function (`assert(string.lower)`). Locals, fields, lookups and calls are left alone even when their type says truthy: a `---@param x string` checked at run time may still be nil.",
+        "Off by default; LuaLS 3.19.2 has the check but does not register it. `assert(x)` whose first argument the code fixes as never nil or false: a literal, a table or function expression, a library or native function that exists where the file runs (`assert(string.lower)`; not `unpack`, not a native of the other side). Locals, fields, lookups and calls are left alone even when their type says truthy: a `---@param x string` checked at run time may still be nil.",
     ),
     (
         "undefined-field",
