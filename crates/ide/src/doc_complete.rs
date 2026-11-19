@@ -104,7 +104,9 @@ pub(crate) fn complete(parse: &Parse, names: &Names, text: &str, offset: TextSiz
         "class" => {
             // `---@class B : A, Z|`: the parents.
             let own = before.split(|c: char| c == ':' || c.is_whitespace()).find(|s| !s.is_empty()).unwrap_or("");
-            before.contains(':').then(|| types(Some(own)).into_iter().filter(|c| c.kind == CompletionKind::Class && class_name(text, cx, &c.label)).collect())
+            // The file's classes, read once.
+            let own_classes: std::collections::HashSet<String> = crate::api::doc_classes(text).into_iter().map(|c| c.name).collect();
+            before.contains(':').then(|| types(Some(own)).into_iter().filter(|c| c.kind == CompletionKind::Class && class_name(&own_classes, cx, &c.label)).collect())
         }
         "type" | "return" | "see" | "vararg" | "overload" => Some(types(None)),
         "param" | "field" | "alias" | "generic" if !before.is_empty() => Some(types(None)),
@@ -130,7 +132,7 @@ const PROBE: &str = "__cfx_lua_ls_probe";
 /// The literal values the position takes (`"a"` of `---@param x "a"|"b"`), and
 /// whether they stand alone: in a string (re-quoted with its quote) or before
 /// anything is typed. In a table constructor, the keys its type lacks, alone.
-pub(crate) fn values(parse: &Parse, text: &str, offset: TextSize) -> Option<(Vec<Completion>, bool)> {
+pub(crate) fn values(parse: &Parse, names: &Names, text: &str, offset: TextSize) -> Option<(Vec<Completion>, bool)> {
     let root = parse.syntax();
     if let Some(tok) = token_at(&root, offset).left_biased().filter(|t| t.kind() == STRING && t.text_range().start() < offset) {
         let raw = tok.text();
@@ -139,10 +141,19 @@ pub(crate) fn values(parse: &Parse, text: &str, offset: TextSize) -> Option<(Vec
         if raw.len() >= 2 && raw.ends_with(q) && tok.text_range().end() == offset {
             return None;
         }
-        let names = crate::names::names(parse, text);
-        let types = crate::types::FileTypes::new(parse, &names, text);
-        let typed = crate::util::lua_string(raw);
+        // Only where a value goes: a call argument, after `=` / `==`, an entry
+        // or an index.
         let holder = tok.parent()?;
+        let spot = match holder.kind() {
+            ARG_LIST => true,
+            LITERAL_EXPR => holder.parent().is_some_and(|p| matches!(p.kind(), ARG_LIST | BINARY_EXPR | EXPR_LIST | FIELD_POS | FIELD_NAMED | FIELD_INDEXED | INDEX_EXPR)),
+            _ => false,
+        };
+        if !spot {
+            return None;
+        }
+        let types = crate::types::FileTypes::new(parse, names, text);
+        let typed = crate::util::lua_string(raw);
         // `f 'x'`: the call's only argument.
         if holder.kind() == ARG_LIST {
             let call = holder.parent()?;
@@ -177,6 +188,29 @@ pub(crate) fn values(parse: &Parse, text: &str, offset: TextSize) -> Option<(Vec
     }
     let end = usize::from(offset);
     let typed = text[..end].bytes().rev().take_while(|b| b.is_ascii_alphanumeric() || *b == b'_').count();
+    // Only where a value or a key goes: after `(`, `,`, `=`, `{` or `;` (the
+    // re-parse below costs a whole file).
+    let before = text[..end - typed].trim_end();
+    if !before.ends_with(['(', ',', '=', '{', ';']) || before.is_empty() {
+        return None;
+    }
+    // The token before, read from the tree as it is: in a table constructor
+    // with no type asked for (a data table) nothing is offered, and `local x
+    // = |` takes no value list; neither needs the re-parse.
+    let prev = token_at(&root, TextSize::from(before.len() as u32)).left_biased();
+    if let Some(p) = prev.as_ref().and_then(|t| t.parent()) {
+        let table = match p.kind() {
+            TABLE_EXPR => Some(p.clone()),
+            FIELD_NAMED | FIELD_INDEXED => p.parent().filter(|t| t.kind() == TABLE_EXPR),
+            LOCAL_STAT => return None,
+            _ => None,
+        };
+        if let Some(t) = table
+            && !crate::types::FileTypes::new(parse, names, text).wants_type(&t)
+        {
+            return None;
+        }
+    }
     let probe = format!("{}{PROBE}{}", &text[..end], &text[end..]);
     let parse = crate::parse(&probe);
     let tok = token_at(&parse.syntax(), offset).right_biased().filter(|t| t.kind() == NAME && t.text().ends_with(PROBE))?;
@@ -250,8 +284,8 @@ fn quote(s: &str, q: char) -> String {
 }
 
 /// Whether `name` is a class (not an alias or enum) for `---@class X: name`.
-fn class_name(text: &str, cx: FileCtx, name: &str) -> bool {
-    crate::api::doc_classes(text).iter().any(|c| c.name == name)
+fn class_name(own: &std::collections::HashSet<String>, cx: FileCtx, name: &str) -> bool {
+    own.contains(name)
         || crate::library::classes().contains_key(name)
         || cx.ws.is_some_and(|(ws, _)| ws.has_class(name))
 }
