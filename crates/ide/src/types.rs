@@ -1858,6 +1858,33 @@ impl<'a> FileTypes<'a> {
         out
     }
 
+    /// Every `obj.x` / `obj:x()` of the file whose object is of a class:
+    /// (the field's range, the class, the field).
+    pub(crate) fn class_field_uses(&self) -> Vec<(TextRange, String, String)> {
+        let inf = &self.inf;
+        let mut out = Vec::new();
+        for n in inf.root.descendants() {
+            let (object, field) = match n.kind() {
+                INDEX_EXPR => match (n.first_child(), crate::lint::field_name(&n)) {
+                    (Some(o), Some(f)) => (o, f),
+                    _ => continue,
+                },
+                METHOD_CALL_EXPR => match (n.first_child(), crate::api::method_name(&n)) {
+                    (Some(o), Some(f)) => (o, f),
+                    _ => continue,
+                },
+                _ => continue,
+            };
+            if inf.exhausted.get() {
+                break;
+            }
+            if let T::Name(class) = non_nil(inf.expr_type(&object)) {
+                out.push((field.text_range(), class, field.text().to_string()));
+            }
+        }
+        out
+    }
+
     /// await-in-sync and not-yieldable, over `---@async` functions of the file
     /// and the library's (`coroutine.yield`): (range, code, message).
     pub(crate) fn async_calls(&self) -> Vec<(TextRange, &'static str, String)> {
