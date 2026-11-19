@@ -22,7 +22,7 @@ the workspace for completion after any expression (`ESX.GetPlayerFromId(src).`,
 `invisible`, ...), each kept narrower than LuaLS's where it would guess. Every
 LuaLS diagnostic code is implemented except `codestyle-check`, `name-style-check`,
 `spell-check` and `unnecessary-assert`, which LuaLS ships off (the others it
-ships off stay off here too); it passes 588 of LuaLS's 608 scored type inference cases and all 537 of its diagnostic
+ships off stay off here too); it passes 594 of LuaLS's 608 scored type inference cases and all 537 of its diagnostic
 cases: by default 529, the other 8 with `cfx.lualsCompat` on, and all 537 with
 that switch on for every case (the Lua 5.5 `global` case is not scored, CfxLua
 is 5.4). Hover follows LuaLS's layout (`function f(a: any)` with its return lines,

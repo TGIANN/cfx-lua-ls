@@ -181,6 +181,8 @@ struct Infer<'a> {
     /// Fields written on the variable a `---@class` sits on, by class: the
     /// values (or the `FUNC_NAME` of `function V.f()`).
     class_members: std::cell::OnceCell<HashMap<String, HashMap<String, Vec<SyntaxNode>>>>,
+    /// `a.b.c = v` targets of the file by their path (`a.b.c`), in order.
+    path_writes: std::cell::OnceCell<HashMap<String, Vec<SyntaxNode>>>,
     /// Locals written after their declaration.
     written: std::cell::OnceCell<std::collections::HashSet<usize>>,
     /// Field writes with a `---@type` above them, by field name: (the object
@@ -249,6 +251,18 @@ pub fn type_at_with(parse: &Parse, names: &Names, text: &str, offset: TextSize, 
         t = inf.view_aliases(&t);
     }
     Some(infer_view(&t, settings.enums_limit))
+}
+
+/// `a.b.c` of a chain of names and `.name` fields, without spaces.
+fn name_path(text: &str, e: &SyntaxNode) -> Option<String> {
+    match e.kind() {
+        NAME_EXPR => Some(text[e.text_range()].to_string()),
+        INDEX_EXPR => {
+            let f = crate::lint::field_name(e)?;
+            Some(format!("{}.{}", name_path(text, &e.first_child()?)?, f.text()))
+        }
+        _ => None,
+    }
 }
 
 /// The functions of a field declared more than once (`---@field on fun(a: 'x')`
@@ -1985,6 +1999,11 @@ impl<'a> FileTypes<'a> {
             FUNCTION_STAT => {
                 let fname = holder.children().find(|c| c.kind() == FUNC_NAME)?;
                 let parts: Vec<SyntaxToken> = fname.children_with_tokens().filter_map(|e| e.into_token()).filter(|t| t.kind() == NAME).collect();
+                if parts.len() > 2 {
+                    // `function lib.array:from()` with `---@class Array` on `lib.array = ...`.
+                    let prefix: Vec<&str> = parts[..parts.len() - 1].iter().map(|t| t.text()).collect();
+                    return self.inf.path_class(&prefix.join("."));
+                }
                 (parts.len() == 2).then(|| self.token_class(&parts[0], globals)).flatten()
             }
             FUNCTION_EXPR => {
@@ -2945,6 +2964,7 @@ impl<'a> Infer<'a> {
             exhausted: Cell::new(false),
             functions: std::cell::OnceCell::new(),
             class_members: std::cell::OnceCell::new(),
+            path_writes: std::cell::OnceCell::new(),
             written: std::cell::OnceCell::new(),
             typed_fields: std::cell::OnceCell::new(),
             decl_stats: RefCell::default(),
@@ -3324,6 +3344,21 @@ impl<'a> Infer<'a> {
                 BINARY_EXPR => {
                     let op = parent.children_with_tokens().filter_map(|x| x.into_token()).find(|t| matches!(t.kind(), AND_KW | OR_KW)).map(|t| t.kind());
                     let left = parent.first_child();
+                    // `if n ---@cast n table and n.type` (the cast on its own line
+                    // between the operands).
+                    if left.as_ref() != Some(&node) {
+                        let lines: Vec<(TextSize, &str)> = parent
+                            .children_with_tokens()
+                            .filter_map(|x| x.into_token())
+                            .filter(|t| t.kind() == COMMENT && t.text_range().end() <= node.text_range().start())
+                            .filter_map(|t| self.text[t.text_range()].strip_prefix("--").map(|rest| (t.text_range().start() + TextSize::from(2), rest)))
+                            .collect();
+                        if lines.iter().any(|(_, l)| l.contains("@cast"))
+                            && let Some(c) = self.cast_in(crate::luacats::parse_lines(lines).0.into_iter().map(|t| t.tag).collect(), d)
+                        {
+                            effects.push(c);
+                        }
+                    }
                     if left.as_ref() != Some(&node)
                         && let Some(l) = left
                     {
@@ -3770,6 +3805,15 @@ impl<'a> Infer<'a> {
                     }
                 }
                 None
+            }
+            // `while x == nil do ... end`: the loop ends when its condition is
+            // false (no `break` in it, writes of nil only).
+            WHILE_STAT
+                if s.first_child().is_some_and(|c| self.checks(&c, d) == Some(false))
+                    && !s.descendants().any(|n| n.kind() == BREAK_STAT)
+                    && writes.iter().all(|w| value_of(w).is_some_and(|v| is(&v, "nil"))) =>
+            {
+                Some(self.guard(&s.first_child()?, d))
             }
             _ => (!writes.is_empty()).then(|| Effect::Also(writes.iter().filter_map(|w| value_of(w)).collect())),
         }
@@ -4874,10 +4918,66 @@ impl<'a> Infer<'a> {
                         None => return unknown(),
                     },
                 };
-                self.index_type(&object, &key)
+                let t = self.index_type(&object, &key);
+                if has_unknown(&t)
+                    && let Some(w) = self.path_write(e)
+                {
+                    return w;
+                }
+                t
             }
             _ => unknown(),
         }
+    }
+
+    /// The `---@class` on an `a.b = v` of the file.
+    fn path_class(&self, path: &str) -> Option<String> {
+        self.path_writes_map().get(path)?.iter().find_map(|w| {
+            stat_tags(self.text, &w.parent()?.parent()?).into_iter().find_map(|t| match t {
+                Tag::Class { name: c, .. } => Some(c),
+                _ => None,
+            })
+        })
+    }
+
+    fn path_writes_map(&self) -> &HashMap<String, Vec<SyntaxNode>> {
+        self.path_writes.get_or_init(|| {
+            let mut out: HashMap<String, Vec<SyntaxNode>> = HashMap::new();
+            for list in self.root.descendants().filter(|n| n.kind() == VAR_LIST) {
+                for v in list.children().filter(|v| v.kind() == INDEX_EXPR) {
+                    if let Some(p) = name_path(self.text, &v) {
+                        out.entry(p).or_default().push(v);
+                    }
+                }
+            }
+            out
+        })
+    }
+
+    /// `a.b` read where nothing else types it: what every `a.b = v` of the
+    /// file writes (a `---@class` on one names it), `nil` writes left out;
+    /// none when a write's value is not known.
+    fn path_write(&self, e: &SyntaxNode) -> Option<T> {
+        let path = name_path(self.text, e)?;
+        let writes = self.path_writes_map().get(&path)?;
+        let mut parts = Vec::new();
+        for w in writes {
+            let stat = w.parent()?.parent()?;
+            if let Some(c) = stat_tags(self.text, &stat).into_iter().find_map(|t| match t {
+                Tag::Class { name: c, .. } => Some(c),
+                _ => None,
+            }) {
+                return Some(name(&c));
+            }
+            let v = self.assigned_value(w)?;
+            if has_unknown(&v) {
+                return None;
+            }
+            if !is(&v, "nil") {
+                parts.push(widen(&v));
+            }
+        }
+        (!parts.is_empty()).then(|| union(parts))
     }
 
     /// The class (or one of its parents) declaring `---@operator op`.
@@ -4967,6 +5067,14 @@ impl<'a> Infer<'a> {
                 let rt = self.expr_type(&r);
                 if has_unknown(&lt) || mentions_any(&lt) {
                     return rt;
+                }
+                // `t and t[i]` with `t: T[]?`: LuaLS keeps the optional mark (`number?`).
+                if let T::Optional(inner) = &lt
+                    && !members_of(inner).iter().any(|m| is(m, "boolean") || matches!(m, T::Bool(false)) || is(m, "nil"))
+                    && !matches!(rt, T::Optional(_) | T::Union(_))
+                    && !is(&rt, "nil")
+                {
+                    return T::Optional(Box::new(rt));
                 }
                 let falsy: Vec<T> = members_of(&lt)
                     .into_iter()
