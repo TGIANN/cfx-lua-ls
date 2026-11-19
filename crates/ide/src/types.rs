@@ -242,6 +242,20 @@ pub fn type_at_with(parse: &Parse, names: &Names, text: &str, offset: TextSize, 
     Some(infer_view(&t, settings.enums_limit))
 }
 
+/// The functions of a field declared more than once (`---@field on fun(a: 'x')`
+/// / `---@field on fun(a: 'y')`), when there are several.
+fn field_funs(t: &T) -> Option<Vec<FunType>> {
+    let T::Union(ps) = t else { return None };
+    let fs: Vec<FunType> = ps
+        .iter()
+        .filter_map(|p| match p {
+            T::Fun(f) => Some((**f).clone()),
+            _ => None,
+        })
+        .collect();
+    (fs.len() >= 2).then_some(fs)
+}
+
 /// A type of the library as LuaLS's hover shows it: its aliases expanded
 /// (`hover.expandAlias`), a union's members in LuaLS's order.
 pub(crate) fn lib_hover_view(t: &T) -> String {
@@ -3643,6 +3657,22 @@ impl<'a> Infer<'a> {
         {
             return t;
         }
+        // A local function passed by name where a `fun(...)` is expected
+        // (`work(cb)`).
+        if holder.kind() == LOCAL_FUNCTION_STAT
+            && let Some(i) = index
+            && let Some(d) = holder.children_with_tokens().filter_map(|e| e.into_token()).find(|t| t.kind() == NAME).and_then(|t| self.decl_at(t.text_range()))
+        {
+            for r in self.names.refs.iter().filter(|r| r.target == Target::Decl(d)) {
+                let Some(e) = self.root.covering_element(r.range).ancestors().find(|a| a.kind() == NAME_EXPR) else { continue };
+                if e.parent().is_some_and(|p| p.kind() == ARG_LIST)
+                    && let Some(T::Fun(f)) = self.expected_type(&e)
+                    && let Some(t) = f.params.get(i).and_then(|p| p.ty.clone())
+                {
+                    return t;
+                }
+            }
+        }
         name("any")
     }
 
@@ -3678,6 +3708,17 @@ impl<'a> Infer<'a> {
                 {
                     return Some(t);
                 }
+                // `obj:on('died', function(i) end)` with `on` declared several times.
+                if call.kind() == METHOD_CALL_EXPR
+                    && e.kind() == FUNCTION_EXPR
+                    && let Some(m) = crate::api::method_name(&call)
+                    && let Some(fs) = field_funs(&self.index_type(&callee, &Key::Name(m.text().to_string())))
+                    && let Some((kept, _)) = self.choose_overload(fs, Vec::new(), false, &args, Some(self.expr_type(&callee)))
+                    && let [only] = kept.as_slice()
+                    && let Some(t) = only.params.get(i + 1).and_then(|p| p.ty.clone())
+                {
+                    return Some(t);
+                }
                 let info = if call.kind() == METHOD_CALL_EXPR {
                     let m = crate::api::method_name(&call)?;
                     // `function C.f(a, b)` called as `C:f(b)`: the object is `a`.
@@ -3702,9 +3743,15 @@ impl<'a> Infer<'a> {
                     None => vararg(),
                 }?;
                 // `---@generic T`, `f(t, function(v) end)` with `t: T[]`: the other
-                // arguments bind it; one left unbound is `unknown`.
-                if !info.generics.is_empty() && e.kind() == FUNCTION_EXPR {
+                // arguments bind it (and the object of `obj:f(cb)` a `self: T`);
+                // one left unbound is `unknown`.
+                if !info.generics.is_empty() && matches!(e.kind(), FUNCTION_EXPR | NAME_EXPR) {
                     let mut map = HashMap::new();
+                    if call.kind() == METHOD_CALL_EXPR
+                        && let Some(Some(sp)) = &info.self_param
+                    {
+                        bind(sp, &self.expr_type(&callee), &info.generics, &mut map);
+                    }
                     for (j, a) in args.iter().enumerate() {
                         if j != i
                             && a.kind() != FUNCTION_EXPR
@@ -3727,7 +3774,7 @@ impl<'a> Infer<'a> {
                     FIELD_NAMED => Key::Name(parent.children_with_tokens().filter_map(|x| x.into_token()).find(|t| t.kind() == NAME)?.text().to_string()),
                     // `{ f }` is `[1] = f`.
                     FIELD_POS => Key::Index(name("integer")),
-                    _ => Key::Index(unknown()),
+                    _ => Key::Index(parent.first_child().map_or_else(unknown, |k| self.expr_type(&k))),
                 };
                 self.member_of_type(&outer, &key)
             }
@@ -3849,7 +3896,10 @@ impl<'a> Infer<'a> {
     /// The `fun`s of a function with `---@overload`s (itself included) that a
     /// call with these arguments may reach, and the function's generics.
     fn overloads_kept(&self, callee: &SyntaxNode, args: &[SyntaxNode]) -> Option<(Vec<FunType>, Vec<String>)> {
-        let body = self.function_body(callee)?;
+        let Some(body) = self.function_body(callee) else {
+            // A field declared several times (`---@field on fun(...)` lines).
+            return self.choose_overload(field_funs(&self.expr_type(callee))?, Vec::new(), false, args, None);
+        };
         let stat = self.doc_stat_of(&body)?;
         let tags = stat_tags(self.text, &stat);
         let mut candidates: Vec<FunType> = tags
@@ -3888,7 +3938,23 @@ impl<'a> Infer<'a> {
             is_async: false,
         };
         candidates.push(own);
-        let gens = generics(&tags);
+        self.choose_overload(candidates, generics(&tags), true, args, None)
+    }
+
+    /// LuaLS's choice among the overloads of a call. `own`: the last candidate
+    /// is the function itself; `object`: the value `obj:f()` passes first.
+    fn choose_overload(&self, mut candidates: Vec<FunType>, gens: Vec<String>, own: bool, args: &[SyntaxNode], object: Option<T>) -> Option<(Vec<FunType>, Vec<String>)> {
+        // `'"died"'`: a string type written with its quotes inside is the literal.
+        for f in &mut candidates {
+            for p in &mut f.params {
+                if let Some(T::Str(s, _)) = &mut p.ty
+                    && s.len() >= 2
+                    && (s.starts_with('"') && s.ends_with('"') || s.starts_with('\'') && s.ends_with('\''))
+                {
+                    *s = s[1..s.len() - 1].to_string();
+                }
+            }
+        }
         // A literal argument as its literal type: `'y'` does not fit `a: 'x'`.
         let literal = |a: &SyntaxNode| -> Option<T> {
             let tok = a.first_token().filter(|_| a.kind() == LITERAL_EXPR)?;
@@ -3900,7 +3966,7 @@ impl<'a> Infer<'a> {
                 _ => None,
             }
         };
-        let mut arg_types: Vec<T> = args.iter().map(|a| literal(a).or_else(|| self.const_literal(a)).unwrap_or_else(|| self.expr_type(a))).collect();
+        let mut arg_types: Vec<T> = object.into_iter().chain(args.iter().map(|a| literal(a).or_else(|| self.const_literal(a)).unwrap_or_else(|| self.expr_type(a)))).collect();
         // A call last gives all its values (none at all for `f(g())` when `g`
         // returns nothing).
         if let Some(last) = args.last().filter(|a| matches!(a.kind(), CALL_EXPR | METHOD_CALL_EXPR)) {
@@ -3953,7 +4019,7 @@ impl<'a> Infer<'a> {
             }
             score
         };
-        let own_vararg = candidates.last().is_some_and(|f| f.params.last().is_some_and(|p| p.name == "..."));
+        let own_vararg = own && candidates.last().is_some_and(|f| f.params.last().is_some_and(|p| p.name == "..."));
         let last = candidates.len() - 1;
         let counted: Vec<(usize, &FunType)> = candidates.iter().enumerate().filter(|(_, f)| counts(f)).collect();
         let kept: Vec<&FunType> = match counted.as_slice() {
@@ -4849,17 +4915,20 @@ impl<'a> Infer<'a> {
                             }
                         }
                     };
-                    if let Some(f) = def.fields.iter().find(|f| &f.name == k) {
+                    let same: Vec<&T> = def.fields.iter().filter(|f| &f.name == k).map(|f| &f.ty).collect();
+                    if let Some(first) = same.first() {
+                        // A function field declared on several lines is each of them.
+                        let ty = if same.len() > 1 && same.iter().all(|t| matches!(t, T::Fun(_))) { T::Union(same.iter().map(|t| (*t).clone()).collect()) } else { (*first).clone() };
                         // A generic class named bare (`---@type Storage`): its `T` is `any`.
                         if c == *n && !def.generics.is_empty() && !self.generic_args.get() {
                             let map: HashMap<String, T> = def.generics.iter().map(|g| (g.clone(), name("any"))).collect();
-                            return Some(subst(&f.ty, &map, &def.generics, true));
+                            return Some(subst(&ty, &map, &def.generics, true));
                         }
                         if !bound.is_empty() {
                             let gens: Vec<String> = bound.keys().cloned().collect();
-                            return Some(subst(&f.ty, &bound, &gens, true));
+                            return Some(subst(&ty, &bound, &gens, true));
                         }
-                        return Some(f.ty.clone());
+                        return Some(ty);
                     }
                     for p in &def.parent_types {
                         match p {
