@@ -480,11 +480,15 @@ impl<'a> P<'a> {
         if self.eat(":") {
             let paren = self.eat("(");
             loop {
-                // `name: T` returns.
+                // `name: T` returns, and `...: T` / `...T` for the rest.
                 let mut name = None;
                 if let (Some(Tok::Name(n)), Some(Tok::Sym(":"))) = (self.peek(), self.peek_at(1)) {
                     name = Some(n.clone());
                     self.i += 2;
+                } else if matches!(self.peek(), Some(Tok::Sym("..."))) && !matches!(self.peek_at(1), None | Some(Tok::Sym("," | ")"))) {
+                    self.i += 1;
+                    self.eat(":");
+                    name = Some("...".to_string());
                 }
                 let Some(ty) = self.ty() else { break };
                 let optional = matches!(ty, DocType::Optional(_));
@@ -1120,7 +1124,7 @@ fn write_view(t: &DocType, s: &mut String, depth: usize) {
             if !f.rets.is_empty() {
                 s.push(':');
                 // Named returns go in parentheses: `fun():(x: number)`.
-                let named = f.rets.iter().any(|r| r.name.is_some());
+                let named = f.rets.iter().any(|r| r.name.as_ref().is_some_and(|n| n != "..."));
                 if named {
                     s.push('(');
                 }
@@ -1128,7 +1132,9 @@ fn write_view(t: &DocType, s: &mut String, depth: usize) {
                     if i > 0 {
                         s.push_str(", ");
                     }
-                    if let Some(n) = r.name.as_ref().filter(|_| named) {
+                    if r.name.as_deref() == Some("...") {
+                        s.push_str("...");
+                    } else if let Some(n) = r.name.as_ref().filter(|_| named) {
                         s.push_str(n);
                         s.push_str(": ");
                     }

@@ -235,7 +235,7 @@ error ("invalid UTF-8 code").
     chains stay linear. Checked by `crates/ide/tests/luals_types.rs` against
     LuaLS's `test/type_inference` (610 cases, extracted by
     `tools/extract_luals_types.py` with the LuaLS settings each runs under:
-    `expandAlias`, `enumsLimit`, `inferParamType`): 517 of the 608 scored
+    `expandAlias`, `enumsLimit`, `inferParamType`): 518 of the 608 scored
     cases pass; the `??` operator case (`runtime.nonstandardSymbol`) and the
     `runtime.special` one are not scored. The list of passing cases is kept so
     a regression fails the test. The inferred type prints as LuaLS prints it:
@@ -308,6 +308,26 @@ error ("invalid UTF-8 code").
     while naming a parameter. The rest is LuaLS-specific: word completion
     (`Text`), its item kinds (`Enum`, `Property`), snippets, string enum
     arguments.
+  - Done: completion 54 -> 207 of 207 (`crates/ide/src/doc_complete.rs` and
+    `assist.rs`): LuaLS's fuzzy `matchKey`, its item kinds (a global or field
+    given a literal is `Enum`, a function `Function`, one only read here
+    `Text`, table keys `Property`, values `EnumMember`), word completion
+    (`showWord`: `Fallback` in the editor as LuaLS ships it, `Enable` in the
+    harness as its tests run), doc comments (tags, types, `@param` names,
+    `@cast` locals, `@diagnostic` modes and codes, `@operator`, the `---`
+    function snippet), literal values and table keys a position takes
+    (`---@alias`, `---@enum`, `---|` lines, overloads, class `---@overload`s,
+    `` `T` `` generics bound from a string), the trigger rules (after `(`,
+    `,`, `{`, `#`, `@`, `|` or a space only those values), `continue`, the
+    `do` of a `while` / `for`, names with non-ASCII characters (read with a
+    `UNICODE_NAME` error, as LuaLS does). How the harness scores: snippets and
+    LuaLS's `function` call snippets are dropped on both sides (ours are
+    written for CfxLua), globals score as `Field`, the trigger is the
+    character before the cursor as in LuaLS's tests. Not scored, with their
+    reason in the extractor: cases that need non-default settings, LuaLS's
+    `ContinueTyping` follow-up requests and its `<function>` placeholder
+    items. A completion in a 1 MB data table costs about 25 ms; the
+    re-parse with a probe name runs only where a typed value is asked for.
   - Done: inference 374 -> 397: `---@overload` resolution by argument count and
     types (literals compared as literals), a parameter without `---@param`
     typed from its overloads, an overriding method's parameters from the class

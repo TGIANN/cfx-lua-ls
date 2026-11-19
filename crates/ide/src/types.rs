@@ -307,6 +307,86 @@ fn widen(t: &T) -> T {
 /// The fields a hover lists at most.
 const HOVER_FIELDS: usize = 50;
 
+/// One entry of a hover shape: its types and values from every place.
+#[derive(Default)]
+struct ShapeEntry {
+    types: Vec<T>,
+    values: Vec<SyntaxNode>,
+    optional: bool,
+    visibility: Option<crate::luacats::Visibility>,
+    /// The class that declares it.
+    class: Option<String>,
+    /// Typed by a `---@field`.
+    declared: bool,
+}
+
+#[derive(Default)]
+struct Shape {
+    entries: Vec<(String, ShapeEntry)>,
+}
+
+impl Shape {
+    fn entry(&mut self, key: String) -> &mut ShapeEntry {
+        let i = match self.entries.iter().position(|(k, _)| *k == key) {
+            Some(i) => i,
+            None => {
+                self.entries.push((key, ShapeEntry::default()));
+                self.entries.len() - 1
+            }
+        };
+        &mut self.entries[i].1
+    }
+
+    fn lines(self, ft: &FileTypes) -> Option<Vec<String>> {
+        let inf = &ft.inf;
+        // `['x']` hides a bare `x` (LuaLS `getVisibleKeyMap`).
+        let raw: Vec<String> = self
+            .entries
+            .iter()
+            .filter_map(|(k, _)| k.strip_prefix("['").or_else(|| k.strip_prefix("[\"")).and_then(|r| r.get(..r.len().checked_sub(2)?)).map(str::to_string))
+            .collect();
+        let mut entries = self.entries;
+        entries.retain(|(k, _)| !raw.contains(k));
+        if entries.is_empty() {
+            return None;
+        }
+        let mut rows: Vec<(String, String, Option<String>)> = Vec::new();
+        for (key, e) in entries {
+            let mut types = e.types;
+            for v in &e.values {
+                types.push(if v.kind() == FUNCTION_EXPR { name("function") } else { widen(&inf.expr_type(v)) });
+            }
+            types.retain(|t| !is(t, "unknown") || false);
+            let ty = if types.is_empty() { unknown() } else { union(types) };
+            let literal = crate::consts::literals_shown(&inf.root, inf.names, inf.text, &e.values);
+            let key = if e.optional { format!("{key}?") } else { key };
+            rows.push((key, crate::luacats::view(&ty), literal));
+        }
+        let rank = |k: &str| (if k.starts_with('_') { 10 } else { 0 }) + i32::from(k.starts_with('['));
+        let numbers: Option<Vec<f64>> = rows.iter().map(|r| r.2.as_deref().and_then(|l| l.parse::<f64>().ok())).collect();
+        match numbers {
+            Some(_) => rows.sort_by(|a, b| {
+                let (x, y): (f64, f64) = (a.2.as_deref().unwrap_or("0").parse().unwrap_or(0.0), b.2.as_deref().unwrap_or("0").parse().unwrap_or(0.0));
+                x.partial_cmp(&y).unwrap_or(std::cmp::Ordering::Equal)
+            }),
+            None => rows.sort_by(|a, b| rank(&a.0).cmp(&rank(&b.0)).then_with(|| a.0.cmp(&b.0))),
+        }
+        let more = rows.len().saturating_sub(HOVER_FIELDS);
+        rows.truncate(HOVER_FIELDS);
+        let mut out: Vec<String> = rows
+            .into_iter()
+            .map(|(k, t, l)| match l {
+                Some(l) => format!("{k}: {t} = {l}"),
+                None => format!("{k}: {t}"),
+            })
+            .collect();
+        if more > 0 {
+            out.push(format!("...(+{more})"));
+        }
+        Some(out)
+    }
+}
+
 /// One file's types, shared by many questions (inlay hints): the file's
 /// classes and aliases are read once.
 pub struct FileTypes<'a> {
@@ -644,55 +724,138 @@ impl<'a> FileTypes<'a> {
         out
     }
 
-    /// The fields LuaLS's hover lists under a local: a table constructor's in
-    /// source order (`a: integer = 1`, `[2]: string = 'b'`; true when it is
-    /// one), else its type's: a class's `---@field`s with its parents' by name,
-    /// a tuple's or a `{ x: T }` shape's members. None when there are none;
-    /// past `HOVER_FIELDS` (LuaLS's `hover.previewFields` default) a last `...`.
-    pub(crate) fn hover_fields(&self, d: usize) -> Option<(Vec<String>, bool)> {
+    /// The fields LuaLS's hover lists under a local (`core/hover/table.lua`):
+    /// the entries of its constructor, the fields read or written on it, its
+    /// class's `---@field`s and the members written on the class's own
+    /// variables (parents' too), a shape's or a tuple's members. Private and
+    /// protected members show only where LuaLS shows them. Sorted as LuaLS
+    /// sorts them (names, then `[keys]`, `_names` last; by value when every
+    /// entry is a number), `key: type = literal`; past `HOVER_FIELDS` a last
+    /// `...(+n)`. None when there are none, or the value is a string.
+    pub(crate) fn hover_fields(&self, d: usize, shown: Option<&str>) -> Option<Vec<String>> {
         let inf = &self.inf;
-        let stat = inf.decl_stat(d).filter(|s| s.kind() == LOCAL_STAT);
-        let doc = stat.as_ref().is_some_and(|st| stat_tags(inf.text, st).iter().any(|t| matches!(t, Tag::Type { .. } | Tag::Class { .. })));
-        if !doc
-            && let Some(st) = &stat
+        let mut shape = Shape::default();
+        let own = inf.decl_stat(d).and_then(|s| last_class_tag(inf.text, &s));
+        self.local_shape(d, &mut shape, None);
+        let mut t = inf.expand_aliases(&non_nil(inf.decl_type(d)), 0);
+        // The type the hover shows when the file alone does not know it (a
+        // class of the workspace or the library).
+        if (has_unknown(&t) || is(&t, "any"))
+            && let Some(c) = shown.filter(|c| inf.classes.contains_key(*c) || crate::library::classes().contains_key(*c))
+        {
+            t = name(c);
+        }
+        if is(&t, "string") || matches!(t, T::Str(_)) {
+            return None;
+        }
+        self.type_shape(&t, own.as_deref(), &mut shape, Some(d));
+        shape.lines(self)
+    }
+
+    /// The shape of the class `self` stands for in a method of it.
+    pub(crate) fn class_hover_fields(&self, class: &str) -> Option<Vec<String>> {
+        let mut shape = Shape::default();
+        self.type_shape(&name(class), Some(class), &mut shape, None);
+        shape.lines(self)
+    }
+
+    /// What a local's own table holds: its constructor's entries and the
+    /// fields read or written on it (`t.x = v`, `function t.f()`, `t.y`).
+    fn local_shape(&self, d: usize, shape: &mut Shape, class: Option<&str>) {
+        let inf = &self.inf;
+        if let Some(st) = inf.decl_stat(d).filter(|s| s.kind() == LOCAL_STAT)
             && let Some(index) = st.children().filter(|c| c.kind() == LOCAL_NAME).position(|n| n.text_range().contains_range(inf.names.decls[d].range))
             && let Some(table) = st.children().find(|c| c.kind() == EXPR_LIST).and_then(|l| l.children().nth(index)).filter(|v| v.kind() == TABLE_EXPR)
         {
-            let fields = self.constructor_fields(&table);
-            return (!fields.is_empty()).then_some((fields, true));
+            self.constructor_shape(&table, shape);
         }
-        let mut fields = self.type_fields(&non_nil(inf.decl_type(d)));
-        if fields.len() > HOVER_FIELDS {
-            fields.truncate(HOVER_FIELDS);
-            fields.push("...".to_string());
+        for r in inf.names.refs.iter().filter(|r| r.target == Target::Decl(d)) {
+            let Some(tok) = inf.root.token_at_offset(r.range.start()).right_biased() else { continue };
+            let Some(e) = tok.parent().filter(|p| p.kind() == NAME_EXPR) else {
+                // `function t.f()` / `function t:f()`.
+                if let Some(fname) = tok.parent().filter(|p| p.kind() == FUNC_NAME)
+                    && fname.first_token().as_ref() == Some(&tok)
+                {
+                    let parts: Vec<SyntaxToken> = fname.children_with_tokens().filter_map(|x| x.into_token()).filter(|t| t.kind() == NAME).collect();
+                    if let [_, f] = parts.as_slice()
+                        && let Some(stat) = fname.parent()
+                    {
+                        let vis = stat_tags(inf.text, &stat).into_iter().find_map(|t| match t {
+                            Tag::Visibility(v) => Some(v),
+                            _ => None,
+                        });
+                        let e = shape.entry(f.text().to_string());
+                        e.types.push(name("function"));
+                        e.visibility = e.visibility.or(vis);
+                        e.class = e.class.clone().or(class.map(str::to_string));
+                    }
+                }
+                continue;
+            };
+            let Some(parent) = e.parent() else { continue };
+            if !matches!(parent.kind(), INDEX_EXPR | METHOD_CALL_EXPR) || parent.first_child().as_ref() != Some(&e) {
+                continue;
+            }
+            let key = if parent.kind() == METHOD_CALL_EXPR {
+                crate::api::method_name(&parent).map(|t| t.text().to_string())
+            } else {
+                match crate::lint::field_name(&parent) {
+                    Some(n) => Some(n.text().to_string()),
+                    None => parent.children().nth(1).and_then(|k| self.key_text(&k)),
+                }
+            };
+            let Some(key) = key else { continue };
+            // Written: `t.x = v` (a `---@type` above it gives the type).
+            let mut value = None;
+            let mut doc = None;
+            let mut vis = None;
+            if let Some(vars) = parent.parent().filter(|p| p.kind() == VAR_LIST)
+                && let Some(stat) = vars.parent().filter(|s| s.kind() == ASSIGN_STAT)
+            {
+                let i = vars.children().position(|v| v == parent).unwrap_or(0);
+                value = stat.children().find(|c| c.kind() == EXPR_LIST).and_then(|l| l.children().nth(i));
+                for t in stat_tags(inf.text, &stat) {
+                    match t {
+                        Tag::Type { tys } if doc.is_none() => doc = tys.into_iter().next(),
+                        Tag::Visibility(v) => vis = Some(v),
+                        _ => {}
+                    }
+                }
+            }
+            let entry = shape.entry(key);
+            entry.class = entry.class.clone().or(class.map(str::to_string));
+            entry.visibility = entry.visibility.or(vis);
+            match (doc, value) {
+                (Some(t), _) => entry.types.push(t),
+                (None, Some(v)) => entry.values.push(v),
+                (None, None) => {}
+            }
         }
-        (!fields.is_empty()).then_some((fields, false))
     }
 
-    fn constructor_fields(&self, table: &SyntaxNode) -> Vec<String> {
-        let inf = &self.inf;
-        let literal = |e: &SyntaxNode| -> Option<String> {
-            let src: String = inf.text[e.text_range()].chars().filter(|c| !c.is_whitespace()).collect();
-            let ok = match e.kind() {
-                LITERAL_EXPR => src != "nil",
-                UNARY_EXPR => src.starts_with('-') && src[1..].starts_with(|c: char| c.is_ascii_digit()),
-                _ => false,
-            };
-            ok.then_some(src)
-        };
-        let mut out = Vec::new();
+    /// `[k]` of a constructor or an index, by its literal value: written
+    /// literals and the constants names hold (`[enum.a]`), not computed keys.
+    fn key_text(&self, k: &SyntaxNode) -> Option<String> {
+        if !matches!(k.kind(), LITERAL_EXPR | UNARY_EXPR | NAME_EXPR | INDEX_EXPR | PAREN_EXPR) || (k.kind() == UNARY_EXPR && k.first_token().is_some_and(|t| t.kind() == HASH)) {
+            return None;
+        }
+        let v = crate::consts::literal_shown(&self.inf.root, self.inf.names, self.inf.text, k)?;
+        Some(format!("[{v}]"))
+    }
+
+    fn constructor_shape(&self, table: &SyntaxNode, shape: &mut Shape) {
         let mut position = 0;
         for f in table.children() {
             let (key, value) = match f.kind() {
                 FIELD_NAMED => {
-                    let Some(name) = f.first_token().filter(|t| t.kind() == NAME) else { continue };
-                    (name.text().to_string(), f.children().next())
+                    let Some(name) = f.children_with_tokens().filter_map(|x| x.into_token()).find(|t| t.kind() == NAME) else { continue };
+                    (name.text().to_string(), f.children().last())
                 }
                 FIELD_INDEXED => {
                     let parts: Vec<SyntaxNode> = f.children().collect();
                     let [k, v] = parts.as_slice() else { continue };
-                    let Some(k) = literal(k) else { continue };
-                    (format!("[{k}]"), Some(v.clone()))
+                    let Some(k) = self.key_text(k) else { continue };
+                    (k, Some(v.clone()))
                 }
                 FIELD_POS => {
                     position += 1;
@@ -700,60 +863,111 @@ impl<'a> FileTypes<'a> {
                 }
                 _ => continue,
             };
-            let Some(value) = value else { continue };
-            if out.len() == HOVER_FIELDS {
-                out.push("...".to_string());
-                break;
-            }
-            let ty = crate::luacats::view(&inf.expr_type(&value));
-            match literal(&value) {
-                Some(l) => out.push(format!("{key}: {ty} = {l}")),
-                None => out.push(format!("{key}: {ty}")),
+            if let Some(v) = value {
+                shape.entry(key).values.push(v);
             }
         }
-        out
     }
 
-    fn type_fields(&self, t: &T) -> Vec<String> {
-        let member = |name: String, ty: &T| match ty {
-            T::Optional(i) => format!("{name}?: {}", crate::luacats::view(i)),
-            t => format!("{name}: {}", crate::luacats::view(t)),
-        };
+    /// The members a type gives: a class's (with its parents'), a shape's, a
+    /// tuple's.
+    fn type_shape(&self, t: &T, own: Option<&str>, shape: &mut Shape, skip: Option<usize>) {
+        use crate::luacats::Visibility;
+        let inf = &self.inf;
         match t {
-            T::Name(class) if self.inf.classes.contains_key(class) => {
-                let mut fields: Vec<(String, T)> = Vec::new();
-                let mut stack = vec![class.clone()];
-                let mut seen = Vec::new();
-                while let Some(c) = stack.pop() {
-                    if seen.contains(&c) || seen.len() > 16 {
-                        continue;
-                    }
-                    let Some(def) = self.inf.classes.get(&c) else { continue };
-                    for f in &def.fields {
-                        if !fields.iter().any(|(n, _)| *n == f.name) {
-                            fields.push((f.name.clone(), f.ty.clone()));
+            T::Name(class) | T::Generic(class, _) if inf.classes.contains_key(class) || crate::library::classes().contains_key(class) => {
+                // Parents of the variable's own class, for `---@protected`.
+                let own_line = own.map(|o| self.class_line(o)).unwrap_or_default();
+                for c in self.class_line(class) {
+                    let defs: Vec<&crate::api::ClassDef> = match inf.classes.get(&c) {
+                        Some(d) => vec![d],
+                        None => crate::library::classes().get(&c).map(|v| v.iter().collect()).unwrap_or_default(),
+                    };
+                    for def in defs {
+                        for f in &def.fields {
+                            let (ty, optional) = match &f.ty {
+                                T::Optional(i) => ((**i).clone(), true),
+                                t => (t.clone(), false),
+                            };
+                            let e = shape.entry(f.name.clone());
+                            // A child's `---@field` hides its parent's.
+                            if e.declared {
+                                continue;
+                            }
+                            e.declared = true;
+                            e.types.push(ty);
+                            e.optional |= optional;
+                            e.visibility = e.visibility.or(f.visibility);
+                            e.class = e.class.clone().or(Some(c.clone()));
+                        }
+                        for (k, v) in &def.indexes {
+                            let key = match k {
+                                T::Int(i) => format!("[{i}]"),
+                                T::Str(s) => s.clone(),
+                                _ => continue,
+                            };
+                            let (ty, optional) = match v {
+                                T::Optional(i) => ((**i).clone(), true),
+                                t => (t.clone(), false),
+                            };
+                            let e = shape.entry(key);
+                            e.types.push(ty);
+                            e.optional |= optional;
                         }
                     }
-                    stack.extend(def.parents.iter().rev().cloned());
-                    seen.push(c);
+                    // Members written on the class's own variables.
+                    for (i, decl) in inf.names.decls.iter().enumerate() {
+                        if Some(i) == skip || !matches!(decl.kind, DeclKind::Local) {
+                            continue;
+                        }
+                        if inf.decl_stat(i).is_some_and(|s| stat_tags(inf.text, &s).iter().any(|t| matches!(t, Tag::Class { name, .. } if *name == c))) {
+                            self.local_shape(i, shape, Some(&c));
+                        }
+                    }
                 }
-                fields.sort_by(|a, b| a.0.cmp(&b.0));
-                fields.into_iter().map(|(n, ty)| member(n, &ty)).collect()
+                // Hide what the variable may not see.
+                shape.entries.retain(|(_, e)| match (e.visibility, &e.class) {
+                    (Some(Visibility::Private), Some(c)) => own == Some(c.as_str()),
+                    (Some(Visibility::Protected), Some(c)) => own_line.contains(c),
+                    _ => true,
+                });
             }
-            T::Tuple(items) => items.iter().enumerate().map(|(i, ty)| member(format!("[{}]", i + 1), ty)).collect(),
-            T::Table(shape) => shape
-                .iter()
-                .map(|f| {
+            T::Tuple(items) => {
+                for (i, ty) in items.iter().enumerate() {
+                    shape.entry(format!("[{}]", i + 1)).types.push(ty.clone());
+                }
+            }
+            T::Table(fields) => {
+                for f in fields {
                     let key = match &f.key {
                         Key::Name(n) => n.clone(),
                         Key::Index(k) => format!("[{}]", crate::luacats::view(k)),
                     };
-                    let key = if f.optional { format!("{key}?") } else { key };
-                    format!("{key}: {}", crate::luacats::view(&f.ty))
-                })
-                .collect(),
-            _ => Vec::new(),
+                    let e = shape.entry(key);
+                    e.types.push(f.ty.clone());
+                    e.optional |= f.optional;
+                }
+            }
+            _ => {}
         }
+    }
+
+    /// A class and its parents, nearest first.
+    fn class_line(&self, class: &str) -> Vec<String> {
+        let mut out: Vec<String> = Vec::new();
+        let mut stack = vec![class.to_string()];
+        while let Some(c) = stack.pop() {
+            if out.contains(&c) || out.len() > 16 {
+                continue;
+            }
+            let parents: Vec<String> = match self.inf.classes.get(&c) {
+                Some(d) => d.parents.clone(),
+                None => crate::library::classes().get(&c).map(|v| v.iter().flat_map(|d| d.parents.clone()).collect()).unwrap_or_default(),
+            };
+            stack.extend(parents.into_iter().rev());
+            out.push(c);
+        }
+        out
     }
 
     /// A function's signature as LuaLS's hover writes it: `(a: any, b?: T,
@@ -794,13 +1008,59 @@ impl<'a> FileTypes<'a> {
             })
             .flatten()
             .collect();
+        // A generic of the function shows open: `x: <T>`.
+        let generics: Vec<String> = tags
+            .iter()
+            .filter_map(|t| match t {
+                Tag::Generic { names } => Some(names.iter().map(|(g, _)| g.clone()).collect::<Vec<_>>()),
+                _ => None,
+            })
+            .flatten()
+            .collect();
+        let open = |t: &T| {
+            if generics.is_empty() {
+                return crate::luacats::view(t);
+            }
+            let map: HashMap<String, T> = generics.iter().map(|g| (g.clone(), name(&format!("<{g}>")))).collect();
+            crate::luacats::view(&subst(t, &map, &generics, true))
+        };
+        for (p, raw) in params.iter_mut().zip(body.children().filter(|c| c.kind() == PARAM_LIST).flat_map(|l| l.children().filter(|p| p.kind() == PARAM).collect::<Vec<_>>())) {
+            if let Some(tok) = raw.first_token().filter(|t| t.kind() == NAME)
+                && !generics.is_empty()
+            {
+                *p = match inf.param_type(&tok) {
+                    T::Optional(i) => format!("{}?: {}", tok.text(), open(&i)),
+                    t => format!("{}: {}", tok.text(), open(&t)),
+                };
+            }
+        }
         let rets: Vec<(Option<String>, String)> = if doc.is_empty() {
-            inf.body_returns(body).iter().map(|t| (None, crate::luacats::view(t))).collect()
+            // `return y()` of a function nothing knows gives no value.
+            let unknown_calls = body.children().find(|c| c.kind() == BLOCK).is_some_and(|b| {
+                let rs: Vec<SyntaxNode> = b.descendants().filter(|n| n.kind() == RETURN_STAT && n.ancestors().find(|a| a.kind() == FUNC_BODY).as_ref() == Some(body)).collect();
+                !rs.is_empty()
+                    && rs.iter().all(|r| {
+                        r.children().find(|c| c.kind() == EXPR_LIST).and_then(|l| l.children().last()).is_some_and(|e| {
+                            e.kind() == CALL_EXPR
+                                && e.first_child().filter(|c| c.kind() == NAME_EXPR).and_then(|c| c.first_token()).is_some_and(|t| {
+                                    inf.ref_at(t.text_range()).is_some_and(|r| r.target == Target::Global)
+                                        && crate::library::library().get(t.text()).is_empty()
+                                        && !inf.file_functions().contains_key(t.text())
+                                })
+                        })
+                    })
+            });
+            let found = inf.body_returns(body);
+            if unknown_calls && found.iter().all(|t| is(t, "unknown")) {
+                Vec::new()
+            } else {
+                found.iter().map(|t| (None, open(t))).collect()
+            }
         } else {
             doc.into_iter()
                 .map(|r| {
-                    let ty = if r.optional { T::Optional(Box::new(r.ty)) } else { r.ty };
-                    (r.name, crate::luacats::view(&ty))
+                    let ty = if r.optional && !matches!(r.ty, T::Optional(_)) { T::Optional(Box::new(r.ty)) } else { r.ty };
+                    if ty == T::Dots { (Some("...".to_string()), "unknown".to_string()) } else { (r.name, open(&ty)) }
                 })
                 .collect()
         };
@@ -809,7 +1069,11 @@ impl<'a> FileTypes<'a> {
             .enumerate()
             .map(|(i, (n, ty))| {
                 let head = if i == 0 { "  -> ".to_string() } else { format!("  {}. ", i + 1) };
-                format!("{head}{}{ty}", n.map(|n| format!("{n}: ")).unwrap_or_default())
+                match n.as_deref() {
+                    Some("...") => format!("{head}...{ty}"),
+                    Some(n) => format!("{head}{n}: {ty}"),
+                    None => format!("{head}{ty}"),
+                }
             })
             .collect();
         let is_async = tags.iter().any(|t| matches!(t, Tag::Async));
@@ -2478,6 +2742,17 @@ fn stat_tags(text: &str, n: &SyntaxNode) -> Vec<Tag> {
 }
 
 /// The class a `---@class` tag of a statement declares.
+/// The last `---@class` of a statement's doc block: the one its variable is.
+fn last_class_tag(text: &str, st: &SyntaxNode) -> Option<String> {
+    stat_tags(text, st)
+        .into_iter()
+        .rev()
+        .find_map(|t| match t {
+            Tag::Class { name, .. } => Some(name),
+            _ => None,
+        })
+}
+
 fn class_tag(text: &str, st: &SyntaxNode) -> Option<String> {
     stat_tags(text, st).into_iter().find_map(|t| match t {
         Tag::Class { name, .. } => Some(name),
