@@ -18,6 +18,13 @@ pub(crate) struct Diagnostics {
     /// The folders the settings were read for: the `.editorconfig` search stops
     /// at them.
     pub(crate) folders: Vec<std::path::PathBuf>,
+    /// `diagnostics.groupSeverity` / `groupFileStatus` (`true`: `Any` or
+    /// `Opened`), and the codes whose own value ends in `!`, which the groups
+    /// leave alone.
+    group_severity: std::collections::HashMap<String, Severity>,
+    group_status: std::collections::HashMap<String, bool>,
+    forced_severity: std::collections::HashSet<String>,
+    forced_status: std::collections::HashSet<String>,
 }
 
 impl Default for Diagnostics {
@@ -27,9 +34,86 @@ impl Default for Diagnostics {
             lint: LintConfig::default(),
             format_default: Default::default(),
             folders: Vec::new(),
+            group_severity: Default::default(),
+            group_status: Default::default(),
+            forced_severity: Default::default(),
+            forced_status: Default::default(),
         }
     }
 }
+
+/// LuaLS's diagnostic groups (`script/proto/diagnostic.lua`, 3.19.2), for
+/// `diagnostics.groupSeverity` and `diagnostics.groupFileStatus`.
+const GROUPS: &[(&str, &[&str])] = &[
+    (
+        "unused",
+        &[
+            "unused-local",
+            "unused-function",
+            "unused-label",
+            "unused-vararg",
+            "trailing-space",
+            "redundant-return",
+            "empty-block",
+            "code-after-break",
+            "unreachable-code",
+        ],
+    ),
+    (
+        "unbalanced",
+        &[
+            "redundant-value",
+            "unbalanced-assignments",
+            "redundant-parameter",
+            "missing-parameter",
+            "missing-return-value",
+            "redundant-return-value",
+            "missing-return",
+            "missing-fields",
+        ],
+    ),
+    (
+        "type-check",
+        &[
+            "need-check-nil",
+            "undefined-field",
+            "cast-local-type",
+            "assign-type-mismatch",
+            "param-type-mismatch",
+            "cast-type-mismatch",
+            "return-type-mismatch",
+            "inject-field",
+        ],
+    ),
+    (
+        "luadoc",
+        &[
+            "duplicate-doc-alias",
+            "undefined-doc-class",
+            "undefined-doc-name",
+            "circle-doc-class",
+            "undefined-doc-param",
+            "duplicate-doc-param",
+            "doc-field-no-class",
+            "duplicate-doc-field",
+            "unknown-diag-code",
+            "unknown-cast-variable",
+            "unknown-operator",
+            "incomplete-signature-doc",
+            "missing-global-doc",
+            "missing-local-export-doc",
+        ],
+    ),
+    ("codestyle", &["codestyle-check", "spell-check", "name-style-check"]),
+    ("ambiguity", &["newline-call", "newfield-call", "ambiguity-1", "count-down-loop", "different-requires"]),
+    ("await", &["await-in-sync", "not-yieldable"]),
+    ("strong", &["no-unknown"]),
+    ("redefined", &["redefined-local"]),
+    ("global", &["undefined-global", "global-in-nil-env", "lowercase-global", "undefined-env-child"]),
+    ("conventions", &["global-element"]),
+    ("duplicate", &["duplicate-index", "duplicate-set-field"]),
+    ("strict", &["close-non-object", "deprecated", "discard-returns", "invisible"]),
+];
 
 /// `section.key` in either form.
 fn get<'v>(v: &'v Value, section: &str, key: &str) -> Option<&'v Value> {
@@ -114,7 +198,15 @@ pub(crate) fn apply(d: &mut Diagnostics, v: &Value) {
     }
     if let Some(map) = get(v, "diagnostics", "severity").and_then(Value::as_object) {
         for (code, s) in map {
-            if let Some(level) = s.as_str().and_then(severity) {
+            let Some(s) = s.as_str() else { continue };
+            if let Some(level) = severity(s) {
+                if s.ends_with('!') {
+                    d.forced_severity.insert(code.clone());
+                }
+                if level.is_none() {
+                    // `"None"` (not a LuaLS severity) is an explicit off a group does not undo.
+                    d.forced_status.insert(code.clone());
+                }
                 d.lint.severity.insert(code.clone(), level);
             }
         }
@@ -123,6 +215,9 @@ pub(crate) fn apply(d: &mut Diagnostics, v: &Value) {
     // the rules that are off by default), `"None"` off.
     if let Some(map) = get(v, "diagnostics", "neededFileStatus").and_then(Value::as_object) {
         for (code, s) in map {
+            if s.as_str().is_some_and(|s| s.ends_with('!')) {
+                d.forced_status.insert(code.clone());
+            }
             match s.as_str().map(|s| s.trim_end_matches('!').to_ascii_lowercase()).as_deref() {
                 Some("none") => {
                     d.lint.severity.insert(code.clone(), None);
@@ -132,6 +227,63 @@ pub(crate) fn apply(d: &mut Diagnostics, v: &Value) {
                     d.lint.severity.entry(code.clone()).or_insert(Some(level));
                 }
                 _ => {}
+            }
+        }
+    }
+    // Groups, as LuaLS's `getSeverity` / `getStatus`: a group's value wins over a
+    // code's own unless that ends in `!`; `"Fallback"` leaves the codes' own.
+    if let Some(map) = get(v, "diagnostics", "groupFileStatus").and_then(Value::as_object) {
+        for (group, s) in map {
+            match s.as_str().map(str::to_ascii_lowercase).as_deref() {
+                Some("any" | "opened") => {
+                    d.group_status.insert(group.clone(), true);
+                }
+                Some("none") => {
+                    d.group_status.insert(group.clone(), false);
+                }
+                Some("fallback") => {
+                    d.group_status.remove(group);
+                }
+                _ => {}
+            }
+        }
+    }
+    if let Some(map) = get(v, "diagnostics", "groupSeverity").and_then(Value::as_object) {
+        for (group, s) in map {
+            match s.as_str() {
+                Some(s) if s.eq_ignore_ascii_case("fallback") => {
+                    d.group_severity.remove(group);
+                }
+                Some(s) => {
+                    if let Some(level) = Severity::parse(s) {
+                        d.group_severity.insert(group.clone(), level);
+                    }
+                }
+                None => {}
+            }
+        }
+    }
+    for (group, codes) in GROUPS {
+        if let Some(&on) = d.group_status.get(*group) {
+            for code in codes.iter().filter(|c| !d.forced_status.contains(**c)) {
+                if !on {
+                    d.lint.severity.insert(code.to_string(), None);
+                } else if !d.lint.severity.get(*code).is_some_and(Option::is_some) {
+                    d.lint.severity.insert(code.to_string(), Some(cfx_lua_ide::lint::enabled_severity(code)));
+                }
+            }
+        }
+        // The level only: a group severity does not turn a rule on (LuaLS keeps
+        // severity and file status apart).
+        if let Some(&level) = d.group_severity.get(*group) {
+            for code in codes.iter().filter(|c| !d.forced_severity.contains(**c)) {
+                let on = match d.lint.severity.get(*code) {
+                    Some(s) => s.is_some(),
+                    None => cfx_lua_ide::lint::default_severity(code).is_some(),
+                };
+                if on {
+                    d.lint.severity.insert(code.to_string(), Some(level));
+                }
             }
         }
     }
@@ -217,6 +369,31 @@ pub(crate) fn is_luarc(path: &Path) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn groups() {
+        let mut d = Diagnostics::default();
+        let v = serde_json::json!({ "diagnostics": {
+            "groupFileStatus": { "codestyle": "Any", "await": "Opened", "strict": "None", "global": "Fallback" },
+            "groupSeverity": { "codestyle": "Hint", "unused": "Error", "strong": "Error" },
+            "neededFileStatus": { "deprecated": "Any!" },
+            "severity": { "unused-local": "Warning!", "trailing-space": "Information" },
+        } });
+        apply(&mut d, &v);
+        let s = |c: &str| d.lint.severity.get(c).copied().unwrap_or_else(|| cfx_lua_ide::lint::default_severity(c));
+        // On through the group, at the group's level.
+        assert_eq!(s("spell-check"), Some(Severity::Hint));
+        assert_eq!(s("codestyle-check"), Some(Severity::Hint));
+        assert_eq!(s("await-in-sync"), Some(Severity::Warning));
+        // Off through the group, except a code forced with `!`.
+        assert_eq!(s("invisible"), None);
+        assert_eq!(s("deprecated"), cfx_lua_ide::lint::default_severity("deprecated"));
+        // A group level beats a code's own unless it ends in `!`, and turns nothing on.
+        assert_eq!(s("unused-local"), Some(Severity::Warning));
+        assert_eq!(s("trailing-space"), Some(Severity::Error));
+        assert_eq!(s("no-unknown"), None);
+        assert_eq!(s("undefined-global"), cfx_lua_ide::lint::default_severity("undefined-global"));
+    }
 
     #[test]
     fn flat_nested_and_jsonc() {

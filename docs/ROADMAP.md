@@ -299,8 +299,19 @@ error ("invalid UTF-8 code").
     formatter run in EmmyLuaCodeStyle's diagnostic mode, with the file's
     `.editorconfig`); on 158 server files all three give LuaLS 3.19.2's
     findings (9,862 of them, with and without a name-style config), the one
-    difference the end column of "must end with new line". `unnecessary-assert`
-    too, which LuaLS 3.19.2 has but does not register. `deprecated` also sees the
+    difference the end column of "must end with new line". `codestyle-check`
+    was also compared on 42 of those files under four more `.editorconfig`s
+    (tabs, 2 and 3 space indent, both quote styles, the three semicolon modes,
+    call parentheses `always` and `remove`, `insert_final_newline = false`):
+    4,531 to 7,819 findings each, same as LuaLS but for that end column; the
+    run found one difference, fixed: LuaLS keeps only the first finding of a
+    code at one place (`mark[result.start]`), which now holds for every code.
+    `diagnostics.groupSeverity` / `groupFileStatus` work with LuaLS's groups
+    and precedence. `unnecessary-assert` too, which LuaLS 3.19.2 has but does
+    not register; ours only flags values the code fixes (literals, table and
+    function expressions, library functions), because LuaLS's type-based
+    version flags guarded lookups and `---@param` checks (on the test servers:
+    120 findings, all `local lower = assert(string.lower)` in menuv). `deprecated` also sees the
     file's own `---@deprecated` definitions and marks `T.x` / `T:f` whole, as
     LuaLS does. `inject-field` takes the object's type where it is written
     (`x = x or {}` makes it `C|table`, which takes anything). Over the five

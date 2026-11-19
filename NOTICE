@@ -5,7 +5,8 @@ lua-language-server
   https://github.com/LuaLS/lua-language-server
   Copyright (c) 2018 最萌小汐
   Behaviour and tests; the Lua 5.4 standard library definitions (meta/template),
-  embedded in crates/ide/library/lua54 with their LICENSE.
+  embedded in crates/ide/library/lua54 with their LICENSE; the spell-check
+  dictionaries (meta/spell), embedded in crates/ide/data/spell with their LICENSE.
 
 EmmyLuaCodeStyle
   https://github.com/CppCXY/EmmyLuaCodeStyle

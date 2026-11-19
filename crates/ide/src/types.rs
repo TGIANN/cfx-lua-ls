@@ -1900,6 +1900,13 @@ impl<'a> FileTypes<'a> {
 
     /// unnecessary-assert (LuaLS's `script/core/diagnostics/unnecessary-assert.lua`):
     /// the callee of each `assert(x, ...)` whose first argument is always truthy.
+    /// Narrower than LuaLS's: only a value the code itself fixes (a literal, a
+    /// table or function expression, a library or native function such as
+    /// `assert(string.lower)`). A local, field, index or call whose type says
+    /// truthy is left alone: it is what LuaLS leaves the check unregistered over
+    /// (`assert(arg[1])`), and on the test servers those asserts guard lookups
+    /// (`CLASSES[invType]`), `---@param` values checked at run time and locals
+    /// assigned in a loop.
     pub(crate) fn unnecessary_asserts(&self) -> Vec<TextRange> {
         let inf = &self.inf;
         let mut out = Vec::new();
@@ -1912,12 +1919,39 @@ impl<'a> FileTypes<'a> {
             if inf.exhausted.get() {
                 break;
             }
-            // A literal keeps its value (`true`), as LuaLS's node does.
-            if always_truthy(&literal_type(&arg).unwrap_or_else(|| inf.expr_type(&arg))) {
+            let certain = match arg.kind() {
+                LITERAL_EXPR => literal_type(&arg).is_some_and(|t| always_truthy(&t)),
+                TABLE_EXPR | FUNCTION_EXPR => true,
+                NAME_EXPR | INDEX_EXPR => self.library_function(&arg),
+                _ => false,
+            };
+            if certain {
                 out.push(callee.text_range());
             }
         }
         out
+    }
+
+    /// `string.lower`, `GetHashKey`: a global (not shadowed by a local) or a field
+    /// path on one that the library defines as a function.
+    fn library_function(&self, e: &SyntaxNode) -> bool {
+        let inf = &self.inf;
+        let mut root = e.clone();
+        while root.kind() == INDEX_EXPR {
+            // Only `a.b` paths: `a[k]` is a lookup.
+            if !root.children_with_tokens().any(|c| c.kind() == DOT) {
+                return false;
+            }
+            let Some(base) = root.first_child() else { return false };
+            root = base;
+        }
+        if root.kind() != NAME_EXPR
+            || !root.first_token().and_then(|t| inf.ref_at(t.text_range())).is_some_and(|r| r.target == Target::Global)
+        {
+            return false;
+        }
+        let path: String = inf.text[e.text_range()].split_whitespace().collect();
+        crate::library::library().get(&path).iter().any(|i| i.function)
     }
 
     /// await-in-sync and not-yieldable, over `---@async` functions of the file
