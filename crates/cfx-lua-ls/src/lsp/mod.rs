@@ -645,6 +645,11 @@ impl Server<'_> {
         {
             return Some(self.locations(&p.text_document_position.text_document.uri, doc, sites.into_iter().map(|(r, _)| r).collect()));
         }
+        if ranges.is_empty()
+            && let Some(sites) = cfx_lua_ide::function_references(doc.parse.as_ref()?, names, offset)
+        {
+            return Some(self.locations(&p.text_document_position.text_document.uri, doc, sites));
+        }
         if !p.context.include_declaration {
             let defs = names.definition(&doc.text, offset);
             ranges.retain(|r| !defs.contains(r));

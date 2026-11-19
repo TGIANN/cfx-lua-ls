@@ -31,7 +31,7 @@ pub use assist::{
     signature_help,
 };
 pub use diagnostics::{Diagnostic, MAX_DIAGNOSTICS, syntax_diagnostics};
-pub use fields::{field_references, field_rename, rename};
+pub use fields::{field_references, field_rename, function_references, rename};
 pub use folding::{Fold, FoldKind, folding_ranges};
 pub use highlight::{HighlightKind, highlights};
 pub use names::{Access, Attrib, Decl, DeclKind, NameRef, Names, Symbol, Target, Value, Vararg, is_name, names};

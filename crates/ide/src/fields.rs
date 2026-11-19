@@ -274,7 +274,50 @@ pub fn field_references(parse: &Parse, names: &Names, offset: TextSize) -> Optio
     let f = fields(parse, names);
     let sites = f.sites();
     let at = sites.iter().find(|s| !s.dynamic && s.key.contains_inclusive(offset))?;
-    Some(sites.iter().filter(|s| !s.dynamic && s.field == at.field && s.owner == at.owner).map(|s| (s.key, s.write)).collect())
+    let mut out: Vec<(TextRange, bool)> = sites.iter().filter(|s| !s.dynamic && s.field == at.field && s.owner == at.owner).map(|s| (s.key, s.write)).collect();
+    // `_G.x` is the global `x`.
+    if let (Base::Global(g), []) = (&at.owner.0, at.owner.1.as_slice())
+        && g == "_G"
+    {
+        let root = parse.syntax();
+        out.extend(
+            names
+                .refs
+                .iter()
+                .filter(|r| r.target == Target::Global && root.text().slice(r.range) == at.field.as_str())
+                .map(|r| (r.range, matches!(r.access, crate::names::Access::Write | crate::names::Access::ReadWrite))),
+        );
+    }
+    Some(out)
+}
+
+/// References of the `function` keyword of a function a local function
+/// returns: the keyword, the function, and every local of the file that
+/// receives it from a call (`local f2 = f()`).
+pub fn function_references(parse: &Parse, names: &Names, offset: TextSize) -> Option<Vec<TextRange>> {
+    let root = parse.syntax();
+    let kw = root.token_at_offset(offset).find(|t| t.kind() == FUNCTION_KW)?;
+    let func = kw.parent().filter(|f| f.kind() == FUNCTION_EXPR)?;
+    let list = func.parent().filter(|l| l.kind() == EXPR_LIST)?;
+    list.parent().filter(|r| r.kind() == RETURN_STAT)?;
+    let i = list.children().position(|c| c == func)?;
+    let holder = list.ancestors().find(|a| a.kind() == FUNC_BODY)?.parent().filter(|h| h.kind() == LOCAL_FUNCTION_STAT)?;
+    let name = holder.children_with_tokens().filter_map(|e| e.into_token()).find(|t| t.kind() == NAME)?;
+    let d = names.decls.iter().position(|d| d.range == name.text_range())?;
+    let mut out = vec![kw.text_range(), func.text_range()];
+    for r in names.refs.iter().filter(|r| r.target == Target::Decl(d)) {
+        let Some(call) = root.covering_element(r.range).ancestors().find(|a| a.kind() == NAME_EXPR).and_then(|e| e.parent()).filter(|c| c.kind() == CALL_EXPR) else {
+            continue;
+        };
+        let Some(values) = call.parent().filter(|l| l.kind() == EXPR_LIST) else { continue };
+        let Some(stat) = values.parent().filter(|s| s.kind() == LOCAL_STAT) else { continue };
+        // The call spreads only as the last value.
+        let Some(p) = values.children().position(|c| c == call).filter(|p| *p + 1 == values.children().count()) else { continue };
+        if let Some(local) = stat.children().filter(|c| c.kind() == LOCAL_NAME).nth(p + i) {
+            out.push(local.text_range());
+        }
+    }
+    Some(out)
 }
 
 /// The ranges to replace to rename the field at `offset`; `None` when no field
