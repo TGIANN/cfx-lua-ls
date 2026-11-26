@@ -37,6 +37,9 @@ enum Effect {
     Fill(Vec<T>),
     /// `---@cast x +string, -?`.
     Cast(Vec<(char, T)>),
+    /// `if type(x) == 'string' then x = f(x) end`: what the condition being
+    /// false leaves, or the value written in the branch.
+    Either(Box<Effect>, Vec<T>),
     /// `if type(x) == 'string' then`.
     Narrow(T),
     /// `if type(x) ~= 'string' then`, the `else` of `if type(x) == 'string'`:
@@ -3575,101 +3578,107 @@ impl<'a> Infer<'a> {
         let base = if closure && is(&base, UNSET) { self.first_write(d) } else { base };
         let mut t = base;
         for x in effects.into_iter().rev() {
-            t = match x {
-                Effect::NonNil => non_nil(t),
-                Effect::Truthy => truthy(t),
-                Effect::Falsy => falsy(t, false),
-                Effect::Nil => falsy(t, true),
-                Effect::Also(v) => union(std::iter::once(t).chain(v).filter(|t| !is(t, UNSET)).collect()),
-                Effect::Drop(c) => {
-                    let parts: Vec<T> = members_of(&t).iter().flat_map(|m| members_of(&self.expand(m))).filter(|m| *m != c).collect();
-                    if parts.is_empty() { t } else { union(parts) }
-                }
-                Effect::Split => match t {
-                    T::Optional(inner) => union(members_of(&inner).into_iter().chain(std::iter::once(name("nil"))).collect()),
-                    // `local x` with nothing in it: the `== nil` branch is nil, the
-                    // other has nothing left (LuaLS: `unknown|nil`).
-                    t if is(&t, UNSET) => T::Union(vec![unknown(), name("nil")]),
-                    t => t,
-                },
-                Effect::Never => unknown(),
-                Effect::Fill(v) => union(std::iter::once(non_nil(t)).chain(v).filter(|t| !is(t, UNSET)).collect()),
-                // `x == 'a' or x == 'b'` on `'a'|'b'|'c'`: the literals tested; a
-                // member that is no literal (`string`) stays as it is.
-                Effect::Narrow(n) if members_of(&n).iter().all(|l| matches!(l, T::Str(..) | T::Int(_) | T::Bool(_))) => {
-                    let lits = members_of(&n);
-                    let parts = members_of(&non_nil(t.clone()));
-                    let kept: Vec<T> = parts
-                        .into_iter()
-                        .filter(|m| match m {
-                            T::Str(..) | T::Int(_) | T::Bool(_) => lits.contains(m),
-                            _ => lits.iter().any(|l| type_kind(l).is_some_and(|k| type_kind(m) == Some(k) || (k == "integer" && type_kind(m) == Some("number")))),
-                        })
-                        .collect();
-                    if kept.is_empty() { union(lits.iter().map(widen).collect()) } else { union(kept) }
-                }
-                Effect::Narrow(n) => {
-                    // The members of the known type that the check keeps.
-                    let fits = |m: &T| {
-                        let kind = match m {
-                            T::Fun(_) => Some("function"),
-                            T::Str(..) => Some("string"),
-                            T::Bool(_) => Some("boolean"),
-                            T::Int(_) => Some("integer"),
-                            T::Table(_) | T::Array(_) | T::Tuple(_) => Some("table"),
-                            T::Generic(g, _) if g == "table" => Some("table"),
-                            _ => None,
-                        };
-                        *m == n || is(&n, "number") && numeric(m).is_some() || kind.is_some_and(|k| is(&n, k) || (k == "integer" && is(&n, "number")))
-                    };
-                    let parts: Vec<T> = match non_nil(t.clone()) {
-                        T::Union(ps) => ps,
-                        m => vec![m],
-                    };
-                    let kept: Vec<T> = parts.into_iter().filter(fits).collect();
-                    if kept.is_empty() { n } else { union(kept) }
-                }
-                Effect::Exclude(n) => {
-                    // The members surely of the type tested go (`integer` with `number`).
-                    let gone = |m: &T| {
-                        *m == n
-                            || type_kind(m).is_some_and(|k| is(&n, k) || (k == "integer" && is(&n, "number")))
-                            || is(&n, "number") && numeric(m).is_some()
-                    };
-                    let parts: Vec<T> = match t.clone() {
-                        T::Union(ps) => ps,
-                        T::Optional(inner) => members_of(&inner).into_iter().chain(std::iter::once(name("nil"))).collect(),
-                        m => vec![m],
-                    };
-                    let kept: Vec<T> = parts.into_iter().filter(|m| !gone(m)).collect();
-                    if kept.is_empty() { t } else { union(kept) }
-                }
-                Effect::Cast(ops) => {
-                    let mut t = t;
-                    for (op, c) in ops {
-                        t = match op {
-                            '+' => union(vec![t, c]),
-                            '?' => match t {
-                                T::Optional(_) => t,
-                                t => T::Optional(Box::new(t)),
-                            },
-                            '-' => {
-                                let gone = |p: &T| *p == c;
-                                match t {
-                                    T::Optional(inner) if is(&c, "nil") => *inner,
-                                    T::Union(parts) => union(parts.into_iter().filter(|p| !gone(p)).collect()),
-                                    t => t,
-                                }
-                            }
-                            _ => c,
-                        };
-                    }
-                    t
-                }
-                Effect::Set(t) => t,
-            };
+            t = self.apply_effect(t, x);
         }
         if is(&t, UNSET) { unknown() } else { t }
+    }
+
+    /// Local type `t` after effect `x` (see [`Effect`]).
+    fn apply_effect(&self, t: T, x: Effect) -> T {
+        match x {
+            Effect::NonNil => non_nil(t),
+            Effect::Truthy => truthy(t),
+            Effect::Falsy => falsy(t, false),
+            Effect::Nil => falsy(t, true),
+            Effect::Also(v) => union(std::iter::once(t).chain(v).filter(|t| !is(t, UNSET)).collect()),
+            Effect::Drop(c) => {
+                let parts: Vec<T> = members_of(&t).iter().flat_map(|m| members_of(&self.expand(m))).filter(|m| *m != c).collect();
+                if parts.is_empty() { t } else { union(parts) }
+            }
+            Effect::Split => match t {
+                T::Optional(inner) => union(members_of(&inner).into_iter().chain(std::iter::once(name("nil"))).collect()),
+                // `local x` with nothing in it: the `== nil` branch is nil, the
+                // other has nothing left (LuaLS: `unknown|nil`).
+                t if is(&t, UNSET) => T::Union(vec![unknown(), name("nil")]),
+                t => t,
+            },
+            Effect::Never => unknown(),
+            Effect::Fill(v) => union(std::iter::once(non_nil(t)).chain(v).filter(|t| !is(t, UNSET)).collect()),
+            // `x == 'a' or x == 'b'` on `'a'|'b'|'c'`: the literals tested; a
+            // member that is no literal (`string`) stays as it is.
+            Effect::Narrow(n) if members_of(&n).iter().all(|l| matches!(l, T::Str(..) | T::Int(_) | T::Bool(_))) => {
+                let lits = members_of(&n);
+                let parts = members_of(&non_nil(t.clone()));
+                let kept: Vec<T> = parts
+                    .into_iter()
+                    .filter(|m| match m {
+                        T::Str(..) | T::Int(_) | T::Bool(_) => lits.contains(m),
+                        _ => lits.iter().any(|l| type_kind(l).is_some_and(|k| type_kind(m) == Some(k) || (k == "integer" && type_kind(m) == Some("number")))),
+                    })
+                    .collect();
+                if kept.is_empty() { union(lits.iter().map(widen).collect()) } else { union(kept) }
+            }
+            Effect::Narrow(n) => {
+                // The members of the known type that the check keeps.
+                let fits = |m: &T| {
+                    let kind = match m {
+                        T::Fun(_) => Some("function"),
+                        T::Str(..) => Some("string"),
+                        T::Bool(_) => Some("boolean"),
+                        T::Int(_) => Some("integer"),
+                        T::Table(_) | T::Array(_) | T::Tuple(_) => Some("table"),
+                        T::Generic(g, _) if g == "table" => Some("table"),
+                        _ => None,
+                    };
+                    *m == n || is(&n, "number") && numeric(m).is_some() || kind.is_some_and(|k| is(&n, k) || (k == "integer" && is(&n, "number")))
+                };
+                let parts: Vec<T> = match non_nil(t.clone()) {
+                    T::Union(ps) => ps,
+                    m => vec![m],
+                };
+                let kept: Vec<T> = parts.into_iter().filter(fits).collect();
+                if kept.is_empty() { n } else { union(kept) }
+            }
+            Effect::Exclude(n) => {
+                // The members surely of the type tested go (`integer` with `number`).
+                let gone = |m: &T| {
+                    *m == n
+                        || type_kind(m).is_some_and(|k| is(&n, k) || (k == "integer" && is(&n, "number")))
+                        || is(&n, "number") && numeric(m).is_some()
+                };
+                let parts: Vec<T> = match t.clone() {
+                    T::Union(ps) => ps,
+                    T::Optional(inner) => members_of(&inner).into_iter().chain(std::iter::once(name("nil"))).collect(),
+                    m => vec![m],
+                };
+                let kept: Vec<T> = parts.into_iter().filter(|m| !gone(m)).collect();
+                if kept.is_empty() { t } else { union(kept) }
+            }
+            Effect::Cast(ops) => {
+                let mut t = t;
+                for (op, c) in ops {
+                    t = match op {
+                        '+' => union(vec![t, c]),
+                        '?' => match t {
+                            T::Optional(_) => t,
+                            t => T::Optional(Box::new(t)),
+                        },
+                        '-' => {
+                            let gone = |p: &T| *p == c;
+                            match t {
+                                T::Optional(inner) if is(&c, "nil") => *inner,
+                                T::Union(parts) => union(parts.into_iter().filter(|p| !gone(p)).collect()),
+                                t => t,
+                            }
+                        }
+                        _ => c,
+                    };
+                }
+                t
+            }
+            Effect::Set(t) => t,
+            Effect::Either(f, v) => union(std::iter::once(self.apply_effect(t, *f)).chain(v).filter(|t| !is(t, UNSET)).collect()),
+        }
     }
 
     /// The value of the first write to local `d` when it is in the function
@@ -4024,6 +4033,16 @@ impl<'a> Infer<'a> {
                     && let Some(f) = self.type_effect(&cond, d, false)
                 {
                     return Some(f);
+                }
+                // `if type(x) == 'string' then x = joaat(x) end`: the branch ends with
+                // its last write (a statement of the branch itself, not a nested one).
+                if simple
+                    && let Some(last) = writes.last()
+                    && writes.iter().all(|w| self.root.token_at_offset(w.range.start()).right_biased().and_then(|t| t.parent_ancestors().find(|a| a.kind() == ASSIGN_STAT)).and_then(|a| a.parent()).as_ref() == Some(&then))
+                    && let Some(f) = self.type_effect(&cond, d, false)
+                    && let Some(v) = value_of(last)
+                {
+                    return Some(Effect::Either(Box::new(f), vec![v]));
                 }
                 if (simple || plain_else) && self.checks(&cond, d) == Some(false) {
                     let last = then.children().last();

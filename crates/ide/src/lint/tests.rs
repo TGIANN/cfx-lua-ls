@@ -567,6 +567,36 @@ print(f1, f2, f3, f4, f5, f6)
 }
 
 #[test]
+fn type_test_with_a_write_in_the_branch_narrows_after_it() {
+    let f = codes("---@param n integer
+local function I(n) return n end
+---@param s string
+---@return integer
+local function H(s) return #s end
+---@param m integer|string
+local function f1(m)
+    if type(m) == 'string' then m = H(m) end
+    return I(m)
+end
+---@param m integer|string
+local function f2(m)
+    if type(m) == 'string' then
+        if m == '' then m = H(m) end
+    end
+    return I(m)
+end
+---@param m integer|string
+local function f3(m)
+    if type(m) ~= 'number' then m = H(m) end
+    return I(m)
+end
+print(f1, f2, f3)
+");
+    // Only `f2`: its write is not on every path of the branch.
+    assert_eq!(only(&f, "param-type-mismatch").len(), 1, "{f:?}");
+}
+
+#[test]
 fn doc_above_blank_line_is_not_bound() {
     // LuaLS: the `---@class` above the blank line does not type `Api`.
     let f = codes("---@class Res\n---@field ok boolean\n\nApi = {}\n\n---@param a string\n---@return boolean\nfunction Api.F(a) return a ~= '' end\n\n---@param name string\n---@param fn function\nlocal function Exp(name, fn) print(name, fn) end\nExp('F', Api.F)\nprint(Api.G)\n");
