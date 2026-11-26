@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0](https://github.com/TGIANN/cfx-lua-ls/compare/v1.1.0...v1.2.0) (2026-11-26)
+
+
+### New Features
+
+* **vscode:** extension icon, gallery banner and repository links ([2e64e91](https://github.com/TGIANN/cfx-lua-ls/commit/2e64e91e4342689cc036201b7015015fb9dd2359))
+
 ## [1.1.0](https://github.com/TGIANN/cfx-lua-ls/compare/v1.0.0...v1.1.0) (2026-11-26)
 
 
