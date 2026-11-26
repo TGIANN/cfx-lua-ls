@@ -263,6 +263,10 @@ pub const RULE_DOCS: &[(&str, &str)] = &[
     ),
     ("fivem/readdir-pairs", "`pairs(io.readdir(...))`: `io.readdir` returns a handle; iterate it with `:lines()`."),
     ("fivem/sandbox-setlocale", "`os.setlocale` cannot change the locale in the FiveM sandbox."),
+    (
+        "security/sql-concatenation",
+        "A value joined with `..` into the query of a MySQL call (`'... WHERE id = ' .. id`): pass it as a `?` parameter, or a quote in it changes the query.",
+    ),
     ("ox/cache-ped", "ox_lib keeps the local ped in `cache.ped`."),
     ("ox/cache-playerid", "ox_lib keeps the local player id in `cache.playerId`."),
     ("ox/cache-serverid", "ox_lib keeps the local player's server id in `cache.serverId`."),

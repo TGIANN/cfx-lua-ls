@@ -146,6 +146,26 @@ end)
 }
 
 #[test]
+fn sql_concatenation() {
+    let f = codes(
+        "MySQL.query('SELECT * FROM users WHERE id = ' .. id)
+MySQL.single.await(\"SELECT * FROM t WHERE name = '\" .. name .. \"'\")
+MySQL.Async.fetchAll('INSERT INTO t (a, b) VALUES (' .. a .. ', ?)', { b })
+exports.oxmysql:execute('SELECT 1 FROM t WHERE x LIKE ' .. pat)
+MySQL.query('SELECT * FROM ' .. tableName .. ' WHERE id = ?', { id })
+MySQL.query('INSERT INTO t (' .. cols .. ') VALUES (?)', { v })
+MySQL.query('SELECT a, ' .. col .. ' FROM t')
+MySQL.query('SELECT * FROM t WHERE id IN (' .. placeholders .. ')', ids)
+MySQL.query('SELECT * FROM t WHERE id = ' .. tonumber(x) .. ' AND n > ' .. #list)
+MySQL.update('UPDATE t SET ' .. col .. ' = ' .. col .. ' + 1 WHERE id = ?', { id })
+local MySQL = {}
+MySQL.query('SELECT * FROM t WHERE id = ' .. id)
+",
+    );
+    assert_eq!(only(&f, "security/sql-concatenation"), ["id", "name", "a", "pat"]);
+}
+
+#[test]
 fn sandbox() {
     let ctx = Context { resource: Some("myres"), ..Context::default() };
     let f = run(

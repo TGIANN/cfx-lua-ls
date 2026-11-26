@@ -165,6 +165,12 @@ From docs.fivem.net "Sandbox": what the server's Lua sandbox blocks or limits.
 | `fivem/readdir-pairs` | `pairs(io.readdir(...))`: it returns a handle, iterate with `:lines()` | E | |
 | `fivem/sandbox-setlocale` | `os.setlocale` (cannot change the locale in the sandbox) | W | |
 
+## Database
+
+| id | flags | level | fix |
+|---|---|---|---|
+| `security/sql-concatenation` | a value joined with `..` into the query of an oxmysql or mysql-async call (`MySQL.query`, `MySQL.single.await`, `MySQL.Async.fetchAll`, `exports.oxmysql:execute`...): an operand after a comparison (`=`, `<`, `>`, `LIKE`), inside a quoted SQL string, or in a `VALUES (` / `IN (` list. A table or column name (`FROM ` .. t, `SELECT a, ` .. c, `INSERT INTO t (` .. cols) is not a value; numbers (`tonumber(x)`, `#t`, arithmetic) and a list alone in its parentheses (`IN (` .. placeholders .. `)`, almost always `?, ?`) are left alone, as is an operand the chain already used as a name (`SET ` .. c .. ` = ` .. c .. ` + 1`). Qbox Lua's code of the same name | W | |
+
 ## ox_lib
 
 Only where the manifest loads `@ox_lib/init.lua` for the file's side.

@@ -123,7 +123,11 @@ pub(super) fn token(l: &mut Linter, t: &SyntaxToken) {
 
 pub(super) fn node(l: &mut Linter, n: &SyntaxNode) {
     match n.kind() {
-        CALL_EXPR => call(l, n),
+        CALL_EXPR => {
+            call(l, n);
+            sql_concatenation(l, n);
+        }
+        METHOD_CALL_EXPR => sql_concatenation(l, n),
         NAME_EXPR => {
             if l.src(n.text_range()) == "source"
                 && l.is_global_name(n)
@@ -207,6 +211,140 @@ fn call(l: &mut Linter, call: &SyntaxNode) {
     }
     sandbox(l, &path, call, &args);
     wrong_side(l, &path, callee_r);
+}
+
+/// The query argument of an oxmysql / mysql-async call: `MySQL.query(q)`,
+/// `MySQL.single.await(q)`, `MySQL.Async.fetchAll(q)`, `exports.oxmysql:execute(q)`.
+fn sql_query_arg(l: &Linter, call: &SyntaxNode) -> Option<SyntaxNode> {
+    let callee = call.first_child()?;
+    let ok = match call.kind() {
+        CALL_EXPR => {
+            let path = l.callee(call)?;
+            let mut parts = path.split('.');
+            parts.next() == Some("MySQL") && {
+                let rest: Vec<&str> = parts.collect();
+                let rest: &[&str] = match rest.as_slice() {
+                    ["Async" | "Sync", f] => &[*f][..],
+                    [f, "await"] => &[*f][..],
+                    [f] => &[*f][..],
+                    _ => &[],
+                };
+                matches!(
+                    rest,
+                    [
+                        "query" | "single" | "scalar" | "insert" | "update" | "prepare" | "rawExecute" | "execute" | "fetchAll"
+                            | "fetchScalar" | "fetchSingle"
+                    ]
+                )
+            }
+        }
+        METHOD_CALL_EXPR => {
+            let object = l.src(callee.text_range()).replace(char::is_whitespace, "");
+            let root = callee.descendants().find(|d| d.kind() == NAME_EXPR);
+            root.is_some_and(|r| l.src(r.text_range()) == "exports" && l.is_global_name(&r))
+                && matches!(object.as_str(), "exports.oxmysql" | "exports['oxmysql']" | "exports[\"oxmysql\"]")
+        }
+        _ => false,
+    };
+    if !ok {
+        return None;
+    }
+    Linter::args(call).into_iter().next()
+}
+
+/// The operands of a `..` chain, left to right (parentheses opened).
+fn concat_operands(e: &SyntaxNode, out: &mut Vec<SyntaxNode>) {
+    let concat = e.kind() == BINARY_EXPR && e.children_with_tokens().filter_map(|x| x.into_token()).any(|t| t.kind() == DOT2);
+    match e.kind() {
+        _ if concat => e.children().for_each(|c| concat_operands(&c, out)),
+        PAREN_EXPR if e.first_child().is_some_and(|c| c.kind() == BINARY_EXPR) => {
+            let before = out.len();
+            concat_operands(&e.first_child().unwrap(), out);
+            // `(a + b)` is one number, not a chain.
+            if out.len() == before + 1 {
+                out.truncate(before);
+                out.push(e.clone());
+            }
+        }
+        _ => out.push(e.clone()),
+    }
+}
+
+/// Whether SQL text ending in `sql` expects a value next: after a comparison,
+/// inside a quoted string, or inside a `VALUES (` / `IN (` list. A table or
+/// column name (`FROM `, `SELECT a, `, `INSERT INTO t (`) is not a value.
+fn sql_value_position(sql: &str) -> bool {
+    let upper = sql.to_uppercase();
+    let t = upper.trim_end();
+    for q in ['\'', '"'] {
+        if t.matches(q).count() % 2 == 1 {
+            return true;
+        }
+    }
+    if t.ends_with('=') || t.ends_with('<') || t.ends_with('>') || t.ends_with(" LIKE") {
+        return true;
+    }
+    if t.ends_with('(') || t.ends_with(',') {
+        // The innermost open parenthesis and the word before it.
+        let mut depth = 0i32;
+        for (i, c) in t.char_indices().rev() {
+            match c {
+                ')' => depth += 1,
+                '(' if depth > 0 => depth -= 1,
+                '(' => {
+                    let word = t[..i].trim_end().rsplit(|c: char| !c.is_ascii_alphanumeric() && c != '_').next().unwrap_or("");
+                    return matches!(word, "VALUES" | "VALUE" | "IN");
+                }
+                _ => {}
+            }
+        }
+    }
+    false
+}
+
+/// security/sql-concatenation: a value joined into the query string of a
+/// MySQL call (`'... WHERE id = ' .. id`) instead of passed as a `?` parameter.
+fn sql_concatenation(l: &mut Linter, call: &SyntaxNode) {
+    let Some(query) = sql_query_arg(l, call) else { return };
+    let mut operands = Vec::new();
+    concat_operands(&query, &mut operands);
+    if operands.len() < 2 {
+        return;
+    }
+    let mut sql = String::new();
+    // Operands already used as a name (`SET ` .. col .. ` = ` .. col .. ` + 1`).
+    let mut names: Vec<String> = Vec::new();
+    for (i, op) in operands.iter().enumerate() {
+        if let Some(s) = literal_str(l, op) {
+            sql.push_str(&s);
+            continue;
+        }
+        let text = l.src(op.text_range()).to_string();
+        // `IN (` .. list .. `)`: a list built in code, almost always `?, ?, ?`.
+        let alone_in_parens = sql.trim_end().ends_with('(')
+            && operands.get(i + 1).and_then(|n| literal_str(l, n)).is_some_and(|n| n.trim_start().starts_with(')'));
+        let numeric = match op.kind() {
+            LITERAL_EXPR => true,
+            UNARY_EXPR => op.first_token().is_some_and(|t| matches!(t.kind(), HASH | MINUS)),
+            BINARY_EXPR | PAREN_EXPR => true,
+            CALL_EXPR => l.callee(op).is_some_and(|p| {
+                matches!(p.as_str(), "tonumber" | "math.floor" | "math.ceil" | "math.abs" | "math.min" | "math.max" | "os.time" | "table.concat" | "string.rep")
+            }),
+            // `('?, '):rep(n)`: placeholders.
+            METHOD_CALL_EXPR => crate::api::method_name(op).is_some_and(|m| m.text() == "rep"),
+            _ => false,
+        };
+        if !sql_value_position(&sql) {
+            names.push(text);
+        } else if !numeric && !alone_in_parens && !names.contains(&text) {
+            l.push(
+                "security/sql-concatenation",
+                op.text_range(),
+                "A value is joined into the SQL text: pass it as a `?` parameter instead (`'... WHERE id = ?', { id }`), or a quote in it changes the query.",
+            );
+        }
+        sql.push_str(" x ");
+    }
 }
 
 /// A string literal's contents.

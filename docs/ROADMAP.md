@@ -563,8 +563,8 @@ error ("invalid UTF-8 code").
 
 ## Open gaps
 
-- Qbox's lint rules with no counterpart yet: SQL built by string concatenation
-  in `MySQL.*` / oxmysql calls, locale keys missing from the locale files.
+- Qbox's lint rules with no counterpart yet: locale keys missing from the
+  locale files.
 
 ## Design decisions
 
