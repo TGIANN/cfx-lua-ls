@@ -5,6 +5,15 @@
   "version": "1.1.0",
   "publisher": "tgiann",
   "license": "MIT",
+  "icon": "images/icon.png",
+  "galleryBanner": {
+    "color": "#0B1220",
+    "theme": "dark"
+  },
+  "homepage": "https://github.com/TGIANN/cfx-lua-ls#readme",
+  "bugs": {
+    "url": "https://github.com/TGIANN/cfx-lua-ls/issues"
+  },
   "private": true,
   "repository": {
     "type": "git",
