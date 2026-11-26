@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.3.0](https://github.com/TGIANN/cfx-lua-ls/compare/v1.2.0...v1.3.0) (2026-11-26)
+
+
+### New Features
+
+* **lsp:** Lua.workspace.library folders give definitions to a single opened resource ([a842781](https://github.com/TGIANN/cfx-lua-ls/commit/a84278126ed326711da6c8100163ce08572a9bfa))
+
+
+### Bug Fixes
+
+* **lsp:** _G.X and _ENV.X define the global X, so ox_lib's lib.onCache and server lib.notify resolve ([55413df](https://github.com/TGIANN/cfx-lua-ls/commit/55413df45a36d0bc153db7dd7ef128e4ed7f9cbd))
+
 ## [1.2.0](https://github.com/TGIANN/cfx-lua-ls/compare/v1.1.0...v1.2.0) (2026-11-26)
 
 
