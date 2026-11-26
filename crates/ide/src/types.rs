@@ -3594,6 +3594,20 @@ impl<'a> Infer<'a> {
                 },
                 Effect::Never => unknown(),
                 Effect::Fill(v) => union(std::iter::once(non_nil(t)).chain(v).filter(|t| !is(t, UNSET)).collect()),
+                // `x == 'a' or x == 'b'` on `'a'|'b'|'c'`: the literals tested; a
+                // member that is no literal (`string`) stays as it is.
+                Effect::Narrow(n) if members_of(&n).iter().all(|l| matches!(l, T::Str(..) | T::Int(_) | T::Bool(_))) => {
+                    let lits = members_of(&n);
+                    let parts = members_of(&non_nil(t.clone()));
+                    let kept: Vec<T> = parts
+                        .into_iter()
+                        .filter(|m| match m {
+                            T::Str(..) | T::Int(_) | T::Bool(_) => lits.contains(m),
+                            _ => lits.iter().any(|l| type_kind(l).is_some_and(|k| type_kind(m) == Some(k) || (k == "integer" && type_kind(m) == Some("number")))),
+                        })
+                        .collect();
+                    if kept.is_empty() { union(lits.iter().map(widen).collect()) } else { union(kept) }
+                }
                 Effect::Narrow(n) => {
                     // The members of the known type that the check keeps.
                     let fits = |m: &T| {
@@ -3900,12 +3914,13 @@ impl<'a> Infer<'a> {
             return None;
         }
         let is_d = |n: &SyntaxNode| n.kind() == NAME_EXPR && n.first_token().and_then(|t| self.ref_at(t.text_range())).is_some_and(|r| r.target == Target::Decl(d));
-        // `x == 1`: the literal's type (LuaLS narrows to its name).
+        // `x == 1`: the literal (LuaLS narrows to its name; a union of literals,
+        // `'a'|'b'|'c'`, keeps the one tested, see `Effect::Narrow`).
         for (a, b) in [(&l, &r), (&r, &l)] {
             if is_d(a)
                 && let Some(t) = literal_type(b)
             {
-                return Some(widen(&t));
+                return Some(t);
             }
         }
         let side = |call: &SyntaxNode, lit: &SyntaxNode| -> Option<T> {

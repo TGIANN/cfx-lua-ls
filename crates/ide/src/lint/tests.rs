@@ -565,3 +565,30 @@ print(f1, f2, f3, f4, f5, f6)
     // Only `f6`: there `x` is a number.
     assert_eq!(only(&f, "param-type-mismatch").len(), 1, "{f:?}");
 }
+
+#[test]
+fn doc_above_blank_line_is_not_bound() {
+    // LuaLS: the `---@class` above the blank line does not type `Api`.
+    let f = codes("---@class Res\n---@field ok boolean\n\nApi = {}\n\n---@param a string\n---@return boolean\nfunction Api.F(a) return a ~= '' end\n\n---@param name string\n---@param fn function\nlocal function Exp(name, fn) print(name, fn) end\nExp('F', Api.F)\nprint(Api.G)\n");
+    assert!(only(&f, "param-type-mismatch").is_empty(), "{f:?}");
+    assert!(only(&f, "undefined-field").is_empty(), "{f:?}");
+}
+
+#[test]
+fn literal_tests_narrow_a_literal_union() {
+    let f = codes("---@param p 'premium'|'verified'
+local function plan(p) return p end
+---@param n integer
+local function num(n) return n end
+---@param badge 'government'|'business'|'verified'|'premium'
+---@param id integer|string
+local function set(badge, id)
+    if badge == 'verified' or badge == 'premium' then plan(badge) end
+    if id == 1 then num(id) end
+    if badge == 'government' then plan(badge) end
+end
+set('verified', 1)
+");
+    // Only the last call: `'government'` is no plan.
+    assert_eq!(only(&f, "param-type-mismatch").len(), 1, "{f:?}");
+}
