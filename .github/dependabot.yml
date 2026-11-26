@@ -1,4 +1,6 @@
-# Weekly, one grouped pull request per ecosystem. The `build(deps)` prefix is hidden in
+# Weekly. Minor and patch updates come as one grouped pull request per ecosystem; a major update
+# comes on its own, to be checked by hand. @types/vscode follows engines.vscode in package.json
+# (vsce refuses a newer one), so it moves only with that. The `build(deps)` prefix is hidden in
 # release-please's changelog, so a dependency bump alone does not cut a release.
 version: 2
 updates:
@@ -11,6 +13,7 @@ updates:
     groups:
       actions:
         patterns: ["*"]
+        update-types: [minor, patch]
   - package-ecosystem: cargo
     directory: /
     schedule:
@@ -20,6 +23,7 @@ updates:
     groups:
       cargo:
         patterns: ["*"]
+        update-types: [minor, patch]
   - package-ecosystem: npm
     directory: /editors/vscode
     schedule:
@@ -29,3 +33,6 @@ updates:
     groups:
       npm:
         patterns: ["*"]
+        update-types: [minor, patch]
+    ignore:
+      - dependency-name: "@types/vscode"
