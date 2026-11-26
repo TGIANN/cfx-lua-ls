@@ -12,7 +12,7 @@ repository = "https://github.com/TGIANN/cfx-lua-ls"
 cfx-lua-syntax = { path = "crates/syntax" }
 cfx-lua-ide = { path = "crates/ide" }
 cfx-lua-fmt = { path = "crates/fmt" }
-rowan = "0.15"
+rowan = "0.17"
 # Same major as rowan uses, so no second copy.
 rustc-hash = "1"
 rayon = "1"
