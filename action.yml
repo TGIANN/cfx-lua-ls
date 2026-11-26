@@ -1,7 +1,7 @@
 # Lint the FiveM Lua of a repository with cfx-lua-ls. The results go to GitHub code scanning
 # (SARIF, needs `security-events: write`) and the step fails at the chosen level.
 #
-#   - uses: actions/checkout@v4
+#   - uses: actions/checkout@v7
 #   - uses: TGIANN/cfx-lua-ls@v1
 #     with:
 #       path: resources
@@ -72,7 +72,7 @@ runs:
 
     - name: Upload to code scanning
       if: inputs.sarif == 'true'
-      uses: github/codeql-action/upload-sarif@v3
+      uses: github/codeql-action/upload-sarif@v4
       with:
         sarif_file: ${{ runner.temp }}/cfx-lua-ls.sarif
         category: cfx-lua-ls
