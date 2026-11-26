@@ -216,6 +216,8 @@ fn foreign_scripts(root: &Path, manifest: &Manifest) -> (Vec<(String, FileSide)>
 #[derive(Debug, Default)]
 pub struct Workspace {
     folders: Vec<PathBuf>,
+    /// LuaLS's `Lua.workspace.library`: read for definitions only.
+    library: Vec<PathBuf>,
     resources: Vec<Resource>,
     /// Resource by folder key and by lower-case name.
     by_root: HashMap<String, usize>,
@@ -345,11 +347,35 @@ fn summarize(text: &str) -> Summary {
 impl Workspace {
     /// Reads every resource and Lua file under the folders.
     pub fn scan(folders: &[PathBuf]) -> Workspace {
-        let mut ws = Workspace { folders: folders.to_vec(), ..Workspace::default() };
+        Workspace::scan_with(folders, &[])
+    }
+
+    /// [`Workspace::scan`], then the resources under `library` (LuaLS's
+    /// `Lua.workspace.library`, such as a copy of ox_lib or tgiann-core next to a
+    /// single opened resource) that no workspace resource shares a name with: the
+    /// workspace's own copy wins and the library one is not read, so it neither
+    /// shadows it nor makes the name a duplicate. Lua files outside a library
+    /// resource are left out.
+    pub fn scan_with(folders: &[PathBuf], library: &[PathBuf]) -> Workspace {
+        let mut ws = Workspace { folders: folders.to_vec(), library: library.to_vec(), ..Workspace::default() };
         let (mut manifests, mut lua) = (Vec::new(), Vec::new());
         for f in folders {
             walk(f, &mut manifests, &mut lua);
         }
+        ws.add(manifests, lua);
+        let (mut manifests, mut lua) = (Vec::new(), Vec::new());
+        for f in library {
+            walk(f, &mut manifests, &mut lua);
+        }
+        let mut roots: Vec<PathBuf> = manifests
+            .iter()
+            .filter_map(|m| m.parent())
+            .filter(|r| r.file_name().is_some_and(|n| !ws.by_name.contains_key(&n.to_string_lossy().to_lowercase())))
+            .map(Path::to_path_buf)
+            .collect();
+        roots.dedup();
+        manifests.retain(|m| m.parent().is_some_and(|r| roots.iter().any(|k| k == r)));
+        lua.retain(|p| roots.iter().any(|r| p.starts_with(r)));
         ws.add(manifests, lua);
         ws
     }
@@ -462,7 +488,7 @@ impl Workspace {
     /// manifest rescans the workspace (resource ids would shift otherwise).
     pub fn remove(&mut self, path: &Path) -> bool {
         if is_manifest(path) {
-            *self = Workspace::scan(&self.folders);
+            *self = Workspace::scan_with(&self.folders, &self.library);
             return true;
         }
         let k = key(path);
@@ -521,7 +547,7 @@ impl Workspace {
         let changed: Vec<&Path> = after.iter().filter(|(p, s)| before.get(*p) != Some(*s)).map(|(p, _)| *p).collect();
         let gone: Vec<&Path> = before.keys().filter(|p| !after.contains_key(*p)).copied().collect();
         if changed.iter().chain(&gone).any(|p| is_manifest(p)) {
-            *self = Workspace::scan(&self.folders);
+            *self = Workspace::scan_with(&self.folders, &self.library);
             return;
         }
         for p in gone {

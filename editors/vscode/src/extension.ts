@@ -78,12 +78,12 @@ async function start(context: vscode.ExtensionContext): Promise<void> {
     // LuaLS's own keys (`Lua.format.enable`, `Lua.format.defaultConfig`), sent as
     // `{ Lua: { format } }` on start and on every change.
     // `Lua.diagnostics.*`, `Lua.type.*`, `Lua.doc.*`, `Lua.hint.*` (inlay
-    // hints, off unless `Lua.hint.enable`), `Lua.hover.expandAlias`,
+    // hints, off unless `Lua.hint.enable`), `Lua.hover.expandAlias`, `Lua.workspace.library`,
     // `Lua.runtime.special`, `Lua.nameStyle.config` and `Lua.spell.dict` are
     // LuaLS's own settings: read, not contributed, so both extensions can be
     // installed without clashing.
     synchronize: {
-      configurationSection: ["Lua.format", "Lua.diagnostics", "Lua.type", "Lua.doc", "Lua.hint", "Lua.hover", "Lua.runtime", "Lua.nameStyle", "Lua.spell"],
+      configurationSection: ["Lua.format", "Lua.diagnostics", "Lua.type", "Lua.doc", "Lua.hint", "Lua.hover", "Lua.runtime", "Lua.nameStyle", "Lua.spell", "Lua.workspace"],
       fileEvents: vscode.workspace.createFileSystemWatcher("**/{*.lua,.luarc.json,.luarc.jsonc,.editorconfig}"),
     },
     // This extension runs `cfxLuaLs.spell.addWord`, the spell-check quick fix.

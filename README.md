@@ -118,6 +118,11 @@ With `@ox_lib/init.lua` loaded, `lib.` lists ox_lib's modules for the file's sid
 Inside `TriggerServerEvent('` and the other event calls, completion offers the
 workspace's event names, and go-to-definition jumps from a trigger to its handlers.
 
+When you open a single resource, point LuaLS's `Lua.workspace.library` at folders
+that hold the resources it builds on (a copy of ox_lib, your core resource):
+their definitions show in hover and completion, they are not diagnosed, and a
+workspace resource of the same name wins over its library copy.
+
 The same index drives rules: unknown exports (with a "did you mean"), exports
 called from the wrong side, `exports.res.Name(x)` with a dot, uses of deprecated
 framework functions, fxmanifest.lua entries that point at missing files.
@@ -125,7 +130,8 @@ framework functions, fxmanifest.lua entries that point at missing files.
 ## Use it in VS Code
 
 `cfx-lua-ls lsp` speaks the Language Server Protocol over stdio. The VS Code
-extension is in [editors/vscode](editors/vscode) (not on the Marketplace yet).
+extension is in [editors/vscode](editors/vscode), on the VS Code Marketplace as
+`tgiann.cfx-lua-ls`.
 
 ## Use it from an AI agent (MCP)
 

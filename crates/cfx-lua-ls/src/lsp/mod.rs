@@ -85,6 +85,7 @@ pub(crate) fn serve(connection: &Connection) -> Result<(), Error> {
         workspace,
         format: format::Settings::default(),
         ws,
+        library: Vec::new(),
         diagnostics,
         client_settings: None,
         inlay_refresh: params
@@ -129,6 +130,26 @@ fn workspace_folders(params: &InitializeParams) -> Vec<PathBuf> {
         Some(folders) => folders.iter().filter_map(|f| format::file_path(&f.uri)).collect(),
         None => params.root_uri.iter().filter_map(format::file_path).collect(),
     }
+}
+
+/// `Lua.workspace.library` (LuaLS's key): folders whose resources give definitions
+/// (hover, completion, globals) but are not workspace files. A relative path is
+/// taken from the first workspace folder; a folder that does not exist is skipped.
+fn library_folders(settings: Option<&serde_json::Value>, workspace: &[PathBuf]) -> Vec<PathBuf> {
+    let Some(list) = settings.and_then(|s| s.get("workspace")).and_then(|w| w.get("library")).and_then(|l| l.as_array()) else {
+        return Vec::new();
+    };
+    let mut out: Vec<PathBuf> = Vec::new();
+    for p in list.iter().filter_map(serde_json::Value::as_str).map(PathBuf::from) {
+        let p = match workspace.first() {
+            Some(root) if p.is_relative() => root.join(p),
+            _ => p,
+        };
+        if p.is_dir() && !out.contains(&p) {
+            out.push(p);
+        }
+    }
+    out
 }
 
 fn capabilities(encoding: Encoding) -> ServerCapabilities {
@@ -191,6 +212,8 @@ struct Server<'c> {
     format: format::Settings,
     /// Resources, sides and the globals of every file, for lint.
     ws: Workspace,
+    /// `Lua.workspace.library`: folders read for definitions only.
+    library: Vec<PathBuf>,
     diagnostics: crate::config::Diagnostics,
     /// The client's `Lua` section, applied over `.luarc.json`.
     client_settings: Option<serde_json::Value>,
@@ -841,6 +864,18 @@ impl Server<'_> {
                 self.format = format::settings(&p.settings);
                 let hints_before = self.client_settings.as_ref().and_then(|s| s.get("hint")).cloned();
                 self.client_settings = p.settings.get("Lua").cloned();
+                let library = library_folders(self.client_settings.as_ref(), &self.workspace);
+                if library != self.library {
+                    self.library = library;
+                    self.ws = Workspace::scan_with(&self.workspace, &self.library);
+                    // Open documents follow the editor, not the disk.
+                    for (uri, doc) in &self.docs {
+                        if let Some(path) = format::file_path(uri) {
+                            self.ws.ensure(&path);
+                            self.ws.update(&path, &doc.text);
+                        }
+                    }
+                }
                 self.reload_config()?;
                 // Hints turned on or off show without waiting for an edit.
                 if self.inlay_refresh && self.client_settings.as_ref().and_then(|s| s.get("hint")).cloned() != hints_before {

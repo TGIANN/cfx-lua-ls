@@ -641,3 +641,49 @@ fn spell_add_word_only_for_clients_that_run_it() {
     assert!(titles.contains(&"Name") && !titles.iter().any(|t| t.starts_with("Add '")), "{titles:?}");
     c.shutdown(handle);
 }
+
+/// `Lua.workspace.library`: a resource outside the workspace gives hover and
+/// completion; a workspace resource of the same name wins over its library copy.
+#[test]
+fn workspace_library_resources() {
+    let root = std::env::temp_dir().join(format!("cfx-lua-ls-library-{}", std::process::id()));
+    let (ws, lib) = (root.join("ws"), root.join("lib"));
+    for (dir, body) in [
+        (ws.join("app"), None),
+        (lib.join("mylib"), Some("---@param amount integer\nfunction mylib.pay(amount) end\n")),
+        (lib.join("other"), Some("---@param label string\nfunction other.tag(label) end\n")),
+        (ws.join("other"), Some("---@param id number\nfunction other.tag(id) end\n")),
+    ] {
+        std::fs::create_dir_all(&dir).unwrap();
+        if let Some(body) = body {
+            let name = dir.file_name().unwrap().to_string_lossy().into_owned();
+            std::fs::write(dir.join("fxmanifest.lua"), "shared_script 'init.lua'\n").unwrap();
+            std::fs::write(dir.join("init.lua"), format!("{name} = {{}}\n{body}")).unwrap();
+        }
+    }
+    std::fs::write(ws.join("app").join("fxmanifest.lua"), "shared_scripts { '@mylib/init.lua', '@other/init.lua' }\nclient_script 'client.lua'\n").unwrap();
+    std::fs::write(ws.join("app").join("client.lua"), "").unwrap();
+    let to_uri = |p: &std::path::Path| {
+        let s = p.to_string_lossy().replace('\\', "/").replace(' ', "%20");
+        if s.starts_with('/') { format!("file://{s}") } else { format!("file:///{s}") }
+    };
+    let file = to_uri(&ws.join("app").join("client.lua"));
+    let (mut c, handle) = Client::start_with(json!({ "capabilities": {}, "workspaceFolders": [{ "uri": to_uri(&ws), "name": "w" }] }));
+    open(&c, &file, "mylib.pay(1)\nother.tag(1)\nmylib.\n");
+    let hover = |c: &mut Client, line: u32| {
+        let h = c.request("textDocument/hover", json!({ "textDocument": { "uri": file }, "position": { "line": line, "character": 7 } }));
+        h["contents"]["value"].as_str().unwrap_or_default().to_string()
+    };
+    assert!(!hover(&mut c, 0).contains("amount"), "no library yet");
+    c.notify("workspace/didChangeConfiguration", json!({ "settings": { "Lua": { "workspace": { "library": [lib.to_string_lossy()] } } } }));
+    c.diagnostics();
+    assert!(hover(&mut c, 0).contains("amount: integer"), "{}", hover(&mut c, 0));
+    let list = c.request("textDocument/completion", json!({ "textDocument": { "uri": file }, "position": { "line": 2, "character": 6 } }));
+    let labels: Vec<&str> = list["items"].as_array().unwrap().iter().map(|i| i["label"].as_str().unwrap()).collect();
+    assert!(labels.contains(&"pay"), "{labels:?}");
+    // `other` is in the workspace and the library: the workspace's copy is the one read.
+    let h = hover(&mut c, 1);
+    assert!(h.contains("id: number") && !h.contains("label"), "{h}");
+    c.shutdown(handle);
+    std::fs::remove_dir_all(&root).unwrap();
+}
