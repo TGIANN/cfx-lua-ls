@@ -1,5 +1,36 @@
 # Changelog
 
+## [1.4.0](https://github.com/TGIANN/cfx-lua-ls/compare/v1.3.0...v1.4.0) (2026-11-26)
+
+
+### New Features
+
+* **lint:** calls to documented functions of other files are checked, overloads included ([c425451](https://github.com/TGIANN/cfx-lua-ls/commit/c42545100929f5294134810c67f0c312d33b310c))
+* **lint:** check calls through exports, lone locals and agreeing definitions ([2a6ce4c](https://github.com/TGIANN/cfx-lua-ls/commit/2a6ce4c67ce1aa8f15a3efa5e5724b882c90c9e1))
+* **lint:** fivem/event-argument-count and fivem/event-missing-arguments check triggers against their handlers ([8f682bd](https://github.com/TGIANN/cfx-lua-ls/commit/8f682bddeabf4b52a2214bf256dce742f422d2e2))
+* **lint:** missing-fields and type mismatches check against classes of the resource's other files ([529a6ff](https://github.com/TGIANN/cfx-lua-ls/commit/529a6ffc459bc44ec0e1ac3d9540e34359fbbde8))
+* **lint:** ox/missing-locale reports locale keys no locale file has ([d057ec6](https://github.com/TGIANN/cfx-lua-ls/commit/d057ec619da7a6ae6ea034c2e4eab9a7c29a1465))
+* **lint:** security/sql-concatenation reports values joined into MySQL queries ([7269ef9](https://github.com/TGIANN/cfx-lua-ls/commit/7269ef961c9b2b5736747be410f130d0dcad027b))
+
+
+### Bug Fixes
+
+* **lint:** cast-local-type checks an a and b value assigned to a local ([59815c8](https://github.com/TGIANN/cfx-lua-ls/commit/59815c85aba8aba7fe1e472661719289ab15aaa2))
+* **lint:** cross-file call checks skip a local shadowing the global and a signature whose types mean other classes here ([6a0d7ac](https://github.com/TGIANN/cfx-lua-ls/commit/6a0d7acc3cfd49977560e4e778ddd1990b0ffa33))
+* **lint:** perf/concat-in-loop skips a local declared in the loop ([923723a](https://github.com/TGIANN/cfx-lua-ls/commit/923723a0e185fe85b666f8b4c3fa474eb04eeacf))
+* **lint:** unsigned-hash skips the hash fields game events send unsigned ([288ddb1](https://github.com/TGIANN/cfx-lua-ls/commit/288ddb1c7867389a2303cb15356d8be3df6e17b4))
+* **lsp:** hover and completion follow a table an export returns through an alias ([3ec7434](https://github.com/TGIANN/cfx-lua-ls/commit/3ec7434b54f5b8ed62775f8860d44b5af7758250))
+* **types:** a doc comment above a blank line is not the next statement's, as in LuaLS ([7012f31](https://github.com/TGIANN/cfx-lua-ls/commit/7012f31ed90d9e5911b62b675b0d749ae9665484))
+* **types:** a type() test of a field narrows the field ([a6f7b8d](https://github.com/TGIANN/cfx-lua-ls/commit/a6f7b8dd869031be1dd413dc33f10f6aa4b5b966))
+* **types:** a type() test whose branch rewrites the local narrows it after the if ([515d7dd](https://github.com/TGIANN/cfx-lua-ls/commit/515d7ddc1aed7fc9f6a58405b8a6358f66b068b8))
+* **types:** type(x) tests narrow when false, after an early return and in else branches ([f88de69](https://github.com/TGIANN/cfx-lua-ls/commit/f88de6972282ddeb07c95e1c5f49bcf145de8a09))
+* **types:** x == 'a' or x == 'b' narrows a union of literals to the values tested ([9a2fd65](https://github.com/TGIANN/cfx-lua-ls/commit/9a2fd650b02a8b1967f626df147ecfab949990ef))
+
+
+### Performance
+
+* **types:** field type narrowing reads only the conditions above the field ([5e4e3d3](https://github.com/TGIANN/cfx-lua-ls/commit/5e4e3d3870ce7f3e14e9becfffc2a01186ca2e75))
+
 ## [1.3.0](https://github.com/TGIANN/cfx-lua-ls/compare/v1.2.0...v1.3.0) (2026-11-26)
 
 
