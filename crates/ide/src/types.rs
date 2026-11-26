@@ -214,6 +214,8 @@ struct Infer<'a> {
     class_members: std::cell::OnceCell<HashMap<String, HashMap<String, Vec<SyntaxNode>>>>,
     /// `a.b.c = v` targets of the file by their path (`a.b.c`), in order.
     path_writes: std::cell::OnceCell<HashMap<String, Vec<SyntaxNode>>>,
+    /// `type(x.f)` in the file: (local of `x`, `f`), for [`Infer::field_guard`].
+    field_tests: std::cell::OnceCell<std::collections::HashSet<(usize, String)>>,
     /// `class_var` of every class tagged on a statement, computed once.
     class_vars: std::cell::OnceCell<HashMap<String, String>>,
     /// Locals written after their declaration.
@@ -3133,6 +3135,7 @@ impl<'a> Infer<'a> {
             functions: std::cell::OnceCell::new(),
             class_members: std::cell::OnceCell::new(),
             path_writes: std::cell::OnceCell::new(),
+            field_tests: std::cell::OnceCell::new(),
             class_vars: std::cell::OnceCell::new(),
             written: std::cell::OnceCell::new(),
             typed_fields: std::cell::OnceCell::new(),
@@ -5223,9 +5226,104 @@ impl<'a> Infer<'a> {
                 {
                     return w;
                 }
-                t
+                match self.field_guard(e) {
+                    Some(f) if !has_unknown(&t) => self.apply_effect(t, f),
+                    _ => t,
+                }
             }
             _ => unknown(),
+        }
+    }
+
+    /// `if type(t.v) == 'string' then ... t.v ... end`, `type(t.v) == 'string'
+    /// and t.v`: what the test says of the field read `e` (`local.field`), when
+    /// neither the local nor the field is written between the test and the read.
+    fn field_guard(&self, e: &SyntaxNode) -> Option<Effect> {
+        let object = e.first_child().filter(|o| o.kind() == NAME_EXPR)?;
+        let field = crate::lint::field_name(e)?;
+        let target = self.ref_at(object.first_token()?.text_range())?.target;
+        let Target::Decl(d) = target else { return None };
+        let tests = self.field_tests.get_or_init(|| {
+            self.root
+                .descendants()
+                .filter(|c| c.kind() == CALL_EXPR && c.first_child().is_some_and(|f| self.builtin(&f) == "type"))
+                .filter_map(|c| c.children().find(|a| a.kind() == ARG_LIST)?.first_child())
+                .filter(|a| a.kind() == INDEX_EXPR)
+                .filter_map(|a| {
+                    let o = a.first_child().filter(|o| o.kind() == NAME_EXPR)?;
+                    let Target::Decl(d) = self.ref_at(o.first_token()?.text_range())?.target else { return None };
+                    Some((d, crate::lint::field_name(&a)?.text().to_string()))
+                })
+                .collect()
+        });
+        if !tests.contains(&(d, field.text().to_string())) {
+            return None;
+        }
+        let same = |x: &SyntaxNode| {
+            x.kind() == INDEX_EXPR
+                && crate::lint::field_name(x).is_some_and(|f| f.text() == field.text())
+                && x.first_child().filter(|o| o.kind() == NAME_EXPR).and_then(|o| o.first_token()).and_then(|t| self.ref_at(t.text_range())).is_some_and(|r| r.target == target)
+        };
+        let mut node = e.clone();
+        let mut found = None;
+        while let Some(parent) = node.parent() {
+            match parent.kind() {
+                FUNC_BODY => break,
+                BINARY_EXPR if parent.first_child().as_ref() != Some(&node) && parent.children_with_tokens().filter_map(|x| x.into_token()).any(|t| t.kind() == AND_KW) => {
+                    if let Some(f) = parent.first_child().and_then(|l| self.field_type_effect(&l, &same, true)) {
+                        found = Some((f, parent.first_child()?));
+                        break;
+                    }
+                }
+                BLOCK if let Some(owner) = parent.parent().filter(|o| matches!(o.kind(), IF_STAT | ELSEIF_CLAUSE)) => {
+                    if let Some(cond) = owner.first_child()
+                        && let Some(f) = self.field_type_effect(&cond, &same, true)
+                    {
+                        found = Some((f, cond));
+                        break;
+                    }
+                }
+                _ => {}
+            }
+            node = parent;
+        }
+        let (f, cond) = found?;
+        let between = TextRange::new(cond.text_range().end(), e.text_range().start());
+        let local_written = self.names.refs.iter().any(|r| r.target == Target::Decl(d) && r.access == Access::Write && between.contains_range(r.range));
+        let field_written = self.root.covering_element(between).as_node().into_iter().flat_map(|n| n.descendants()).filter(|n| n.kind() == VAR_LIST).flat_map(|l| l.children().collect::<Vec<_>>()).any(|v| between.contains_range(v.text_range()) && same(&v));
+        (!local_written && !field_written).then_some(f)
+    }
+
+    /// [`Self::type_effect`] for a field: `type(t.v) == 'string'` where `same(t.v)`.
+    fn field_type_effect(&self, cond: &SyntaxNode, same: &dyn Fn(&SyntaxNode) -> bool, truth: bool) -> Option<Effect> {
+        match cond.kind() {
+            PAREN_EXPR => self.field_type_effect(&cond.first_child()?, same, truth),
+            UNARY_EXPR if cond.first_token().is_some_and(|t| t.kind() == NOT_KW) => self.field_type_effect(&cond.first_child()?, same, !truth),
+            BINARY_EXPR => {
+                let mut kids = cond.children();
+                let (l, r) = (kids.next()?, kids.next()?);
+                let op = cond.children_with_tokens().filter_map(|x| x.into_token()).find(|t| !matches!(t.kind(), WHITESPACE | COMMENT))?.kind();
+                match op {
+                    AND_KW if truth => self.field_type_effect(&l, same, true).or_else(|| self.field_type_effect(&r, same, true)),
+                    OR_KW if !truth => self.field_type_effect(&l, same, false).or_else(|| self.field_type_effect(&r, same, false)),
+                    EQ2 | NEQ => {
+                        let test = |call: &SyntaxNode, lit: &SyntaxNode| -> Option<String> {
+                            if call.kind() != CALL_EXPR || self.builtin(&call.first_child()?) != "type" || lit.kind() != LITERAL_EXPR {
+                                return None;
+                            }
+                            let arg = call.children().find(|c| c.kind() == ARG_LIST)?.first_child()?;
+                            same(&arg).then(|| crate::util::unquote(&self.text[lit.text_range()]).map(str::to_string))?
+                        };
+                        let lit = test(&l, &r).or_else(|| test(&r, &l))?;
+                        if lit == "nil" {
+                            return None;
+                        }
+                        Some(if (op == EQ2) == truth { Effect::Narrow(name(&lit)) } else { Effect::Exclude(name(&lit)) })
+                    }
+                    _ => None,
+                }
+            }
+            _ => None,
         }
     }
 

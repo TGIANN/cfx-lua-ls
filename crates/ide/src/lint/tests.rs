@@ -628,6 +628,31 @@ print(f, g)
 }
 
 #[test]
+fn type_test_of_a_field_narrows_the_field() {
+    let f = codes("---@param s string
+local function S(s) return s end
+---@param t { kind: string, value: string|number }
+local function f(t)
+    if t.kind == 'cid' and type(t.value) == 'string' then
+        S(t.value)
+    end
+    local ok = type(t.value) == 'string' and S(t.value)
+    if type(t.value) == 'string' then
+        t.value = 1
+        S(t.value)
+    end
+    if type(t.value) == 'string' then
+        CreateThread(function() S(t.value) end)
+    end
+    return ok
+end
+print(f)
+");
+    // The write and the closure: the field may be anything there.
+    assert_eq!(only(&f, "param-type-mismatch").len(), 2, "{f:?}");
+}
+
+#[test]
 fn doc_above_blank_line_is_not_bound() {
     // LuaLS: the `---@class` above the blank line does not type `Api`.
     let f = codes("---@class Res\n---@field ok boolean\n\nApi = {}\n\n---@param a string\n---@return boolean\nfunction Api.F(a) return a ~= '' end\n\n---@param name string\n---@param fn function\nlocal function Exp(name, fn) print(name, fn) end\nExp('F', Api.F)\nprint(Api.G)\n");
