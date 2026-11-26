@@ -435,7 +435,18 @@ impl<'a> Q<'a> {
             Base::Local { decl, .. } => Owner::Local(*decl),
             Base::Table { id, .. } => Owner::Table(*id),
         };
-        for (file, cx) in self.anchor_files(a) {
+        // A global read on one side: a shared file's write to it runs in that
+        // side's state (`Core = CoreExports:getCore()` in a shared file).
+        let side = match &a.base {
+            Base::Global { side: s @ (FileSide::Client | FileSide::Server), .. } => Some(*s),
+            _ => None,
+        };
+        for (file, mut cx) in self.anchor_files(a) {
+            if let Some(s) = side
+                && matches!(cx.side, FileSide::Shared | FileSide::Unknown)
+            {
+                cx.side = s;
+            }
             let Some(api) = self.api(file) else { continue };
             for d in api.defs_of(&owner) {
                 let ok = if fields {
@@ -486,7 +497,11 @@ impl<'a> Q<'a> {
                 let mut funcs = Vec::new();
                 self.funcs_of_ref(callee, cx, &mut funcs, &mut HashSet::new());
                 let found = !funcs.is_empty();
-                for (f, fcx) in funcs {
+                for (f, mut fcx) in funcs {
+                    // A function of a shared file runs in the caller's state.
+                    if matches!(fcx.side, FileSide::Shared | FileSide::Unknown) && matches!(cx.side, FileSide::Client | FileSide::Server) {
+                        fcx.side = cx.side;
+                    }
                     if let Some(ret) = &f.ret {
                         self.resolve(ret, &fcx, out);
                     }
@@ -716,6 +731,16 @@ impl<'a> Q<'a> {
             }
             Val::Anchor(a) => {
                 if !seen.insert(a.clone()) || !self.step() {
+                    return;
+                }
+                // `CoreExports = exports['core']` then `CoreExports:getCore()`: the export.
+                if let Base::Global { name, side, .. } = &a.base
+                    && name == "exports"
+                    && let [res, export] = a.path.as_slice()
+                {
+                    for (value, vcx) in self.export_values(res, export, *side) {
+                        self.funcs_of_ref(&value, &vcx, out, seen);
+                    }
                     return;
                 }
                 for (d, cx) in self.defs(a, false) {

@@ -576,6 +576,44 @@ fn class_fields_and_names_across_files() {
 }
 
 #[test]
+fn table_returned_by_an_export_through_an_alias() {
+    let root = std::env::temp_dir().join(format!("cfx-lua-ls-expalias-{}", std::process::id()));
+    let core = root.join("core");
+    let app = root.join("app");
+    std::fs::create_dir_all(&core).unwrap();
+    std::fs::create_dir_all(&app).unwrap();
+    std::fs::write(core.join("fxmanifest.lua"), "shared_script 'import.lua'\nclient_script 'client.lua'\nserver_script 'server.lua'\n").unwrap();
+    std::fs::write(core.join("import.lua"), "Core = {}\nlocal function getCore()\n    return next(Core) and Core or nil\nend\nexports('getCore', getCore)\n").unwrap();
+    std::fs::write(core.join("client.lua"), "---@param msg string\nCore.notif = function(msg) print(msg) end\n").unwrap();
+    std::fs::write(core.join("server.lua"), "---@param src number\n---@param msg string\nCore.notif = function(src, msg) print(src, msg) end\n").unwrap();
+    std::fs::write(app.join("fxmanifest.lua"), "dependency 'core'\nshared_script 'config.lua'\nclient_script 'client.lua'\nserver_script 'server.lua'\n").unwrap();
+    std::fs::write(app.join("config.lua"), "CoreExports = exports['core']\n").unwrap();
+    std::fs::write(app.join("client.lua"), "").unwrap();
+    std::fs::write(app.join("server.lua"), "").unwrap();
+    let to_uri = |p: &std::path::Path| {
+        let s = p.to_string_lossy().replace('\\', "/").replace(' ', "%20");
+        if s.starts_with('/') { format!("file://{s}") } else { format!("file:///{s}") }
+    };
+    let (mut c, handle) =
+        Client::start_with(json!({ "capabilities": {}, "workspaceFolders": [{ "uri": to_uri(&root), "name": "w" }] }));
+    let text = "Core = CoreExports:getCore()\nCore.notif('a')\nCore.\n";
+    for (file, want) in [("client.lua", "msg: string"), ("server.lua", "src: number")] {
+        let uri = to_uri(&app.join(file));
+        c.notify("textDocument/didOpen", json!({ "textDocument": { "uri": uri, "languageId": "lua", "version": 1, "text": text } }));
+        let _ = c.diagnostics();
+        let at = |line: u32, character: u32| json!({ "textDocument": { "uri": uri }, "position": { "line": line, "character": character } });
+        // The hover shows the side's own function.
+        let hover = c.request("textDocument/hover", at(1, 6));
+        assert!(hover["contents"]["value"].as_str().unwrap_or("").contains(want), "{file}: {hover}");
+        let list = c.request("textDocument/completion", at(2, 5));
+        let items = list.get("items").unwrap_or(&list);
+        assert!(items.as_array().unwrap().iter().any(|i| i["label"] == "notif"), "{file}: {list}");
+    }
+    c.shutdown(handle);
+    std::fs::remove_dir_all(&root).unwrap();
+}
+
+#[test]
 fn class_of_another_file_checks_tables_and_follows_its_edits() {
     let root = std::env::temp_dir().join(format!("cfx-lua-ls-extcls-{}", std::process::id()));
     let res = root.join("app");

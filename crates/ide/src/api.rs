@@ -595,6 +595,18 @@ impl Builder<'_> {
                 }
             }
             PAREN_EXPR => e.first_child().map(|c| self.reference(&c, depth + 1)).unwrap_or(Ref::Unknown),
+            // `next(Core) and Core or nil`, `ok and value`: the value the
+            // expression gives when it gives one.
+            BINARY_EXPR => {
+                let op = e.children_with_tokens().filter_map(|x| x.into_token()).find(|t| !matches!(t.kind(), WHITESPACE | COMMENT)).map(|t| t.kind());
+                let mut kids = e.children();
+                let (Some(l), Some(r)) = (kids.next(), kids.next()) else { return Ref::Unknown };
+                match op {
+                    Some(AND_KW) => self.reference(&r, depth + 1),
+                    Some(OR_KW) if r.kind() == LITERAL_EXPR && r.first_token().is_some_and(|t| matches!(t.kind(), NIL_KW | FALSE_KW)) => self.reference(&l, depth + 1),
+                    _ => Ref::Unknown,
+                }
+            }
             INDEX_EXPR => {
                 let Some(object) = e.first_child() else { return Ref::Unknown };
                 let field = match crate::lint::field_name(e) {
