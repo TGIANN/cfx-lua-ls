@@ -182,6 +182,23 @@ enum Arity {
 
 /// A documented parameter a caller must pass: not optional, not nil-able, not
 /// `any`.
+/// (most arguments, fewest required) of a function, `self` counted; `None`
+/// when it takes `...`. A parameter is required only when its doc type says so
+/// and the body does not test it for nil.
+fn func_arity(f: &api::FuncDef) -> Option<(usize, usize)> {
+    if f.params.iter().any(|p| p == "...") {
+        return None;
+    }
+    let shift = usize::from(f.method);
+    let required = f
+        .param_types
+        .iter()
+        .enumerate()
+        .rposition(|(i, t)| t.as_ref().is_some_and(required_type) && !f.nil_ok.get(i).copied().unwrap_or(false))
+        .map_or(0, |i| i + 1);
+    Some((f.params.len() + shift, required + shift))
+}
+
 fn required_type(t: &DocType) -> bool {
     match t {
         DocType::Optional(_) => false,
@@ -1049,18 +1066,9 @@ impl<'a> Q<'a> {
             }
             let Ref::Func(id) = r else { return Arity::Unknown };
             let Some(f) = self.api(&vcx.file).and_then(|a| a.funcs.get(*id as usize)) else { return Arity::Unknown };
-            if f.params.iter().any(|p| p == "...") {
-                return Arity::Unknown;
-            }
-            let shift = usize::from(f.method);
-            let required = f
-                .param_types
-                .iter()
-                .enumerate()
-                .rposition(|(i, t)| t.as_ref().is_some_and(required_type) && !f.nil_ok.get(i).copied().unwrap_or(false))
-                .map_or(0, |i| i + 1);
-            max = max.max(f.params.len() + shift);
-            min = min.min(required + shift);
+            let Some((most, fewest)) = func_arity(f) else { return Arity::Unknown };
+            max = max.max(most);
+            min = min.min(fewest);
         }
         if self.budget.get() == 0 {
             return Arity::Unknown;
@@ -1444,6 +1452,9 @@ impl Workspace {
                     // qbx_core has no handler, qb-core has one.
                     let Some(callee) = n.first_child().filter(|c| c.kind() == NAME_EXPR) else { continue };
                     let callee_name = &text[callee.text_range()];
+                    if let Some((code, range, message)) = self.event_arity_lint(&q, &cx, &k, text, names, &n, overlay) {
+                        push(code, range, message, None);
+                    }
                     if matches!(callee_name, "RegisterNetEvent" | "RegisterServerEvent") && cx.side == FileSide::Server {
                         if let Some(l) = self.net_event_local_only(&n, text, &cx, overlay) {
                             push("fivem/net-event-same-side", l.0, l.1, None);
@@ -2025,6 +2036,126 @@ impl Workspace {
     /// client may. Silent when something else might send it: the name in another
     /// string (a wrapper's argument, a table of names), an escrow file in the
     /// resource or in one named like the event's prefix.
+    /// fivem/event-argument-count and fivem/event-missing-arguments for one
+    /// trigger (`TriggerServerEvent('e', a)`): its arguments against every
+    /// handler of the event on the side it reaches. Silent unless the name is a
+    /// literal no other string repeats, every handler is a function of the
+    /// sender's resource without `...` and all of them agree, and no escrow
+    /// resource is involved.
+    #[allow(clippy::too_many_arguments)]
+    fn event_arity_lint(
+        &self,
+        q: &Q,
+        cx: &Cx,
+        k: &str,
+        text: &str,
+        names: &crate::Names,
+        call: &cfx_lua_syntax::SyntaxNode,
+        overlay: &api::FileApi,
+    ) -> Option<(&'static str, crate::TextRange, String)> {
+        use cfx_lua_syntax::SyntaxKind::*;
+        let callee = call.first_child()?;
+        if !callee.first_token().is_some_and(|t| api::is_global(names, t.text_range())) {
+            return None;
+        }
+        // Arguments before the handler's own: the name, the target, the rate.
+        let (skip, side) = match &text[callee.text_range()] {
+            "TriggerEvent" => (1, None),
+            "TriggerServerEvent" => (1, Some(FileSide::Server)),
+            "TriggerLatentServerEvent" => (2, Some(FileSide::Server)),
+            "TriggerClientEvent" => (2, Some(FileSide::Client)),
+            "TriggerLatentClientEvent" => (3, Some(FileSide::Client)),
+            _ => return None,
+        };
+        let net = side.is_some();
+        // `TriggerEvent` stays in the caller's state; from a shared file, both.
+        let side = side.or(match cx.side {
+            s @ (FileSide::Client | FileSide::Server) => Some(s),
+            _ => None,
+        });
+        let args = call.children().find(|c| c.kind() == ARG_LIST)?;
+        if !args.first_token().is_some_and(|t| t.kind() == L_PAREN) {
+            return None;
+        }
+        let values: Vec<cfx_lua_syntax::SyntaxNode> = args.children().collect();
+        let first = values.first().filter(|f| f.kind() == LITERAL_EXPR)?;
+        let name = crate::util::unquote(text[first.text_range()].trim())?;
+        if values.len() < skip || self.event_strings.contains_key(name) || overlay.event_strings.iter().any(|n| n == name) {
+            return None;
+        }
+        let escrow = |res: Option<usize>| {
+            res.is_some_and(|id| self.resources[id].escrow || self.duplicate_names.contains(&self.resources[id].name.to_lowercase()))
+        };
+        let named = |res: &str| self.by_name.get(&res.to_lowercase()).is_some_and(|&id| escrow(Some(id)));
+        if escrow(cx.res) || name.split(':').next().is_some_and(named) {
+            return None;
+        }
+        let mut files: Vec<&str> =
+            self.event_handler_files.get(name).into_iter().flatten().map(String::as_str).filter(|f| *f != k).collect();
+        if overlay.event_handlers.iter().any(|(n, _)| n == name) {
+            files.push(k);
+        }
+        let mut found: Option<(usize, usize)> = None;
+        for file in files {
+            let hcx = q.cx_of(file, FileSide::Unknown);
+            let opposite =
+                matches!((side, hcx.side), (Some(FileSide::Client), FileSide::Server) | (Some(FileSide::Server), FileSide::Client));
+            if opposite {
+                continue;
+            }
+            // Another resource's event may have handlers this workspace does not
+            // hold (cfx `chat`, a framework's `playerSpawned` listeners).
+            if hcx.res != cx.res || escrow(hcx.res) {
+                return None;
+            }
+            let fapi = q.api(file)?;
+            for (_, handler) in fapi.event_handlers.iter().filter(|(n, _)| n == name) {
+                q.budget.set(BUDGET);
+                let arity = match handler {
+                    Ref::Func(id) => func_arity(fapi.funcs.get(*id as usize)?)?,
+                    r => {
+                        let mut fields = Vec::new();
+                        let mut root = r;
+                        while let Ref::Field(base, f) = root {
+                            fields.push(f.clone());
+                            root = base;
+                        }
+                        fields.reverse();
+                        if !matches!(root, Ref::Global(_) | Ref::Local(_)) {
+                            return None;
+                        }
+                        match q.arity(&hcx, root, &fields) {
+                            Arity::Known(max, min) => (max, min),
+                            _ => return None,
+                        }
+                    }
+                };
+                if found.is_some_and(|f| f != arity) {
+                    return None;
+                }
+                found = Some(arity);
+            }
+        }
+        let (max, min) = found?;
+        let sent = &values[skip..];
+        let open = sent.last().is_some_and(|v| matches!(v.kind(), CALL_EXPR | METHOD_CALL_EXPR | VARARG_EXPR));
+        let fewest_sent = sent.len() - usize::from(open);
+        // A `TriggerEvent` is often a hook other resources listen to, sent with
+        // more than the resource's own handler reads (`ox_inventory:usedItem`).
+        if fewest_sent > max && net {
+            let range = crate::TextRange::new(sent[max].text_range().start(), sent.last()?.text_range().end());
+            return Some(("fivem/event-argument-count", range, format!("The handlers of `{name}` take {max} argument(s), but {} are sent.", sent.len())));
+        }
+        if sent.len() < min && !open {
+            return Some((
+                "fivem/event-missing-arguments",
+                call.text_range(),
+                format!("The handlers of `{name}` require {min} argument(s), but {} are sent.", sent.len()),
+            ));
+        }
+        None
+    }
+
     fn net_event_local_only(&self, call: &cfx_lua_syntax::SyntaxNode, text: &str, cx: &Cx, overlay: &api::FileApi) -> Option<(crate::TextRange, String)> {
         use cfx_lua_syntax::SyntaxKind::*;
         let first = call.children().find(|c| c.kind() == ARG_LIST)?.children().next().filter(|f| f.kind() == LITERAL_EXPR)?;
@@ -2382,6 +2513,49 @@ mod tests {
                 .count();
             assert_eq!(hits, 0, "{file}");
         }
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn event_arguments_against_the_handlers() {
+        let root = std::env::temp_dir().join(format!("cfx-evargs-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        write(&root, "app/fxmanifest.lua", "client_script 'c.lua'\nserver_script 's.lua'\n");
+        write(
+            &root,
+            "app/s.lua",
+            "RegisterNetEvent('app:one', function(a) print(a) end)\n---@param n integer\nlocal function need(n) print(n) end\nRegisterNetEvent('app:need', need)\nRegisterNetEvent('app:any', function(...) print(...) end)\nAddEventHandler('app:local', function() end)\nRegisterNetEvent('app:two', function(a) print(a) end)\nRegisterNetEvent('app:two', function(a, b) print(a, b) end)\nRegisterNetEvent('other:ev', function() end)\n",
+        );
+        // `other:ev` has a handler in another resource too.
+        write(&root, "other/fxmanifest.lua", "server_script 's.lua'\n");
+        write(&root, "other/s.lua", "RegisterNetEvent('other:ev', function() end)\n");
+        let text = "TriggerServerEvent('app:one', 1, 2)\nTriggerServerEvent('app:one', 1)\nTriggerServerEvent('app:need')\nTriggerServerEvent('app:need', f())\nTriggerServerEvent('app:any', 1, 2, 3)\nTriggerServerEvent('app:two', 1, 2, 3)\nTriggerServerEvent('other:ev', 1)\nTriggerLatentServerEvent('app:one', 5000, 1, 2)\n";
+        write(&root, "app/c.lua", text);
+        let ws = Workspace::scan(std::slice::from_ref(&root));
+        let path = root.join("app/c.lua");
+        let p = crate::parse(text);
+        let n = crate::names(&p, text);
+        let found: Vec<(usize, &str)> = crate::workspace::lint_file(&ws, &path, &p, text, &n, &crate::lint::LintConfig::default())
+            .into_iter()
+            .filter(|l| l.code.starts_with("fivem/event-"))
+            .map(|l| (text[..usize::from(l.range.start())].matches('\n').count() + 1, l.code))
+            .collect();
+        assert_eq!(found, [(1, "fivem/event-argument-count"), (3, "fivem/event-missing-arguments"), (8, "fivem/event-argument-count")]);
+        // A server `TriggerEvent` may be a hook other resources read more of;
+        // a missing required argument still counts.
+        let text = "TriggerEvent('app:local', 1)\nTriggerEvent('app:need')\n";
+        let path = root.join("app/s2.lua");
+        write(&root, "app/fxmanifest.lua", "client_script 'c.lua'\nserver_scripts { 's.lua', 's2.lua' }\n");
+        write(&root, "app/s2.lua", text);
+        let ws = Workspace::scan(std::slice::from_ref(&root));
+        let p = crate::parse(text);
+        let n = crate::names(&p, text);
+        let found: Vec<(usize, &str)> = crate::workspace::lint_file(&ws, &path, &p, text, &n, &crate::lint::LintConfig::default())
+            .into_iter()
+            .filter(|l| l.code.starts_with("fivem/event-"))
+            .map(|l| (text[..usize::from(l.range.start())].matches('\n').count() + 1, l.code))
+            .collect();
+        assert_eq!(found, [(2, "fivem/event-missing-arguments")]);
         std::fs::remove_dir_all(&root).unwrap();
     }
 

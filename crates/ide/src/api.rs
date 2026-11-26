@@ -166,6 +166,8 @@ pub struct FileApi {
     pub export_events: Vec<String>,
     /// Event names the file registers a handler for, with the literal's offset.
     pub events_handled: Vec<(String, u32)>,
+    /// The handler functions among them (`AddEventHandler('e', fn)`).
+    pub event_handlers: Vec<(String, Ref)>,
     /// Event names the file triggers.
     pub events_triggered: Vec<(String, u32)>,
     /// Of those, the ones sent to the server (`TriggerServerEvent`,
@@ -227,6 +229,7 @@ impl FileApi {
             a.callee == b.callee && a.name == b.name && a.value == b.value
         }) && self.dynamic_export_calls == other.dynamic_export_calls
             && all(&self.events_handled, &other.events_handled, |a, b| a.0 == b.0)
+            && self.event_handlers == other.event_handlers
             && all(&self.events_triggered, &other.events_triggered, |a, b| a.0 == b.0)
             && self.server_bound == other.server_bound
             && self.fired_locally == other.fired_locally
@@ -476,7 +479,7 @@ pub(crate) fn is_exports(text: &str, names: &Names, name: &SyntaxNode) -> bool {
     }
 }
 
-fn is_global(names: &Names, r: TextRange) -> bool {
+pub(crate) fn is_global(names: &Names, r: TextRange) -> bool {
     names
         .refs
         .binary_search_by_key(&r.start(), |x| x.range.start())
@@ -1069,6 +1072,10 @@ impl Builder<'_> {
                 }
                 "RegisterNetEvent" | "AddEventHandler" | "RegisterServerEvent" => {
                     if let Some(name) = first_string.clone() {
+                        if let Some(rowan::NodeOrToken::Node(v)) = a.get(1) {
+                            let handler = self.reference(v, 0);
+                            self.api.event_handlers.push((name.clone(), handler));
+                        }
                         self.api.events_handled.push((name, first_offset));
                     }
                 }

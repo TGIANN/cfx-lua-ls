@@ -165,6 +165,8 @@ pub const RULES: &[(&str, Option<Severity>)] = &[
     ("qb/core-object-event", Some(Severity::Warning)),
     ("esx/shared-object-event", Some(Severity::Information)),
     ("fivem/net-event-same-side", Some(Severity::Information)),
+    ("fivem/event-argument-count", Some(Severity::Warning)),
+    ("fivem/event-missing-arguments", Some(Severity::Warning)),
     // fxmanifest.lua against the disk
     ("fivem/manifest-missing-file", Some(Severity::Error)),
     ("fivem/manifest-path-case", Some(Severity::Warning)),

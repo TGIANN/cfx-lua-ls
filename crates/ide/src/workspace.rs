@@ -272,6 +272,8 @@ pub struct Workspace {
     event_strings: HashMap<String, usize>,
     /// Class name to the files that declare it or bind a value to it.
     classes: HashMap<String, Vec<String>>,
+    /// Event name to the files that pass it a handler function.
+    event_handler_files: HashMap<String, Vec<String>>,
     /// `---@alias` / `---@enum` names, with the number of files.
     doc_names: HashMap<String, usize>,
 }
@@ -487,6 +489,12 @@ impl Workspace {
                 files.push(k.clone());
             }
         }
+        for (n, _) in &api.event_handlers {
+            let files = self.event_handler_files.entry(n.clone()).or_default();
+            if !files.contains(&k) {
+                files.push(k.clone());
+            }
+        }
         for n in api.deprecated_names() {
             *self.deprecated.entry(n.to_string()).or_insert(0) += 1;
         }
@@ -543,6 +551,14 @@ impl Workspace {
                 files.retain(|f| f != k);
                 if files.is_empty() {
                     self.classes.remove(n);
+                }
+            }
+        }
+        for (n, _) in &api.event_handlers {
+            if let Some(files) = self.event_handler_files.get_mut(n) {
+                files.retain(|f| f != k);
+                if files.is_empty() {
+                    self.event_handler_files.remove(n);
                 }
             }
         }

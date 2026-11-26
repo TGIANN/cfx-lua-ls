@@ -222,6 +222,14 @@ pub const RULE_DOCS: &[(&str, &str)] = &[
         "`RegisterNetEvent` in a server file for an event that the workspace only fires with `TriggerEvent` and never sends from a client: any client can still send it.",
     ),
     (
+        "fivem/event-argument-count",
+        "A net trigger (`TriggerServerEvent`, `TriggerClientEvent`, the latent ones) sending more arguments than the handlers of the event in the sender's resource, on the side it reaches, take.",
+    ),
+    (
+        "fivem/event-missing-arguments",
+        "A trigger sending fewer arguments than the handlers of the event require (a `---@param` whose type does not allow nil and that the body never tests for nil).",
+    ),
+    (
         "fivem/wrong-side-native",
         "A client-only native in a server file or a server-only native in a client file (side from fxmanifest.lua, native side from the native docs).",
     ),
