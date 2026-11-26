@@ -476,6 +476,15 @@ fn is_global(names: &Names, r: TextRange) -> bool {
         .is_ok_and(|i| names.refs[i].target == Target::Global)
 }
 
+/// `_G.X` and `_ENV.X` (no local `_ENV`) are the global `X`, as in LuaLS: ox_lib
+/// builds `local lib` and publishes it with `_ENV.lib = lib`.
+fn env_global(mut owner: Owner, mut path: Vec<String>) -> (Owner, Vec<String>) {
+    while matches!(&owner, Owner::Global(g) if g == "_G" || g == "_ENV") && !path.is_empty() {
+        owner = Owner::Global(path.remove(0));
+    }
+    (owner, path)
+}
+
 fn name_target(names: &Names, r: TextRange) -> Option<Target> {
     names.refs.binary_search_by_key(&r.start(), |x| x.range.start()).ok().map(|i| names.refs[i].target)
 }
@@ -531,7 +540,8 @@ impl Builder<'_> {
         }
         let t = e.first_token()?;
         path.reverse();
-        Some((self.owner_of(&t)?, path, offset.unwrap_or(u32::from(t.text_range().start()))))
+        let (owner, path) = env_global(self.owner_of(&t)?, path);
+        Some((owner, path, offset.unwrap_or(u32::from(t.text_range().start()))))
     }
 
     fn func(&mut self, body: &SyntaxNode, method: bool, offset: TextSize) -> u32 {
@@ -742,7 +752,7 @@ impl Builder<'_> {
                 let f = self.func(&body, method, last.text_range().start());
                 let tags = self.stat_tags(n);
                 self.func_tags(f, &tags);
-                let path = parts[1..].iter().map(|t| t.text().to_string()).collect();
+                let (owner, path) = env_global(owner, parts[1..].iter().map(|t| t.text().to_string()).collect());
                 self.def(owner, path, Ref::Func(f), u32::from(last.text_range().start()), n);
             }
             ASSIGN_STAT => {
@@ -1275,6 +1285,33 @@ mod tests {
         assert!(a.defs.iter().any(|d| d.owner == Owner::Table(1) && d.path == ["b"]));
         assert_eq!(a.ret, Some(Ref::Local(2)), "params src, amount come first");
         assert_eq!(a.deprecated_names().collect::<Vec<_>>(), ["AddMoney"]);
+    }
+
+    #[test]
+    fn env_and_g_fields_are_globals() {
+        let a = api("local t = {}
+_ENV.T = t
+_G.U = 1
+_ENV._G.V = 2
+function _G.W.f() end
+");
+        let globals: Vec<(String, Vec<String>)> = a
+            .defs
+            .iter()
+            .filter_map(|d| match &d.owner {
+                Owner::Global(g) => Some((g.clone(), d.path.clone())),
+                _ => None,
+            })
+            .collect();
+        for want in [("T", vec![]), ("U", vec![]), ("V", vec![]), ("W", vec!["f".to_string()])] {
+            assert!(globals.contains(&(want.0.to_string(), want.1.clone())), "{want:?} in {globals:?}");
+        }
+        assert!(!globals.iter().any(|(g, _)| g == "_ENV" || g == "_G"), "{globals:?}");
+        // A local `_ENV` is a table like any other.
+        let a = api("local _ENV = {}
+_ENV.X = 1
+");
+        assert!(!a.defs.iter().any(|d| d.owner == Owner::Global("X".into())));
     }
 
     #[test]
