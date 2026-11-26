@@ -15,10 +15,10 @@ use rowan::{GreenNodeData, Language, NodeOrToken};
 pub(crate) fn trimmed(node: &SyntaxNode) -> Option<TextRange> {
     let r = node.text_range();
     let green = node.green();
-    let trail = trivia_len(&green, true)?;
+    let trail = trivia_len(green, true)?;
     let kind = node.kind();
     let lead = if kind.attaches_comments() || matches!(kind, BLOCK | SOURCE_FILE) {
-        trivia_len(&green, false)?
+        trivia_len(green, false)?
     } else {
         TextSize::from(0)
     };
