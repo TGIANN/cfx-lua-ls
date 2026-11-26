@@ -2323,9 +2323,12 @@ impl<'a> FileTypes<'a> {
                 continue;
             }
             // A call last spreads; only plain one-to-one values are checked, and
-            // not names or `a or b` (the flow inference may miss a narrowing).
+            // not names or `a or b` (the flow inference may miss a narrowing);
+            // `n and tostring(n)` is (`string?` when `n` may be nil).
             let Some(value) = values.get(i).filter(|v| !(i + 1 == values.len() && vars.len() > values.len() && matches!(v.kind(), CALL_EXPR | METHOD_CALL_EXPR))) else { continue };
+            let and = var.kind() == NAME_EXPR && value.kind() == BINARY_EXPR && value.children_with_tokens().filter_map(|x| x.into_token()).any(|t| t.kind() == AND_KW);
             if !matches!(value.kind(), LITERAL_EXPR | TABLE_EXPR | FUNCTION_EXPR | CALL_EXPR | METHOD_CALL_EXPR | UNARY_EXPR)
+                && !and
                 && !inf.fixed_doc_local(value)
                 && !(inf.table_shape.get() && value.kind() == NAME_EXPR)
             {

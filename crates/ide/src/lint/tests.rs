@@ -597,6 +597,28 @@ print(f1, f2, f3)
 }
 
 #[test]
+fn and_value_that_may_be_nil_does_not_fit_a_parameter() {
+    // LuaLS (nil checked): `n and tostring(n)` is `string?`, the parameter takes no nil.
+    let config = crate::lint::LintConfig { weak_nil_check: Some(false), ..Default::default() };
+    let ctx = Context { config: &config, ..Context::default() };
+    let f = run("---@param x string|number
+---@param n number?
+local function f(x, n)
+    x = n and tostring(n)
+    return x
+end
+---@param x string?
+---@param n number?
+local function g(x, n)
+    x = n and tostring(n)
+    return x
+end
+print(f, g)
+", &ctx);
+    assert_eq!(only(&f, "cast-local-type"), ["x"], "{f:?}");
+}
+
+#[test]
 fn doc_above_blank_line_is_not_bound() {
     // LuaLS: the `---@class` above the blank line does not type `Api`.
     let f = codes("---@class Res\n---@field ok boolean\n\nApi = {}\n\n---@param a string\n---@return boolean\nfunction Api.F(a) return a ~= '' end\n\n---@param name string\n---@param fn function\nlocal function Exp(name, fn) print(name, fn) end\nExp('F', Api.F)\nprint(Api.G)\n");
