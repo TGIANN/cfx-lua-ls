@@ -1260,7 +1260,7 @@ impl Workspace {
         let q = Q::new(self, Some((k.as_str(), overlay)));
         for call in parse.syntax().descendants().filter(|n| matches!(n.kind(), CALL_EXPR | METHOD_CALL_EXPR)) {
             let Some(key) = crate::types::ext_call_key(text, &call) else { continue };
-            if !tried.insert(key.clone()) {
+            if tried.contains(&key) {
                 continue;
             }
             let Some(callee) = call.first_child() else { continue };
@@ -1272,9 +1272,11 @@ impl Workspace {
                 continue;
             }
             let Some((root, mut fields)) = crate::assist::chain(text, names, &callee) else { continue };
+            // A local of the same name (the callee is keyed by its text) is not the global.
             if !matches!(root, Ref::Global(_)) {
                 continue;
             }
+            tried.insert(key.clone());
             if method_call {
                 let Some(m) = api::method_name(&call) else { continue };
                 fields.push(m.text().to_string());
@@ -1302,6 +1304,19 @@ impl Workspace {
                 is_async: false,
             };
             let mut funs: Vec<FunType> = f.overloads.iter().cloned().chain(std::iter::once(own)).collect();
+            // A function of another resource (`@lib/file.lua`) names its types as
+            // that resource sees them: left out when a name means another class here.
+            if let (Some(home), Some(theirs)) = (cx.res, self.files.get(&fcx.file).and_then(|e| e.resource))
+                && home != theirs
+            {
+                let mut used = Vec::new();
+                for g in &funs {
+                    super::type_names(&DocType::Fun(Box::new(g.clone())), &mut used);
+                }
+                if used.iter().any(|n| self.class_home(home, n) != self.class_home(theirs, n)) {
+                    continue;
+                }
+            }
             for g in &mut funs {
                 match (f.method, method_call) {
                     // `function A:m(x)` called as `A.m(obj, x)`.

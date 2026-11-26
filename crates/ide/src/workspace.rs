@@ -195,7 +195,7 @@ fn doc_words(line: &str, out: &mut Vec<String>) {
 }
 
 /// The names a doc type mentions.
-fn type_names(t: &crate::luacats::DocType, out: &mut Vec<String>) {
+pub(super) fn type_names(t: &crate::luacats::DocType, out: &mut Vec<String>) {
     use crate::luacats::DocType as D;
     match t {
         D::Name(n) => out.push(n.clone()),
@@ -764,6 +764,14 @@ impl Workspace {
     }
 
     /// A resource's `---@class name`, its declarations in every file merged.
+    /// The resource whose `---@class name` a file of resource `r` sees: its
+    /// own, else the first resource its manifest names that declares it.
+    pub(crate) fn class_home(&self, r: usize, name: &str) -> Option<usize> {
+        std::iter::once(r).chain(self.related(r)).find(|&res| {
+            self.resources[res].files.iter().any(|f| self.files.get(f).is_some_and(|e| e.api.classes.iter().any(|c| c.name == name)))
+        })
+    }
+
     fn class_in(&self, res: usize, name: &str) -> Option<crate::api::ClassDef> {
         let mut found: Option<crate::api::ClassDef> = None;
         for f in &self.resources[res].files {
@@ -1222,6 +1230,31 @@ mod tests {
             [(1, "missing-fields"), (2, "assign-type-mismatch"), (3, "param-type-mismatch"), (6, "missing-fields"), (7, "param-type-mismatch")],
             "{all:?}"
         );
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn calls_to_other_files_keep_their_own_names() {
+        let root = std::env::temp_dir().join(format!("cfx-wscall2-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        // `Opts` of lib is not the app's `Opts`.
+        write(&root, "lib/fxmanifest.lua", "shared_script 'types.lua'\n");
+        write(&root, "lib/types.lua", "---@class Opts\n---@field other number\n---@param o Opts\nfunction LibSend(o) end\n");
+        // The file runs in app too (`@lib/types.lua`).
+        write(&root, "app/fxmanifest.lua", "shared_scripts { '@lib/types.lua', 'shared.lua' }\nclient_script 'client.lua'\n");
+        // A doc block above a blank line is not the function's.
+        write(&root, "app/shared.lua", "---@class Opts\n---@field id integer\n---@param a string\n\nfunction Loose(a) end\n---@param n integer\nfunction Num(n) end\n");
+        let text = "LibSend({ other = 1 })\nLoose(1)\nlocal function f(Num) Num('x') end\nf(print)\nNum('y')\n";
+        write(&root, "app/client.lua", text);
+        let ws = Workspace::scan(std::slice::from_ref(&root));
+        let path = root.join("app/client.lua");
+        let p = crate::parse(text);
+        let n = crate::names(&p, text);
+        let all = lint_file(&ws, &path, &p, text, &n, &LintConfig::default());
+        let line = |l: &crate::lint::Lint| text[..usize::from(l.range.start())].matches('\n').count() + 1;
+        let found: Vec<(usize, &str)> = all.iter().map(|l| (line(l), l.code)).collect();
+        // Only the global `Num` (line 5); the parameter `Num` shadows it on line 3.
+        assert_eq!(found, [(5, "param-type-mismatch")], "{all:?}");
         std::fs::remove_dir_all(&root).unwrap();
     }
 }

@@ -6000,6 +6000,11 @@ impl<'a> Infer<'a> {
         if self.function_body(&callee).is_some() || self.file_functions().contains_key(&key.replace(':', ".")) {
             return None;
         }
+        // The root name is the global here, not a local of the same name.
+        let root = callee.descendants_with_tokens().filter_map(|e| e.into_token()).find(|t| t.kind() == NAME)?;
+        if self.ref_at(root.text_range()).is_some_and(|r| r.target != Target::Global) {
+            return None;
+        }
         self.ext_calls.get(&key).cloned()
     }
 
