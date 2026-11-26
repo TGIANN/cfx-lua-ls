@@ -7,7 +7,8 @@ offers, at a fraction of its memory use, plus what FiveM needs: `fxmanifest.lua`
 awareness, client / server sides, natives, the server sandbox, exports, events,
 ox_lib and the frameworks (QBCore, Qbox).
 
-**Status:** early, not released. Done: the CfxLua parser, formatter
+**Status:** released (GitHub releases and the VS Code Marketplace,
+`tgiann.cfx-lua-ls`). Done: the CfxLua parser, formatter
 (EmmyLuaCodeStyle behaviour), names (definition, references, rename), 117 lint
 rules with quick fixes, hover / completion / signature help from the natives, the
 Lua library and the workspace's own resources (exports, framework objects, ox_lib's

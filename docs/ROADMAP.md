@@ -505,7 +505,7 @@ error ("invalid UTF-8 code").
     (two copies of tgiann-bank): a payload typed `businessName:
     BankHistoryText` (`string | table<string, string>`) passed to a handler
     whose doc says `businessName: string`.
-- [ ] **7. Rest of LuaLS + release:** code actions, inlay hints, workspace
+- [x] **7. Rest of LuaLS + release:** code actions, inlay hints, workspace
   diagnostics, `.luarc.json` and `Lua.*` settings compatibility, CLI `check`,
   GitHub Action (SARIF), GitHub release, VS Code Marketplace (publisher `tgiann`,
   owner decision).
@@ -554,8 +554,8 @@ error ("invalid UTF-8 code").
   - Marketplace: the `tgiann` publisher has a Trusted Publishing policy for
     this repository and `release.yml`; the release workflow's `publish` job
     sends each platform's `.vsix` with `vsce publish --oidc` (vsce 4.1.1), so
-    no token is stored. Azure DevOps global PATs, the earlier `VSCE_PAT` route,
-    are being retired.
+    no token is stored (first upload: v1.1.0). Azure DevOps global PATs, the
+    earlier `VSCE_PAT` route, are being retired.
 
 ## Design decisions
 
