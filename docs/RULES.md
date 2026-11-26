@@ -189,7 +189,7 @@ Only where the manifest loads `@ox_lib/init.lua` for the file's side.
 
 | id | flags | level | fix |
 |---|---|---|---|
-| `perf/concat-in-loop` | `s = s .. x` on the same variable inside a loop (quadratic) | W | |
+| `perf/concat-in-loop` | `s = s .. x` on the same variable inside a loop (quadratic); not a local declared in that loop, which starts over on every iteration | W | |
 | `perf/table-insert-append` | `table.insert(t, v)` with two arguments | H | `t[#t + 1] = v` |
 | `perf/sequential-index-keys` | `{ [1] = a, [2] = b, ... }` (goes to the hash part) | I | `{ a, b, ... }` |
 | `perf/constant-table-in-loop` | a constant table passed to a library function inside a loop body | H | |

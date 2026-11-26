@@ -44,7 +44,16 @@ fn concat_in_loop(l: &mut Linter, stat: &SyntaxNode) {
     };
     let is_concat = value.kind() == BINARY_EXPR && value.children_with_tokens().any(|e| e.kind() == DOT2);
     let same = value.first_child().is_some_and(|f| f.kind() == var.kind() && l.src(f.text_range()) == l.src(var.text_range()));
-    if var.kind() == NAME_EXPR && is_concat && same {
+    // A local declared in the loop starts over on every iteration.
+    let fresh = || {
+        let Some(lp) = enclosing_loop(stat) else { return false };
+        let at = var.text_range();
+        l.names.refs.iter().find(|r| at.contains_range(r.range)).is_some_and(|r| match r.target {
+            Target::Decl(d) => lp.text_range().contains_range(l.names.decls[d].range),
+            Target::Global => false,
+        })
+    };
+    if var.kind() == NAME_EXPR && is_concat && same && !fresh() {
         l.push(
             "perf/concat-in-loop",
             stat.text_range(),
