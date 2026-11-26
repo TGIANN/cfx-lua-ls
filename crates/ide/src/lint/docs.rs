@@ -268,6 +268,7 @@ pub const RULE_DOCS: &[(&str, &str)] = &[
         "A value joined with `..` into the query of a MySQL call (`'... WHERE id = ' .. id`): pass it as a `?` parameter, or a quote in it changes the query.",
     ),
     ("ox/cache-ped", "ox_lib keeps the local ped in `cache.ped`."),
+    ("ox/missing-locale", "`locale('key')` with a key none of the resource's `locales/*.json` files has: ox_lib returns the key itself."),
     ("ox/cache-playerid", "ox_lib keeps the local player id in `cache.playerId`."),
     ("ox/cache-serverid", "ox_lib keeps the local player's server id in `cache.serverId`."),
     ("ox/cache-vehicle", "ox_lib keeps the local player's vehicle in `cache.vehicle` (`false` on foot, not `0`)."),

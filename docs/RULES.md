@@ -177,6 +177,7 @@ Only where the manifest loads `@ox_lib/init.lua` for the file's side.
 
 | id | flags | level | fix |
 |---|---|---|---|
+| `ox/missing-locale` | `locale('key')` (a literal key) where none of the resource's `locales/*.json` files has `key` (nested objects flattened with `.`, as ox_lib reads them); ox_lib then shows the key itself. Only in a file the manifest lists and no other resource imports with `@res/file.lua`, in a resource that loads `@ox_lib/init.lua`, keeps the default folder (no `locales_path`), defines no `locale` of its own and does not call `lib.getLocale` | W | |
 | `ox/cache-ped` | `PlayerPedId()` | I | `cache.ped` |
 | `ox/cache-playerid` | `PlayerId()` | I | `cache.playerId` |
 | `ox/cache-serverid` | `GetPlayerServerId(PlayerId())` | I | `cache.serverId` |

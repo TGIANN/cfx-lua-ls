@@ -563,8 +563,7 @@ error ("invalid UTF-8 code").
 
 ## Open gaps
 
-- Qbox's lint rules with no counterpart yet: locale keys missing from the
-  locale files.
+None known.
 
 ## Design decisions
 

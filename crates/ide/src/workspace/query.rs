@@ -1425,6 +1425,7 @@ impl Workspace {
             if advice.is_empty() { format!("`{name}` is deprecated.") } else { format!("`{name}` is deprecated: {advice}") }
         };
         let mut arities = ArityCx { known: HashMap::new(), written: HashSet::new() };
+        let mut locale_keys: Option<Option<HashSet<String>>> = None;
         arities.written = names
             .refs
             .iter()
@@ -1454,6 +1455,21 @@ impl Workspace {
                     let callee_name = &text[callee.text_range()];
                     if let Some((code, range, message)) = self.event_arity_lint(&q, &cx, &k, text, names, &n, overlay) {
                         push(code, range, message, None);
+                    }
+                    if callee_name == "locale"
+                        && callee.first_token().is_some_and(|t| api::is_global(names, t.text_range()))
+                        && let Some(first) = n.children().find(|c| c.kind() == ARG_LIST).and_then(|a| a.children().next())
+                        && first.kind() == LITERAL_EXPR
+                        && let Some(key) = crate::util::unquote(text[first.text_range()].trim())
+                        && let Some(keys) = locale_keys.get_or_insert_with(|| self.locale_keys(&cx)).as_ref()
+                        && !keys.contains(key)
+                    {
+                        push(
+                            "ox/missing-locale",
+                            first.text_range(),
+                            format!("No locale file of the resource has `{key}`: `locale` returns the key itself."),
+                            None,
+                        );
                     }
                     if matches!(callee_name, "RegisterNetEvent" | "RegisterServerEvent") && cx.side == FileSide::Server {
                         if let Some(l) = self.net_event_local_only(&n, text, &cx, overlay) {
@@ -2156,6 +2172,62 @@ impl Workspace {
         None
     }
 
+    /// Every key of the resource's ox_lib locale files (`locales/*.json`,
+    /// nested objects flattened with `.` as ox_lib does), or `None` when the
+    /// resource does not load ox_lib, defines its own `locale`, adds keys at
+    /// run time (`lib.getLocale`), moves the folder (`locales_path`), or has no
+    /// readable locale file. Only for a file the manifest lists and no other
+    /// resource imports (`@res/file.lua`): elsewhere `locale` reads the loading
+    /// resource's files.
+    fn locale_keys(&self, cx: &Cx) -> Option<HashSet<String>> {
+        let r = &self.resources[cx.res?];
+        let ox = r.manifest.entries.iter().any(|e| e.value.eq_ignore_ascii_case("@ox_lib/init.lua"));
+        if !ox || r.escrow || r.manifest.dynamic || matches!(cx.side, FileSide::Unknown) {
+            return None;
+        }
+        let rel = &self.files.get(cx.file.as_str())?.rel;
+        let import = format!("@{}/{}", r.name, rel).to_lowercase();
+        if self.resources.iter().any(|o| o.manifest.entries.iter().any(|e| e.value.to_lowercase() == import)) {
+            return None;
+        }
+        let manifest = ["fxmanifest.lua", "__resource.lua"].iter().find_map(|m| std::fs::read_to_string(r.root.join(m)).ok())?;
+        if manifest.contains("locales_path") {
+            return None;
+        }
+        for f in &r.files {
+            let entry = self.files.get(f)?;
+            let own = entry.api.defs.iter().any(|d| d.path.is_empty() && matches!(&d.owner, api::Owner::Global(n) if n == "locale"));
+            if own || std::fs::read_to_string(&entry.path).is_ok_and(|t| t.contains("getLocale(")) {
+                return None;
+            }
+        }
+        fn flatten(v: &serde_json::Value, prefix: Option<&str>, out: &mut HashSet<String>) {
+            let key = |k: &str| prefix.map_or_else(|| k.to_string(), |p| format!("{p}.{k}"));
+            match v {
+                serde_json::Value::Object(m) => m.iter().for_each(|(k, v)| flatten(v, Some(&key(k)), out)),
+                serde_json::Value::Array(a) => a.iter().enumerate().for_each(|(i, v)| flatten(v, Some(&key(&(i + 1).to_string())), out)),
+                _ => {
+                    if let Some(p) = prefix {
+                        out.insert(p.to_string());
+                    }
+                }
+            }
+        }
+        let mut keys = HashSet::new();
+        let mut read = 0;
+        for entry in std::fs::read_dir(r.root.join("locales")).ok()?.flatten() {
+            let path = entry.path();
+            if path.extension().and_then(|e| e.to_str()) != Some("json") {
+                continue;
+            }
+            let text = std::fs::read_to_string(&path).ok()?;
+            let value: serde_json::Value = serde_json::from_str(text.trim_start_matches('\u{feff}')).ok()?;
+            flatten(&value, None, &mut keys);
+            read += 1;
+        }
+        (read > 0).then_some(keys)
+    }
+
     fn net_event_local_only(&self, call: &cfx_lua_syntax::SyntaxNode, text: &str, cx: &Cx, overlay: &api::FileApi) -> Option<(crate::TextRange, String)> {
         use cfx_lua_syntax::SyntaxKind::*;
         let first = call.children().find(|c| c.kind() == ARG_LIST)?.children().next().filter(|f| f.kind() == LITERAL_EXPR)?;
@@ -2556,6 +2628,39 @@ mod tests {
             .map(|l| (text[..usize::from(l.range.start())].matches('\n').count() + 1, l.code))
             .collect();
         assert_eq!(found, [(2, "fivem/event-missing-arguments")]);
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn locale_keys_of_the_resource() {
+        let root = std::env::temp_dir().join(format!("cfx-locale-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        write(&root, "ox_lib/fxmanifest.lua", "shared_script 'init.lua'\n");
+        write(&root, "ox_lib/init.lua", "function locale(k) return k end\n");
+        write(&root, "app/fxmanifest.lua", "shared_script '@ox_lib/init.lua'\nclient_scripts { 'c.lua', 'lib.lua' }\n");
+        write(&root, "app/locales/en.json", "{\"hello\": \"Hi\", \"menu\": {\"open\": \"Open\"}}");
+        write(&root, "app/locales/tr.json", "{\"only_tr\": \"Merhaba\"}");
+        let text = "print(locale('hello'), locale('menu.open'), locale('only_tr'), locale('nope'), locale('menu'), locale(k))\n";
+        write(&root, "app/c.lua", text);
+        // Loaded by hand, or imported by another resource: its `locale` reads that
+        // resource's files.
+        write(&root, "app/lib.lua", "print(locale('nope'))\n");
+        write(&root, "app/module.lua", "print(locale('nope'))\n");
+        write(&root, "other/fxmanifest.lua", "client_script '@app/lib.lua'\n");
+        let ws = Workspace::scan(std::slice::from_ref(&root));
+        let hits = |file: &str| {
+            let text = std::fs::read_to_string(root.join(file)).unwrap();
+            let p = crate::parse(&text);
+            let n = crate::names(&p, &text);
+            crate::workspace::lint_file(&ws, &root.join(file), &p, &text, &n, &crate::lint::LintConfig::default())
+                .into_iter()
+                .filter(|l| l.code == "ox/missing-locale")
+                .map(|l| text[l.range].to_string())
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(hits("app/c.lua"), ["'nope'", "'menu'"]);
+        assert!(hits("app/lib.lua").is_empty());
+        assert!(hits("app/module.lua").is_empty());
         std::fs::remove_dir_all(&root).unwrap();
     }
 

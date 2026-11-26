@@ -157,6 +157,7 @@ pub const RULES: &[(&str, Option<Severity>)] = &[
     ("fivem/readdir-pairs", Some(Severity::Error)),
     ("fivem/sandbox-setlocale", Some(Severity::Warning)),
     ("security/sql-concatenation", Some(Severity::Warning)),
+    ("ox/missing-locale", Some(Severity::Warning)),
     // Exports, NUI and frameworks
     ("fivem/unknown-export", Some(Severity::Warning)),
     ("fivem/export-wrong-side", Some(Severity::Error)),
