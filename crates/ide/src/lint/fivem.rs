@@ -142,7 +142,9 @@ pub(super) fn node(l: &mut Linter, n: &SyntaxNode) {
         FUNCTION_EXPR => unchecked_net_arg(l, n),
         BINARY_EXPR => {
             let op = n.children_with_tokens().filter_map(|e| e.into_token()).find(|t| matches!(t.kind(), EQ2 | NEQ));
-            if op.is_some() {
+            // `data.weaponType == 2725352035` in a `weaponDamageEvent` handler: the
+            // game sends that hash unsigned.
+            if op.is_some() && !n.children().any(|c| unsigned_event_field(l, &c)) {
                 for operand in n.children() {
                     unsigned_hash(l, &operand);
                 }
@@ -344,6 +346,37 @@ fn loop_without_wait(l: &mut Linter, stat: &SyntaxNode) {
 }
 
 const SIGNED_LIMIT: u64 = 1 << 31;
+
+/// Hash fields the server's game events send as unsigned 32-bit numbers
+/// (`uint32_t` in citizen-server-impl's `ServerGameState.cpp`).
+const UNSIGNED_EVENT_FIELDS: &[(&str, &str)] = &[
+    ("weaponDamageEvent", "weaponType"),
+    ("ptFxEvent", "effectHash"),
+    ("ptFxEvent", "assetHash"),
+    ("startNetworkSyncedSceneEvent", "cameraAnimHash"),
+    ("startNetworkSyncedSceneEvent", "animDictHash"),
+];
+
+/// `data.weaponType` where `data` is a parameter of the handler of a game
+/// event that sends that field unsigned.
+fn unsigned_event_field(l: &Linter, e: &SyntaxNode) -> bool {
+    if e.kind() != INDEX_EXPR {
+        return false;
+    }
+    let (Some(object), Some(field)) = (e.first_child().filter(|o| o.kind() == NAME_EXPR), super::field_name(e)) else { return false };
+    let Some(Target::Decl(d)) = object.first_token().and_then(|t| l.names.refs.iter().find(|r| r.range == t.text_range())).map(|r| r.target) else { return false };
+    if l.names.decls[d].kind != crate::names::DeclKind::Param {
+        return false;
+    }
+    let decl = l.names.decls[d].range;
+    let Some(func) = object.ancestors().find(|a| a.kind() == FUNCTION_EXPR && a.children().find(|c| c.kind() == FUNC_BODY).is_some_and(|b| b.text_range().contains_range(decl))) else { return false };
+    let Some(call) = func.parent().filter(|p| p.kind() == ARG_LIST).and_then(|a| a.parent()) else { return false };
+    if l.callee(&call).as_deref() != Some("AddEventHandler") {
+        return false;
+    }
+    let Some(event) = Linter::args(&call).first().and_then(|a| crate::util::unquote(l.src(a.text_range()).trim())) else { return false };
+    UNSIGNED_EVENT_FIELDS.iter().any(|(ev, f)| *ev == event && *f == field.text())
+}
 
 fn unsigned_hash(l: &mut Linter, expr: &SyntaxNode) {
     if expr.kind() != LITERAL_EXPR {

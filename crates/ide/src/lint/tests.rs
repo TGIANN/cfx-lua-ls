@@ -125,6 +125,15 @@ fn loops_and_handlers() {
 fn hashes_and_sides() {
     let f = codes("if model == 2971866336 then end\nlocal t = { [3000000000] = 1 }\nprint(t)\n");
     assert_eq!(only(&f, "fivem/unsigned-hash"), ["2971866336", "3000000000"]);
+    // The server's `weaponDamageEvent` sends `weaponType` unsigned; `giveWeaponEvent` signed.
+    let f = codes("AddEventHandler('weaponDamageEvent', function(sender, data)
+  if data.weaponType == 2725352035 then print(sender) end
+end)
+AddEventHandler('giveWeaponEvent', function(sender, data)
+  if data.weaponType == 2725352035 then print(sender) end
+end)
+");
+    assert_eq!(only(&f, "fivem/unsigned-hash"), ["2725352035"]);
     let server = Context { side: FileSide::Server, ..Context::default() };
     let f = run("local p = PlayerPedId()\nprint(p, GetPlayerName(1))\n", &server);
     assert_eq!(only(&f, "fivem/wrong-side-native"), ["PlayerPedId"]);

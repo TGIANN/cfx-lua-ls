@@ -113,7 +113,7 @@ Level: E error, W warning, I information, H hint. Fix: the quick fix that
 | `fivem/getplayerped-self` | `GetPlayerPed(-1)` | W | `PlayerPedId()` (or `cache.ped` with ox_lib) |
 | `fivem/loop-without-wait` | a `while` loop in a thread whose body (nested functions excluded) can run without reaching `Wait` / `coroutine.yield` / `break` / `return` | W | |
 | `fivem/invariant-native-in-loop` | `PlayerPedId()`, `PlayerId()`, `GetPlayerServerId(PlayerId())` inside a loop body | I | |
-| `fivem/unsigned-hash` | an integer above 2^31 - 1 compared with a hash or used as a table key (FiveM hashes are signed 32-bit) | W | signed value |
+| `fivem/unsigned-hash` | an integer above 2^31 - 1 compared with a hash or used as a table key (FiveM hashes are signed 32-bit); not when compared with a field the server's game events send unsigned (`weaponDamageEvent` `weaponType`, `ptFxEvent` `effectHash` / `assetHash`, `startNetworkSyncedSceneEvent` `cameraAnimHash` / `animDictHash`) | W | signed value |
 | `fivem/source-after-wait` | `source` read after a `Wait` / yield in an event handler (the scheduler restores the previous `source` at the first yield) | W | |
 | `fivem/unchecked-net-arg` | a server net event handler passing a parameter it never read before into a money, item, weapon, job or permission call (`addMoney`, `addAccountMoney`, `addInventoryItem`, `AddItem`, `setJob`, ...); for `setJob` only the job and grade, not the duty flag | W | |
 
