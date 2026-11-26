@@ -25,6 +25,10 @@ updates:
       cargo:
         patterns: ["*"]
         update-types: [minor, patch]
+    ignore:
+      # Same major as rowan's own, so the tree code links one copy (see Cargo.toml).
+      - dependency-name: rustc-hash
+        update-types: [version-update:semver-major]
   - package-ecosystem: npm
     directory: /editors/vscode
     schedule:
