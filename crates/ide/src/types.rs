@@ -3001,6 +3001,8 @@ fn stat_tags(text: &str, n: &SyntaxNode) -> Vec<Tag> {
                     lines.push((t.text_range().start() + TextSize::from(2), rest));
                 }
             }
+            // A blank line: the comments above it are not this statement's (LuaLS).
+            rowan::NodeOrToken::Token(t) if t.kind() == WHITESPACE && t.text().matches('\n').count() > 1 => lines.clear(),
             rowan::NodeOrToken::Token(t) if t.kind() == WHITESPACE => {}
             _ => break,
         }
