@@ -6120,12 +6120,14 @@ impl<'a> Infer<'a> {
         if self.function_body(&callee).is_some() || self.file_functions().contains_key(&key.replace(':', ".")) {
             return None;
         }
-        // The root name is the global here, not a local of the same name.
+        // The root name is the global here, or the file's one local of that name
+        // (`local send = NuiSend`), not a local shadowing either.
+        let funs = self.ext_calls.get(&key)?;
         let root = callee.descendants_with_tokens().filter_map(|e| e.into_token()).find(|t| t.kind() == NAME)?;
-        if self.ref_at(root.text_range()).is_some_and(|r| r.target != Target::Global) {
-            return None;
+        match self.ref_at(root.text_range()).map(|r| r.target) {
+            Some(Target::Decl(d)) if !lone_local(self.names, d) => None,
+            _ => Some(funs.clone()),
         }
-        self.ext_calls.get(&key).cloned()
     }
 
     fn callee_info(&self, f: &SyntaxNode) -> Option<Callee> {
@@ -7129,6 +7131,15 @@ fn type_kind(m: &T) -> Option<&str> {
         T::Name(n) if matches!(n.as_str(), "string" | "number" | "integer" | "boolean" | "table" | "function" | "nil" | "thread" | "userdata") => Some(n),
         _ => None,
     }
+}
+
+/// Local `d` is the file's only declaration of its name and is never written
+/// after it: a call through it is keyed by its name (`ext_calls`).
+pub(crate) fn lone_local(names: &Names, d: usize) -> bool {
+    let decl = &names.decls[d];
+    decl.kind == DeclKind::Local
+        && names.decls.iter().filter(|o| o.name == decl.name).count() == 1
+        && !names.refs.iter().any(|r| r.target == Target::Decl(d) && r.access == Access::Write)
 }
 
 /// The callee of a call as `ext_calls` keys it: `F`, `A.b.c`, `A:m` (names

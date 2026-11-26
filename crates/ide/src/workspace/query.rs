@@ -714,6 +714,15 @@ impl<'a> Q<'a> {
             .map(String::as_str)
     }
 
+    /// Whether `r` is `exports['res']`, directly or through a name holding it
+    /// (`CoreExports = exports['core']`).
+    fn is_exports_proxy(&self, r: &Ref, cx: &Cx) -> bool {
+        let mut vals = Vec::new();
+        self.resolve(r, cx, &mut vals);
+        let proxy = |a: &Anchor| matches!(&a.base, Base::Global { name, .. } if name == "exports") && a.path.len() == 1;
+        vals.iter().any(|v| matches!(v, Val::Anchor(a) if proxy(a) || self.aliases(a, true).iter().any(proxy)))
+    }
+
     fn funcs_of_ref(&self, r: &Ref, cx: &Cx, out: &mut Vec<(&'a FuncDef, Cx)>, seen: &mut HashSet<Anchor>) {
         let mut vals = Vec::new();
         self.resolve(r, cx, &mut vals);
@@ -1297,38 +1306,62 @@ impl Workspace {
                 continue;
             }
             let Some((root, mut fields)) = crate::assist::chain(text, names, &callee) else { continue };
-            // A local of the same name (the callee is keyed by its text) is not the global.
-            if !matches!(root, Ref::Global(_)) {
-                continue;
+            // A local of the same name (the callee is keyed by its text) is not the
+            // global; a lone local holding a function is followed (`local send = F`).
+            match root {
+                Ref::Global(_) => {}
+                Ref::Local(d) if crate::types::lone_local(names, d as usize) => {}
+                _ => continue,
             }
             tried.insert(key.clone());
+            // `exports.res:f(a)`: the `:` passes the proxy, which FiveM drops, so
+            // `a` is f's first parameter; `exports.res.f(a)` loses `a` (left alone).
+            q.budget.set(BUDGET);
+            let object = fields.iter().take(fields.len().saturating_sub(usize::from(!method_call))).fold(root.clone(), |r, f| Ref::Field(Box::new(r), f.clone()));
+            let export_call = q.is_exports_proxy(&object, &cx);
+            if export_call && !method_call {
+                continue;
+            }
             if method_call {
                 let Some(m) = api::method_name(&call) else { continue };
                 fields.push(m.text().to_string());
             }
             let r = fields.iter().fold(root, |r, f| Ref::Field(Box::new(r), f.clone()));
-            q.budget.set(BUDGET);
             let mut found: Vec<(&FuncDef, Cx)> = Vec::new();
             q.funcs_of_ref(&r, &cx, &mut found, &mut HashSet::new());
-            let [(f, fcx)] = found.as_slice() else { continue };
-            if fcx.file == k || (f.param_types.is_empty() && f.overloads.is_empty()) {
+            // The same function reached more than once (`Core` set in a client and a
+            // shared file); different functions only when their signatures agree.
+            let mut defs: Vec<&(&FuncDef, Cx)> = Vec::new();
+            for d in &found {
+                if !defs.iter().any(|e| e.1.file == d.1.file && e.0.offset == d.0.offset) {
+                    defs.push(d);
+                }
+            }
+            let Some(&&(f, ref fcx)) = defs.first() else { continue };
+            if defs.iter().any(|d| d.1.file == k) || (f.param_types.is_empty() && f.overloads.is_empty()) {
                 continue;
             }
-            let own = FunType {
-                params: f
-                    .params
-                    .iter()
-                    .enumerate()
-                    .map(|(i, n)| {
-                        let ty = f.param_types.get(i).cloned().flatten();
-                        let optional = f.nil_ok.get(i).copied().unwrap_or(false) || matches!(ty, Some(DocType::Optional(_)));
-                        crate::luacats::FunParam { name: n.clone(), ty, optional }
-                    })
-                    .collect(),
-                rets: f.returns.iter().map(|t| crate::luacats::FunRet { ty: t.clone(), name: None, optional: false }).collect(),
-                is_async: false,
+            let signature = |f: &FuncDef| -> Vec<FunType> {
+                let own = FunType {
+                    params: f
+                        .params
+                        .iter()
+                        .enumerate()
+                        .map(|(i, n)| {
+                            let ty = f.param_types.get(i).cloned().flatten();
+                            let optional = f.nil_ok.get(i).copied().unwrap_or(false) || matches!(ty, Some(DocType::Optional(_)));
+                            crate::luacats::FunParam { name: n.clone(), ty, optional }
+                        })
+                        .collect(),
+                    rets: f.returns.iter().map(|t| crate::luacats::FunRet { ty: t.clone(), name: None, optional: false }).collect(),
+                    is_async: false,
+                };
+                f.overloads.iter().cloned().chain(std::iter::once(own)).collect()
             };
-            let mut funs: Vec<FunType> = f.overloads.iter().cloned().chain(std::iter::once(own)).collect();
+            let mut funs = signature(f);
+            if defs.iter().skip(1).any(|d| d.0.method != f.method || signature(d.0) != funs) {
+                continue;
+            }
             // A function of another resource (`@lib/file.lua`) names its types as
             // that resource sees them: left out when a name means another class here.
             if let (Some(home), Some(theirs)) = (cx.res, self.files.get(&fcx.file).and_then(|e| e.resource))
@@ -1342,7 +1375,7 @@ impl Workspace {
                     continue;
                 }
             }
-            for g in &mut funs {
+            for g in funs.iter_mut().filter(|_| !export_call) {
                 match (f.method, method_call) {
                     // `function A:m(x)` called as `A.m(obj, x)`.
                     (true, false) => g.params.insert(0, crate::luacats::FunParam { name: "self".into(), ty: None, optional: false }),

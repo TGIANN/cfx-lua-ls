@@ -1234,6 +1234,86 @@ mod tests {
     }
 
     #[test]
+    fn calls_through_an_exports_alias() {
+        let root = std::env::temp_dir().join(format!("cfx-wsexp-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        write(&root, "core/fxmanifest.lua", "shared_script 'import.lua'
+client_script 'client.lua'
+server_script 'server.lua'
+");
+        write(
+            &root,
+            "core/import.lua",
+            "Core = {}
+local function getCore()
+    return next(Core) and Core or nil
+end
+exports('getCore', getCore)
+---@param n integer
+local function thing(n) return n end
+exports('Thing', thing)
+",
+        );
+        write(&root, "core/client.lua", "---@param msg string
+Core.notif = function(msg) print(msg) end
+");
+        write(&root, "core/server.lua", "---@param src number
+---@param msg string
+Core.notif = function(src, msg) print(src, msg) end
+");
+        write(&root, "app/fxmanifest.lua", "dependency 'core'
+shared_script 'config.lua'
+client_script 'c.lua'
+server_script 's.lua'
+");
+        write(&root, "app/config.lua", "CoreExports = exports['core']
+");
+        let lints = |file: &str, text: &str| {
+            write(&root, &format!("app/{file}"), text);
+            let ws = Workspace::scan(std::slice::from_ref(&root));
+            let p = crate::parse(text);
+            let n = crate::names(&p, text);
+            let all = lint_file(&ws, &root.join("app").join(file), &p, text, &n, &LintConfig::default());
+            all.iter().filter(|l| l.code == "param-type-mismatch").map(|l| text[..usize::from(l.range.start())].matches('\n').count() + 1).collect::<Vec<_>>()
+        };
+        // The `:` of an export call passes the proxy, not a parameter; a shared
+        // file's export returns the caller's side of `Core`.
+        assert_eq!(lints("c.lua", "Core = CoreExports:getCore()
+Core.notif(1)
+Core.notif('a')
+CoreExports:Thing('x')
+CoreExports:Thing(2)
+"), [2, 4]);
+        assert_eq!(lints("s.lua", "Core = CoreExports:getCore()
+Core.notif(1, 2)
+Core.notif(1, 'a')
+"), [2]);
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn calls_through_a_lone_local_and_repeated_definitions() {
+        let root = std::env::temp_dir().join(format!("cfx-wsrep-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        write(&root, "app/fxmanifest.lua", "client_scripts { 'a.lua', 'b.lua', 'main.lua' }\n");
+        // `Twice` twice with one signature; `Apart` with two.
+        write(&root, "app/a.lua", "---@param n integer\nfunction Twice(n) end\n---@param n integer\nfunction Apart(n) end\n");
+        write(&root, "app/b.lua", "---@param n integer\nfunction Twice(n) end\n---@param s string\nfunction Apart(s) end\n");
+        let text = "Twice('x')\nApart('x')\nlocal send = Twice\nsend('y')\nlocal function f()\n    local g = Twice\n    g('z')\nend\nlocal function h()\n    local g = Apart\n    g('w')\nend\nprint(f, h)\n";
+        write(&root, "app/main.lua", text);
+        let ws = Workspace::scan(std::slice::from_ref(&root));
+        let path = root.join("app/main.lua");
+        let p = crate::parse(text);
+        let n = crate::names(&p, text);
+        let all = lint_file(&ws, &path, &p, text, &n, &LintConfig::default());
+        let line = |l: &crate::lint::Lint| text[..usize::from(l.range.start())].matches('\n').count() + 1;
+        let found: Vec<(usize, &str)> = all.iter().filter(|l| l.code == "param-type-mismatch").map(|l| (line(l), l.code)).collect();
+        // `g` is declared twice in the file: its calls are not keyed by name.
+        assert_eq!(found, [(1, "param-type-mismatch"), (4, "param-type-mismatch")], "{all:?}");
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
     fn calls_to_other_files_keep_their_own_names() {
         let root = std::env::temp_dir().join(format!("cfx-wscall2-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&root);
