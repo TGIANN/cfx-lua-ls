@@ -20,7 +20,7 @@
     "url": "https://github.com/TGIANN/cfx-lua-ls"
   },
   "engines": {
-    "vscode": "^1.82.0"
+    "vscode": "^1.91.0"
   },
   "categories": [
     "Programming Languages",
@@ -88,17 +88,17 @@
     ]
   },
   "scripts": {
-    "build": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --target=node18 --sourcemap",
+    "build": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --target=node20 --sourcemap",
     "typecheck": "tsc --noEmit",
-    "vscode:prepublish": "npm run typecheck && esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --target=node18 --minify"
+    "vscode:prepublish": "npm run typecheck && esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --target=node20 --minify"
   },
   "dependencies": {
-    "vscode-languageclient": "9.0.1"
+    "vscode-languageclient": "11.0.1"
   },
   "devDependencies": {
-    "@types/node": "18.19.64",
-    "@types/vscode": "1.82.0",
+    "@types/node": "20.19.43",
+    "@types/vscode": "1.91.0",
     "esbuild": "0.28.2",
-    "typescript": "5.6.3"
+    "typescript": "7.0.2"
   }
 }

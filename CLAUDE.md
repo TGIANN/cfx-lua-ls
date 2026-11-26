@@ -135,10 +135,14 @@ the codestyle test write each failing case there.
 
 VS Code extension (`editors/vscode`): `npm ci`, `npm run typecheck`, `npm run build`.
 To try it without touching the owner's VS Code profile or extensions, start
-`code --user-data-dir <tmp>/ud --extensions-dir <tmp>/ext --extensionDevelopmentPath=<repo>/editors/vscode <folder>`
+`code --user-data-dir <tmp>/ud --extensions-dir <tmp>/ext --log trace --extensionDevelopmentPath=<repo>/editors/vscode <folder>`
 with `cfxLuaLs.server.path` and `"cfxLuaLs.trace.server": "verbose"` in
 `<tmp>/ud/User/settings.json`; the protocol log lands in
-`<tmp>/ud/logs/*/window1/exthost/output_logging_*/1-CfxLua Language Server.log`.
+`<tmp>/ud/logs/*/window1/exthost/tgiann.cfx-lua-ls/CfxLua Language Server.log`.
+vscode-languageclient 11 writes the trace at the channel's trace level, so without
+`--log trace` the file holds only the server's stderr (`--log tgiann.cfx-lua-ls:trace`
+keeps VS Code 1.147 from opening at all). A window that is killed leaves `ud/code.lock`
+behind and the next `code` call on that folder exits silently: use a new folder.
 
 Feature code reads node ranges through the first and last real token (`trimmed` in
 `ide/src/util.rs`): a statement's node starts at the comments before it, and
