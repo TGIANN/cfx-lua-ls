@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.1](https://github.com/TGIANN/cfx-lua-ls/compare/v1.1.0...v1.1.1) (2026-11-26)
+
+
+### Documentation
+
+* mark the release phase done; the extension is on the VS Code Marketplace ([bc62c62](https://github.com/TGIANN/cfx-lua-ls/commit/bc62c62a263a314eba02828c71b9f1f19f111ff4))
+
 ## [1.1.0](https://github.com/TGIANN/cfx-lua-ls/compare/v1.0.0...v1.1.0) (2026-11-26)
 
 
