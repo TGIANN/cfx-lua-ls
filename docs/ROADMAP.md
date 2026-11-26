@@ -561,6 +561,20 @@ error ("invalid UTF-8 code").
     that already exists, so its first version is uploaded once by hand with a
     token.
 
+## Open gaps
+
+- Qbox's lint rules with no counterpart yet: event argument count and missing
+  arguments (a `TriggerServerEvent` against its handler's parameters), SQL built
+  by string concatenation in `MySQL.*` / oxmysql calls, locale keys missing from
+  the locale files.
+- `cast-local-type` is not reported for a `---@param x string|number` parameter
+  assigned a `string?` value (`x = n and tostring(n)`); LuaLS reports it.
+- Calls to functions of other files are checked only through a global with one
+  definition: a local holding such a function, a function defined more than once
+  (client and server copies) and `exports.res:f()` calls are not.
+- To check: the hover of `tgiCore.notif` showed its type as unknown in one
+  session; not reproduced yet.
+
 ## Design decisions
 
 - **Lua 5.4 / CfxLua only.** The CfxLua syntax is taken from

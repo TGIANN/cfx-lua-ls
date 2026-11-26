@@ -709,11 +709,17 @@ impl Workspace {
     }
 
     /// The `---@class`es a file may use from the resource's files, then from the
-    /// resources its manifest names: those its doc comments (and `aliases`)
-    /// name, with the classes their fields and parents name in turn. A name
+    /// resources its manifest names: those its doc comments, `aliases` and the
+    /// signatures of `calls` name, with the classes their fields and parents name in turn. A name
     /// belongs to the first resource declaring it, and its declarations there
     /// are merged (as in one file). The file's own classes win over these.
-    pub(crate) fn visible_classes(&self, path: &Path, text: &str, aliases: &[(String, crate::luacats::DocType)]) -> Vec<crate::api::ClassDef> {
+    pub(crate) fn visible_classes(
+        &self,
+        path: &Path,
+        text: &str,
+        aliases: &[(String, crate::luacats::DocType)],
+        calls: &[(String, Vec<crate::luacats::FunType>)],
+    ) -> Vec<crate::api::ClassDef> {
         let k = key(path);
         let Some(r) = self.files.get(&k).and_then(|e| e.resource) else { return Vec::new() };
         let resources: Vec<usize> = std::iter::once(r).chain(self.related(r)).collect();
@@ -723,6 +729,9 @@ impl Workspace {
         }
         for (_, t) in aliases {
             type_names(t, &mut todo);
+        }
+        for f in calls.iter().flat_map(|(_, fs)| fs) {
+            type_names(&crate::luacats::DocType::Fun(Box::new(f.clone())), &mut todo);
         }
         if todo.is_empty() {
             return Vec::new();
@@ -1064,7 +1073,10 @@ pub fn lint_file(
     let defined = |n: &str| ws.defined_elsewhere(path, n);
     let used = |n: &str| ws.used_elsewhere(path, n);
     let aliases = ws.visible_aliases(path);
-    let classes = ws.visible_classes(path, text, &aliases);
+    // The file's current summary (the index may hold an older copy).
+    let overlay = crate::api::file_api(parse, text, names);
+    let calls = if info.manifest { Vec::new() } else { ws.ext_calls(path, &overlay, text, names, parse) };
+    let classes = ws.visible_classes(path, text, &aliases, &calls);
     let ctx = Context {
         side: info.side,
         game: info.game,
@@ -1075,6 +1087,7 @@ pub fn lint_file(
         globals_unknown: info.globals_unknown,
         aliases: &aliases,
         classes: &classes,
+        calls: &calls,
         config,
     };
     let mut lints = crate::lint::lint(parse, text, names, &ctx);
@@ -1089,7 +1102,7 @@ pub fn lint_file(
         }
         return lints;
     }
-    let extra = ws.api_lints(path, parse, text, names, config);
+    let extra = ws.api_lints(path, parse, text, names, &overlay, config);
     if !extra.is_empty() {
         lints.extend(crate::lint::suppress(parse, text, extra));
         lints.sort_by_key(|d| (d.range.start(), d.range.end()));
@@ -1180,6 +1193,35 @@ mod tests {
         assert_eq!(found, [(4, "missing-fields"), (6, "assign-type-mismatch"), (10, "assign-type-mismatch"), (12, "missing-fields")], "{found:?}");
         let b = all.iter().find(|l| line(l) == 4).map(|l| l.message.as_str()).unwrap_or_default();
         assert!(b.contains("`name`") && b.contains("`inner`") && !b.contains("`other`"), "{b}");
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn calls_to_functions_of_other_files() {
+        let root = std::env::temp_dir().join(format!("cfx-wscall-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        write(&root, "app/fxmanifest.lua", "client_scripts { 'contract.lua', 'ui.lua', 'main.lua' }\n");
+        write(
+            &root,
+            "app/contract.lua",
+            "---@class Msg.Open\n---@field id integer\n---@field name string\n---@alias Action 'open'|'hide'\n---@overload fun(action: 'open', data: Msg.Open)\n---@overload fun(action: 'hide')\n---@param action Action\n---@param data? any\nfunction NuiSend(action, data) end\n---@param o Msg.Open\nfunction SendOpts(o) end\nObj = {}\n---@param n integer\nfunction Obj:add(n) end\nfunction Loose(a) end\n",
+        );
+        // The NUI contract pattern: the function reaches the callers through a field.
+        write(&root, "app/ui.lua", "UiUtility = {}\nUiUtility.sendNui = NuiSend\n");
+        let text = "UiUtility.sendNui('open', { id = 1 })\nUiUtility.sendNui('open', { id = 'x', name = 'n' })\nUiUtility.sendNui('bad')\nNuiSend('open', { id = 1, name = 'n' })\nNuiSend('hide')\nSendOpts({ id = 2 })\nObj:add('x')\nObj.add(Obj, 3)\nLoose({})\n";
+        write(&root, "app/main.lua", text);
+        let ws = Workspace::scan(std::slice::from_ref(&root));
+        let path = root.join("app/main.lua");
+        let p = crate::parse(text);
+        let n = crate::names(&p, text);
+        let all = lint_file(&ws, &path, &p, text, &n, &LintConfig::default());
+        let line = |l: &crate::lint::Lint| text[..usize::from(l.range.start())].matches('\n').count() + 1;
+        let found: Vec<(usize, &str)> = all.iter().map(|l| (line(l), l.code)).collect();
+        assert_eq!(
+            found,
+            [(1, "missing-fields"), (2, "assign-type-mismatch"), (3, "param-type-mismatch"), (6, "missing-fields"), (7, "param-type-mismatch")],
+            "{all:?}"
+        );
         std::fs::remove_dir_all(&root).unwrap();
     }
 }

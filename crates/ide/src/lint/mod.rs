@@ -338,6 +338,8 @@ pub struct Context<'a> {
     pub aliases: &'a [(String, crate::luacats::DocType)],
     /// `---@class`es the same files declare.
     pub classes: &'a [crate::api::ClassDef],
+    /// Signatures of the functions of other files the file calls.
+    pub calls: &'a [(String, Vec<crate::luacats::FunType>)],
     pub config: &'a LintConfig,
 }
 
@@ -355,6 +357,7 @@ impl Default for Context<'_> {
             globals_unknown: false,
             aliases: &[],
             classes: &[],
+            calls: &[],
             config: CONFIG.get_or_init(LintConfig::default),
         }
     }
@@ -425,7 +428,7 @@ impl<'a> Linter<'a> {
 
     pub(crate) fn types(&self) -> &crate::types::FileTypes<'a> {
         self.types.get_or_init(|| {
-            crate::types::FileTypes::from_root(self.root.clone(), self.names, self.text).with_config(self.ctx.config).with_aliases(self.ctx.aliases).with_classes(self.ctx.classes)
+            crate::types::FileTypes::from_root(self.root.clone(), self.names, self.text).with_config(self.ctx.config).with_aliases(self.ctx.aliases).with_classes(self.ctx.classes).with_calls(self.ctx.calls)
         })
     }
 

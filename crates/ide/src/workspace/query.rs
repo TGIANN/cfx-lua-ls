@@ -1247,16 +1247,94 @@ fn side_name(s: FileSide) -> &'static str {
 }
 
 impl Workspace {
+    /// The signatures of the documented functions other files define that a
+    /// file calls through a global (`Send(...)`, `UiUtility.sendNui(...)` after
+    /// `UiUtility.sendNui = NuiSend`, `Obj:m(...)`), by the callee as written:
+    /// the `---@overload`s, then the function itself, shaped for that call. A
+    /// callee with more than one definition, or one in the file, is left out.
+    pub(crate) fn ext_calls(&self, path: &Path, overlay: &api::FileApi, text: &str, names: &crate::Names, parse: &crate::Parse) -> Vec<(String, Vec<FunType>)> {
+        use cfx_lua_syntax::SyntaxKind::*;
+        let mut out: Vec<(String, Vec<FunType>)> = Vec::new();
+        let mut tried: HashSet<String> = HashSet::new();
+        let (k, cx) = self.query_cx(path);
+        let q = Q::new(self, Some((k.as_str(), overlay)));
+        for call in parse.syntax().descendants().filter(|n| matches!(n.kind(), CALL_EXPR | METHOD_CALL_EXPR)) {
+            let Some(key) = crate::types::ext_call_key(text, &call) else { continue };
+            if !tried.insert(key.clone()) {
+                continue;
+            }
+            let Some(callee) = call.first_child() else { continue };
+            let method_call = call.kind() == METHOD_CALL_EXPR;
+            // No argument to check; a native or Lua library function.
+            if call.children().find(|c| c.kind() == ARG_LIST).is_none_or(|a| a.children().next().is_none())
+                || (!method_call && library_arity(names, &callee).is_some())
+            {
+                continue;
+            }
+            let Some((root, mut fields)) = crate::assist::chain(text, names, &callee) else { continue };
+            if !matches!(root, Ref::Global(_)) {
+                continue;
+            }
+            if method_call {
+                let Some(m) = api::method_name(&call) else { continue };
+                fields.push(m.text().to_string());
+            }
+            let r = fields.iter().fold(root, |r, f| Ref::Field(Box::new(r), f.clone()));
+            q.budget.set(BUDGET);
+            let mut found: Vec<(&FuncDef, Cx)> = Vec::new();
+            q.funcs_of_ref(&r, &cx, &mut found, &mut HashSet::new());
+            let [(f, fcx)] = found.as_slice() else { continue };
+            if fcx.file == k || (f.param_types.is_empty() && f.overloads.is_empty()) {
+                continue;
+            }
+            let own = FunType {
+                params: f
+                    .params
+                    .iter()
+                    .enumerate()
+                    .map(|(i, n)| {
+                        let ty = f.param_types.get(i).cloned().flatten();
+                        let optional = f.nil_ok.get(i).copied().unwrap_or(false) || matches!(ty, Some(DocType::Optional(_)));
+                        crate::luacats::FunParam { name: n.clone(), ty, optional }
+                    })
+                    .collect(),
+                rets: f.returns.iter().map(|t| crate::luacats::FunRet { ty: t.clone(), name: None, optional: false }).collect(),
+                is_async: false,
+            };
+            let mut funs: Vec<FunType> = f.overloads.iter().cloned().chain(std::iter::once(own)).collect();
+            for g in &mut funs {
+                match (f.method, method_call) {
+                    // `function A:m(x)` called as `A.m(obj, x)`.
+                    (true, false) => g.params.insert(0, crate::luacats::FunParam { name: "self".into(), ty: None, optional: false }),
+                    // `function A.m(self, x)` called as `A:m(x)`.
+                    (false, true) if !g.params.is_empty() => {
+                        g.params.remove(0);
+                    }
+                    _ => {}
+                }
+            }
+            out.push((key, funs));
+        }
+        out
+    }
+
     /// Diagnostics that need the index: exports a resource does not have or
     /// registers on the other side, and uses of `---@deprecated` definitions.
-    pub(crate) fn api_lints(&self, path: &Path, parse: &crate::Parse, text: &str, names: &crate::Names, config: &crate::lint::LintConfig) -> Vec<crate::lint::Lint> {
+    pub(crate) fn api_lints(
+        &self,
+        path: &Path,
+        parse: &crate::Parse,
+        text: &str,
+        names: &crate::Names,
+        overlay: &api::FileApi,
+        config: &crate::lint::LintConfig,
+    ) -> Vec<crate::lint::Lint> {
         use cfx_lua_syntax::SyntaxKind::*;
         let mut out = Vec::new();
         let (k, cx) = self.query_cx(path);
-        let overlay = api::file_api(parse, text, names);
         // The file's own `---@deprecated` names (the index may hold an older copy).
         let own_deprecated: HashSet<&str> = overlay.deprecated_names().collect();
-        let q = Q::new(self, Some((k.as_str(), &overlay)));
+        let q = Q::new(self, Some((k.as_str(), overlay)));
         let mut push = |code: &'static str, range: crate::TextRange, message: String, tag: Option<crate::lint::Tag>| {
             if let Some(l) = crate::lint::make(code, range, message, tag, config) {
                 out.push(l);
@@ -1294,7 +1372,7 @@ impl Workspace {
                     let Some(callee) = n.first_child().filter(|c| c.kind() == NAME_EXPR) else { continue };
                     let callee_name = &text[callee.text_range()];
                     if matches!(callee_name, "RegisterNetEvent" | "RegisterServerEvent") && cx.side == FileSide::Server {
-                        if let Some(l) = self.net_event_local_only(&n, text, &cx, &overlay) {
+                        if let Some(l) = self.net_event_local_only(&n, text, &cx, overlay) {
                             push("fivem/net-event-same-side", l.0, l.1, None);
                         }
                         continue;
@@ -1439,7 +1517,7 @@ impl Workspace {
         // An escrow file of the resource or of one it depends on, or an import
         // outside the workspace, may declare any class.
         if text.contains("---") && !self.doc_types_hidden(path) {
-            for (range, name, parent) in self.undefined_doc_names(&parse.syntax(), text, &overlay) {
+            for (range, name, parent) in self.undefined_doc_names(&parse.syntax(), text, overlay) {
                 if parent {
                     push("undefined-doc-class", range, format!("Undefined class `{name}`."), None);
                     continue;

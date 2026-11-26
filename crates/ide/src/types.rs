@@ -191,6 +191,10 @@ struct Infer<'a> {
     /// `---@field`s, but never a reason to call a field undefined or injected
     /// (methods and fields set in code are not in a `ClassDef`).
     ext_classes: HashMap<String, crate::api::ClassDef>,
+    /// Signatures of functions other files define, by the callee as the file
+    /// writes it (`UiUtility.sendNui`, `Obj:m`): `---@overload`s first, the
+    /// function itself last, shaped for that call (`self` added or dropped).
+    ext_calls: HashMap<String, Vec<FunType>>,
     aliases: HashMap<String, T>,
     /// `---@alias Callback<T> ...`: `T`.
     alias_generics: HashMap<String, Vec<String>>,
@@ -593,6 +597,14 @@ impl<'a> FileTypes<'a> {
     pub(crate) fn with_aliases(mut self, ext: &[(String, T)]) -> FileTypes<'a> {
         for (n, t) in ext {
             self.inf.aliases.entry(n.clone()).or_insert_with(|| t.clone());
+        }
+        self
+    }
+
+    /// Signatures of functions of other files (see `Infer::ext_calls`).
+    pub(crate) fn with_calls(mut self, ext: &[(String, Vec<FunType>)]) -> FileTypes<'a> {
+        for (k, fs) in ext {
+            self.inf.ext_calls.entry(k.clone()).or_insert_with(|| fs.clone());
         }
         self
     }
@@ -2665,7 +2677,8 @@ impl<'a> FileTypes<'a> {
             }
             _ => false,
         };
-        if !local {
+        // A documented function of another file counts as the file's own.
+        if !local && inf.ext_funs(&call).is_none() {
             return self.class_call_mismatch(&call, &callee, arg);
         }
         let mut want = inf.expected_type(arg)?;
@@ -3109,7 +3122,7 @@ impl<'a> Infer<'a> {
         }
         let (mut aliases, alias_generics) = doc_aliases(text);
         aliases.extend(enum_aliases(&root, text));
-        Infer { text, names, root, classes, ext_classes: HashMap::new(), aliases, alias_generics, depth: Cell::new(0), flow_budget: Cell::new(FLOW_BUDGET),
+        Infer { text, names, root, classes, ext_classes: HashMap::new(), ext_calls: HashMap::new(), aliases, alias_generics, depth: Cell::new(0), flow_budget: Cell::new(FLOW_BUDGET),
             exhausted: Cell::new(false),
             functions: std::cell::OnceCell::new(),
             class_members: std::cell::OnceCell::new(),
@@ -4211,9 +4224,10 @@ impl<'a> Infer<'a> {
                     }
                     _ => {}
                 }
-                // `f(1, function(a) end)` with `---@overload fun(a: 1, c: fun(x: number))`.
+                // `f(1, function(a) end)` with `---@overload fun(a: 1, c: fun(x: number))`;
+                // `send('open', { ... })` with `---@overload fun(a: 'open', d: Open)`.
                 if call.kind() == CALL_EXPR
-                    && e.kind() == FUNCTION_EXPR
+                    && matches!(e.kind(), FUNCTION_EXPR | TABLE_EXPR)
                     && let Some((kept, _)) = self.overloads_kept(&callee, &args)
                     && let [only] = kept.as_slice()
                     && let Some(t) = only.params.get(i).and_then(|p| p.ty.clone())
@@ -4230,6 +4244,11 @@ impl<'a> Infer<'a> {
                     && let Some(t) = only.params.get(i + 1).and_then(|p| p.ty.clone())
                 {
                     return Some(t);
+                }
+                // A function of another file: the overload the arguments pick.
+                if let Some(fs) = self.ext_funs(&call) {
+                    let (kept, _) = self.choose_overload(fs, Vec::new(), true, &args, None)?;
+                    return agreed(kept.iter().map(|f| f.params.get(i).and_then(|p| p.ty.clone())));
                 }
                 let info = if call.kind() == METHOD_CALL_EXPR {
                     let m = crate::api::method_name(&call)?;
@@ -5955,6 +5974,20 @@ impl<'a> Infer<'a> {
     /// A callee's parameter types, returns and generic names: a function of the
     /// file (its `---@param` / `---@return`, else its `return` statements) or a
     /// `fun(...)` type.
+    /// The signatures `ext_calls` holds for a call, unless the file defines
+    /// the callee itself.
+    fn ext_funs(&self, call: &SyntaxNode) -> Option<Vec<FunType>> {
+        if self.ext_calls.is_empty() {
+            return None;
+        }
+        let callee = call.first_child()?;
+        let key = ext_call_key(self.text, call)?;
+        if self.function_body(&callee).is_some() || self.file_functions().contains_key(&key.replace(':', ".")) {
+            return None;
+        }
+        self.ext_calls.get(&key).cloned()
+    }
+
     fn callee_info(&self, f: &SyntaxNode) -> Option<Callee> {
         if let Some(body) = self.function_body(f) {
             let mut info = self.body_info(&body);

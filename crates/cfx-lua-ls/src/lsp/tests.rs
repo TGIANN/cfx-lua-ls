@@ -614,6 +614,49 @@ fn class_of_another_file_checks_tables_and_follows_its_edits() {
 }
 
 #[test]
+fn overload_of_another_file_checks_calls_and_follows_its_edits() {
+    let root = std::env::temp_dir().join(format!("cfx-lua-ls-extcall-{}", std::process::id()));
+    let res = root.join("app");
+    std::fs::create_dir_all(&res).unwrap();
+    std::fs::write(res.join("fxmanifest.lua"), "client_scripts { 'contract.lua', 'client.lua' }
+").unwrap();
+    let contract = "---@overload fun(action: 'open', id: integer)
+---@param action 'close'
+---@param id any
+function Send(action, id) end
+";
+    std::fs::write(res.join("contract.lua"), contract).unwrap();
+    std::fs::write(res.join("client.lua"), "").unwrap();
+    let to_uri = |p: &std::path::Path| {
+        let s = p.to_string_lossy().replace('\\', "/").replace(' ', "%20");
+        if s.starts_with('/') { format!("file://{s}") } else { format!("file:///{s}") }
+    };
+    let file = to_uri(&res.join("client.lua"));
+    let contract_uri = to_uri(&res.join("contract.lua"));
+    let (c, handle) = Client::start_with(json!({ "capabilities": {}, "workspaceFolders": [{ "uri": to_uri(&root), "name": "w" }] }));
+    let codes_of = |c: &Client, uri: &str| -> Vec<String> {
+        loop {
+            let d = c.diagnostics();
+            if d["uri"] == uri {
+                return d["diagnostics"].as_array().unwrap().iter().map(|x| x["code"].as_str().unwrap().to_string()).collect();
+            }
+        }
+    };
+    c.notify("textDocument/didOpen", json!({ "textDocument": { "uri": file, "languageId": "lua", "version": 1, "text": "Send('open', 'x')
+" } }));
+    assert_eq!(codes_of(&c, &file), ["param-type-mismatch"]);
+    c.notify("textDocument/didOpen", json!({ "textDocument": { "uri": contract_uri, "languageId": "lua", "version": 1, "text": contract } }));
+    // The overload takes a string id now: the client is checked again.
+    c.notify(
+        "textDocument/didChange",
+        json!({ "textDocument": { "uri": contract_uri, "version": 2 }, "contentChanges": [{ "text": contract.replace("id: integer", "id: string") }] }),
+    );
+    assert!(codes_of(&c, &file).is_empty());
+    c.shutdown(handle);
+    std::fs::remove_dir_all(&root).unwrap();
+}
+
+#[test]
 fn style_and_spell_checks_from_client_settings() {
     let root = std::env::temp_dir().join(format!("cfx-lua-ls-style-{}", std::process::id()));
     std::fs::create_dir_all(&root).unwrap();

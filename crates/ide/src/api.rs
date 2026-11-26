@@ -90,6 +90,8 @@ pub struct FuncDef {
     /// x`, `x or d`, `x == nil`, `type(x)`), so a caller may leave it out
     /// whatever its doc type says.
     pub nil_ok: Vec<bool>,
+    /// `---@overload fun(...)` lines above the function.
+    pub overloads: Vec<crate::luacats::FunType>,
 }
 
 /// `---@class Name: Parent` with the `---@field`s under it.
@@ -209,6 +211,7 @@ impl FileApi {
                 && a.param_types == b.param_types
                 && a.returns == b.returns
                 && a.nil_ok == b.nil_ok
+                && a.overloads == b.overloads
         }) && all(&self.classes, &other.classes, |a, b| {
             a.name == b.name
                 && a.parents == b.parents
@@ -572,6 +575,7 @@ impl Builder<'_> {
             param_types: Vec::new(),
             returns: Vec::new(),
             nil_ok: Vec::new(),
+            overloads: Vec::new(),
         });
         self.funcs.insert(body.text_range().start(), i);
         i
@@ -905,6 +909,7 @@ impl Builder<'_> {
                     types[i] = Some(if *optional { DocType::Optional(Box::new(ty.clone())) } else { ty.clone() });
                 }
                 Tag::Return { rets, .. } => returns.extend(rets.iter().map(|r| r.ty.clone())),
+                Tag::Overload(DocType::Fun(o)) => self.api.funcs[f as usize].overloads.push((**o).clone()),
                 _ => {}
             }
         }
