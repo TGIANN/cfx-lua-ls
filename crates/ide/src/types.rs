@@ -214,8 +214,6 @@ struct Infer<'a> {
     class_members: std::cell::OnceCell<HashMap<String, HashMap<String, Vec<SyntaxNode>>>>,
     /// `a.b.c = v` targets of the file by their path (`a.b.c`), in order.
     path_writes: std::cell::OnceCell<HashMap<String, Vec<SyntaxNode>>>,
-    /// `type(x.f)` in the file: (local of `x`, `f`), for [`Infer::field_guard`].
-    field_tests: std::cell::OnceCell<std::collections::HashSet<(usize, String)>>,
     /// `class_var` of every class tagged on a statement, computed once.
     class_vars: std::cell::OnceCell<HashMap<String, String>>,
     /// Locals written after their declaration.
@@ -3135,7 +3133,6 @@ impl<'a> Infer<'a> {
             functions: std::cell::OnceCell::new(),
             class_members: std::cell::OnceCell::new(),
             path_writes: std::cell::OnceCell::new(),
-            field_tests: std::cell::OnceCell::new(),
             class_vars: std::cell::OnceCell::new(),
             written: std::cell::OnceCell::new(),
             typed_fields: std::cell::OnceCell::new(),
@@ -5243,22 +5240,11 @@ impl<'a> Infer<'a> {
         let field = crate::lint::field_name(e)?;
         let target = self.ref_at(object.first_token()?.text_range())?.target;
         let Target::Decl(d) = target else { return None };
-        let tests = self.field_tests.get_or_init(|| {
-            self.root
-                .descendants()
-                .filter(|c| c.kind() == CALL_EXPR && c.first_child().is_some_and(|f| self.builtin(&f) == "type"))
-                .filter_map(|c| c.children().find(|a| a.kind() == ARG_LIST)?.first_child())
-                .filter(|a| a.kind() == INDEX_EXPR)
-                .filter_map(|a| {
-                    let o = a.first_child().filter(|o| o.kind() == NAME_EXPR)?;
-                    let Target::Decl(d) = self.ref_at(o.first_token()?.text_range())?.target else { return None };
-                    Some((d, crate::lint::field_name(&a)?.text().to_string()))
-                })
-                .collect()
-        });
-        if !tests.contains(&(d, field.text().to_string())) {
-            return None;
-        }
+        // A condition can only test the field if its text names `type` and the field.
+        let may_test = |c: &SyntaxNode| {
+            let t = &self.text[c.text_range()];
+            t.contains("type") && t.contains(field.text())
+        };
         let same = |x: &SyntaxNode| {
             x.kind() == INDEX_EXPR
                 && crate::lint::field_name(x).is_some_and(|f| f.text() == field.text())
@@ -5270,13 +5256,13 @@ impl<'a> Infer<'a> {
             match parent.kind() {
                 FUNC_BODY => break,
                 BINARY_EXPR if parent.first_child().as_ref() != Some(&node) && parent.children_with_tokens().filter_map(|x| x.into_token()).any(|t| t.kind() == AND_KW) => {
-                    if let Some(f) = parent.first_child().and_then(|l| self.field_type_effect(&l, &same, true)) {
+                    if let Some(f) = parent.first_child().filter(may_test).and_then(|l| self.field_type_effect(&l, &same, true)) {
                         found = Some((f, parent.first_child()?));
                         break;
                     }
                 }
                 BLOCK if let Some(owner) = parent.parent().filter(|o| matches!(o.kind(), IF_STAT | ELSEIF_CLAUSE)) => {
-                    if let Some(cond) = owner.first_child()
+                    if let Some(cond) = owner.first_child().filter(may_test)
                         && let Some(f) = self.field_type_effect(&cond, &same, true)
                     {
                         found = Some((f, cond));
