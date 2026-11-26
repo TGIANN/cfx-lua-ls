@@ -39,6 +39,9 @@ enum Effect {
     Cast(Vec<(char, T)>),
     /// `if type(x) == 'string' then`.
     Narrow(T),
+    /// `if type(x) ~= 'string' then`, the `else` of `if type(x) == 'string'`:
+    /// not of that type.
+    Exclude(T),
     /// The read only happens when it is falsy (`if not x`, the `else` of
     /// `if x`): nil or `false`.
     Falsy,
@@ -3469,6 +3472,9 @@ impl<'a> Infer<'a> {
                         IF_STAT | ELSEIF_CLAUSE | WHILE_STAT if let Some(t) = owner.first_child().and_then(|c| self.type_check(&c, d)) => {
                             effects.push(Effect::Narrow(t))
                         }
+                        IF_STAT | ELSEIF_CLAUSE | WHILE_STAT if let Some(f) = owner.first_child().and_then(|c| self.type_effect(&c, d, true)) => {
+                            effects.push(f)
+                        }
                         IF_STAT | ELSEIF_CLAUSE | WHILE_STAT if let Some(c) = owner.first_child().filter(|c| self.checks(c, d) == Some(true)) => {
                             effects.push(self.guard(&c, d))
                         }
@@ -3489,6 +3495,8 @@ impl<'a> Infer<'a> {
                             } else if let Some(f) = conds.iter().find_map(|c| self.falsy_when(c, d, false)) {
                                 effects.push(f);
                             }
+                            // Every condition before the `else` was false: `type(x) == 'table'` no more.
+                            effects.extend(conds.iter().filter_map(|c| self.type_effect(c, d, false)));
                         }
                         FUNC_BODY if self.names.decls[d].range.start() >= owner.text_range().start() && owner.text_range().contains_range(self.names.decls[d].range) => {
                             break self.decl_type(d)
@@ -3593,6 +3601,21 @@ impl<'a> Infer<'a> {
                     };
                     let kept: Vec<T> = parts.into_iter().filter(fits).collect();
                     if kept.is_empty() { n } else { union(kept) }
+                }
+                Effect::Exclude(n) => {
+                    // The members surely of the type tested go (`integer` with `number`).
+                    let gone = |m: &T| {
+                        *m == n
+                            || type_kind(m).is_some_and(|k| is(&n, k) || (k == "integer" && is(&n, "number")))
+                            || is(&n, "number") && numeric(m).is_some()
+                    };
+                    let parts: Vec<T> = match t.clone() {
+                        T::Union(ps) => ps,
+                        T::Optional(inner) => members_of(&inner).into_iter().chain(std::iter::once(name("nil"))).collect(),
+                        m => vec![m],
+                    };
+                    let kept: Vec<T> = parts.into_iter().filter(|m| !gone(m)).collect();
+                    if kept.is_empty() { t } else { union(kept) }
                 }
                 Effect::Cast(ops) => {
                     let mut t = t;
@@ -3889,6 +3912,44 @@ impl<'a> Infer<'a> {
         side(&l, &r).or_else(|| side(&r, &l))
     }
 
+    /// What a `type(x)` test having the value `truth` says of local `d`:
+    /// `Narrow` (`type(x) ~= 'string'` false), `Exclude` (`type(x) == 'table'`
+    /// false); `nil` tests are left to `checks`.
+    fn type_effect(&self, cond: &SyntaxNode, d: usize, truth: bool) -> Option<Effect> {
+        match cond.kind() {
+            PAREN_EXPR => self.type_effect(&cond.first_child()?, d, truth),
+            UNARY_EXPR if cond.first_token().is_some_and(|t| t.kind() == NOT_KW) => self.type_effect(&cond.first_child()?, d, !truth),
+            BINARY_EXPR => {
+                let mut kids = cond.children();
+                let (l, r) = (kids.next()?, kids.next()?);
+                let op = cond.children_with_tokens().filter_map(|x| x.into_token()).find(|t| !matches!(t.kind(), WHITESPACE | COMMENT))?.kind();
+                match op {
+                    // Both sides true, or both false.
+                    AND_KW if truth => self.type_effect(&l, d, true).or_else(|| self.type_effect(&r, d, true)),
+                    OR_KW if !truth => self.type_effect(&l, d, false).or_else(|| self.type_effect(&r, d, false)),
+                    EQ2 | NEQ => {
+                        let lit = self.type_name_test(&l, &r, d).or_else(|| self.type_name_test(&r, &l, d))?;
+                        if lit == "nil" {
+                            return None;
+                        }
+                        Some(if (op == EQ2) == truth { Effect::Narrow(name(&lit)) } else { Effect::Exclude(name(&lit)) })
+                    }
+                    _ => None,
+                }
+            }
+            _ => None,
+        }
+    }
+
+    /// `type(x)` (or a local holding it) compared with a string: that string.
+    fn type_name_test(&self, call: &SyntaxNode, lit: &SyntaxNode, d: usize) -> Option<String> {
+        let call = if call.kind() == NAME_EXPR { self.local_value(call)? } else { call.clone() };
+        if lit.kind() != LITERAL_EXPR {
+            return None;
+        }
+        self.type_test(&call, lit, d)
+    }
+
     /// What statement `s` does to local `d` (see [`Effect`]).
     fn stat_effect(&self, s: &SyntaxNode, d: usize) -> Option<Effect> {
         let r = s.text_range();
@@ -3928,6 +3989,14 @@ impl<'a> Infer<'a> {
                 let simple = !s.children().any(|c| matches!(c.kind(), ELSEIF_CLAUSE | ELSE_CLAUSE));
                 // `else` without writes to it: after the `if`, only the else ran.
                 let plain_else = !s.children().any(|c| c.kind() == ELSEIF_CLAUSE) && writes.is_empty();
+                // `if type(x) ~= 'string' then return end`: a string after it.
+                if simple
+                    && writes.is_empty()
+                    && then.children().last().is_some_and(|l| matches!(l.kind(), RETURN_STAT | BREAK_STAT | GOTO_STAT))
+                    && let Some(f) = self.type_effect(&cond, d, false)
+                {
+                    return Some(f);
+                }
                 if (simple || plain_else) && self.checks(&cond, d) == Some(false) {
                     let last = then.children().last();
                     let leaves = last.as_ref().is_some_and(|l| {
@@ -6873,6 +6942,41 @@ struct Callee {
     /// `function C:f()`: the implicit `self` (its `---@param self T`), which a
     /// `C.f(obj)` call passes first.
     self_param: Option<Option<T>>,
+}
+
+/// The `type()` name a value of type `m` surely has, when known.
+fn type_kind(m: &T) -> Option<&str> {
+    match m {
+        T::Fun(_) => Some("function"),
+        T::Str(..) => Some("string"),
+        T::Bool(_) => Some("boolean"),
+        T::Int(_) => Some("integer"),
+        T::Table(_) | T::Array(_) | T::Tuple(_) => Some("table"),
+        T::Generic(g, _) if g == "table" => Some("table"),
+        T::Name(n) if matches!(n.as_str(), "string" | "number" | "integer" | "boolean" | "table" | "function" | "nil" | "thread" | "userdata") => Some(n),
+        _ => None,
+    }
+}
+
+/// The callee of a call as `ext_calls` keys it: `F`, `A.b.c`, `A:m` (names
+/// and dots only, spaces dropped); None for any other callee.
+pub(crate) fn ext_call_key(text: &str, call: &SyntaxNode) -> Option<String> {
+    let callee = call.first_child()?;
+    let mut key: String = text[callee.text_range()].split_whitespace().collect();
+    if !key.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '.') || key.is_empty() {
+        return None;
+    }
+    if call.kind() == METHOD_CALL_EXPR {
+        key.push(':');
+        key.push_str(crate::api::method_name(call)?.text());
+    }
+    Some(key)
+}
+
+/// One type when every overload kept agrees on it.
+fn agreed(mut ts: impl Iterator<Item = Option<T>>) -> Option<T> {
+    let first = ts.next()??;
+    ts.all(|t| t.as_ref() == Some(&first)).then_some(first)
 }
 
 fn fun_info(t: &T) -> Option<Callee> {

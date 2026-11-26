@@ -519,3 +519,49 @@ h({})
 ");
     assert!(only(&f, "param-type-mismatch").is_empty(), "{f:?}");
 }
+
+#[test]
+fn concat_in_loop_skips_locals_of_the_loop() {
+    let f = codes("local out = {}\nfor i = 1, 3 do\n    local line = tostring(i)\n    if i > 1 then\n        line = line .. ' (b)'\n    end\n    out[#out + 1] = line\n    for j = 1, 2 do line = line .. j end\nend\nprint(out)\n");
+    // The inner loop still grows `line` on every one of its iterations.
+    assert_eq!(only(&f, "perf/concat-in-loop").len(), 1, "{f:?}");
+    assert!(has(&f, "perf/concat-in-loop", "line = line .. j"));
+}
+
+#[test]
+fn type_tests_narrow_when_false() {
+    let f = codes("---@param s string
+local function S(s) return s end
+---@param x string|number
+local function f1(x)
+    if type(x) ~= 'string' then return nil end
+    return S(x)
+end
+---@param x string|number
+local function f2(x)
+    if type(x) ~= 'string' or x == '' then return nil end
+    return S(x)
+end
+---@param x string|string[]
+local function f3(x)
+    if type(x) == 'table' then return nil else return S(x) end
+end
+---@param x string|number
+local function f4(x)
+    if type(x) == 'number' then return nil end
+    return S(x)
+end
+---@param x string|number
+local function f5(x)
+    if type(x) ~= 'number' then return S(x) end
+end
+---@param x string|number
+local function f6(x)
+    if type(x) == 'string' then return nil end
+    return S(x)
+end
+print(f1, f2, f3, f4, f5, f6)
+");
+    // Only `f6`: there `x` is a number.
+    assert_eq!(only(&f, "param-type-mismatch").len(), 1, "{f:?}");
+}
