@@ -563,7 +563,10 @@ error ("invalid UTF-8 code").
 
 ## Open gaps
 
-None known.
+- `ox/missing-locale` reads only ox_lib's `locale('key')` against `locales/*.json`;
+  ESX `_U` / `TranslateCap` with Lua locale tables, QBCore `Lang:t` and a
+  resource's own language tables (`config.langs[config.lang].key`) are not
+  checked.
 
 ## Design decisions
 
