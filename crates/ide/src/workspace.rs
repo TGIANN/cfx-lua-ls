@@ -178,6 +178,42 @@ fn read_capped(path: &Path, max: u64) -> Option<Vec<u8>> {
     (bytes.len() as u64 <= max).then_some(bytes)
 }
 
+/// The words of a doc comment line that may name a type (`Opts`, `Nui.Faq`).
+fn doc_words(line: &str, out: &mut Vec<String>) {
+    let mut word = String::new();
+    for ch in line.chars().chain(std::iter::once(' ')) {
+        if ch.is_alphanumeric() || ch == '_' || (ch == '.' && !word.is_empty()) {
+            word.push(ch);
+        } else if !word.is_empty() {
+            let w = std::mem::take(&mut word);
+            let w = w.trim_end_matches('.');
+            if w.starts_with(|c: char| c.is_alphabetic() || c == '_') {
+                out.push(w.to_string());
+            }
+        }
+    }
+}
+
+/// The names a doc type mentions.
+fn type_names(t: &crate::luacats::DocType, out: &mut Vec<String>) {
+    use crate::luacats::DocType as D;
+    match t {
+        D::Name(n) => out.push(n.clone()),
+        D::Generic(n, args) => {
+            out.push(n.clone());
+            args.iter().for_each(|a| type_names(a, out));
+        }
+        D::Array(i) | D::Optional(i) => type_names(i, out),
+        D::Union(ts) | D::Tuple(ts) => ts.iter().for_each(|a| type_names(a, out)),
+        D::Fun(f) => {
+            f.params.iter().filter_map(|p| p.ty.as_ref()).for_each(|a| type_names(a, out));
+            f.rets.iter().for_each(|r| type_names(&r.ty, out));
+        }
+        D::Table(fields) => fields.iter().for_each(|f| type_names(&f.ty, out)),
+        D::Str(..) | D::Int(_) | D::Bool(_) | D::Code(_) | D::Dots => {}
+    }
+}
+
 /// The exports of a resource's non-Lua scripts.
 fn foreign_scripts(root: &Path, manifest: &Manifest) -> (Vec<(String, FileSide)>, bool) {
     let mut out = Vec::new();
@@ -672,6 +708,74 @@ impl Workspace {
         out
     }
 
+    /// The `---@class`es a file may use from the resource's files, then from the
+    /// resources its manifest names: those its doc comments (and `aliases`)
+    /// name, with the classes their fields and parents name in turn. A name
+    /// belongs to the first resource declaring it, and its declarations there
+    /// are merged (as in one file). The file's own classes win over these.
+    pub(crate) fn visible_classes(&self, path: &Path, text: &str, aliases: &[(String, crate::luacats::DocType)]) -> Vec<crate::api::ClassDef> {
+        let k = key(path);
+        let Some(r) = self.files.get(&k).and_then(|e| e.resource) else { return Vec::new() };
+        let resources: Vec<usize> = std::iter::once(r).chain(self.related(r)).collect();
+        let mut todo: Vec<String> = Vec::new();
+        for line in text.lines().map(str::trim_start).filter(|l| l.starts_with("---")) {
+            doc_words(line, &mut todo);
+        }
+        for (_, t) in aliases {
+            type_names(t, &mut todo);
+        }
+        if todo.is_empty() {
+            return Vec::new();
+        }
+        // Most doc words are prose: look up only names some file declares.
+        let declared: HashSet<&str> = resources
+            .iter()
+            .flat_map(|&res| self.resources[res].files.iter())
+            .filter_map(|f| self.files.get(f))
+            .flat_map(|e| e.api.classes.iter().map(|c| c.name.as_str()))
+            .collect();
+        let mut seen: HashSet<String> = HashSet::new();
+        let mut out: Vec<crate::api::ClassDef> = Vec::new();
+        while let Some(name) = todo.pop() {
+            if !declared.contains(name.as_str()) || !seen.insert(name.clone()) {
+                continue;
+            }
+            let Some(c) = resources.iter().find_map(|&res| self.class_in(res, &name)) else { continue };
+            todo.extend(c.parents.iter().cloned());
+            for f in &c.fields {
+                type_names(&f.ty, &mut todo);
+            }
+            for (key, value) in &c.indexes {
+                type_names(key, &mut todo);
+                type_names(value, &mut todo);
+            }
+            out.push(c);
+        }
+        out
+    }
+
+    /// A resource's `---@class name`, its declarations in every file merged.
+    fn class_in(&self, res: usize, name: &str) -> Option<crate::api::ClassDef> {
+        let mut found: Option<crate::api::ClassDef> = None;
+        for f in &self.resources[res].files {
+            for c in self.files.get(f).map(|e| e.api.classes.as_slice()).unwrap_or_default().iter().filter(|c| c.name == name) {
+                match found.as_mut() {
+                    Some(have) => {
+                        have.fields.extend(c.fields.iter().cloned());
+                        have.parents.extend(c.parents.iter().cloned());
+                        have.parent_types.extend(c.parent_types.iter().cloned());
+                        have.operators.extend(c.operators.iter().cloned());
+                        have.indexes.extend(c.indexes.iter().cloned());
+                        have.exact |= c.exact;
+                        have.partial |= c.partial;
+                    }
+                    None => found = Some(c.clone()),
+                }
+            }
+        }
+        found
+    }
+
     /// The resources a resource's manifest names: `dependency` entries and the
     /// resources of its `@res/file.lua` imports, in the workspace.
     pub(crate) fn related(&self, res: usize) -> Vec<usize> {
@@ -960,6 +1064,7 @@ pub fn lint_file(
     let defined = |n: &str| ws.defined_elsewhere(path, n);
     let used = |n: &str| ws.used_elsewhere(path, n);
     let aliases = ws.visible_aliases(path);
+    let classes = ws.visible_classes(path, text, &aliases);
     let ctx = Context {
         side: info.side,
         game: info.game,
@@ -969,6 +1074,7 @@ pub fn lint_file(
         used_elsewhere: &used,
         globals_unknown: info.globals_unknown,
         aliases: &aliases,
+        classes: &classes,
         config,
     };
     let mut lints = crate::lint::lint(parse, text, names, &ctx);
@@ -1043,6 +1149,37 @@ mod tests {
         let lints = lint_file(&ws, &s2, &p, &text, &n, &LintConfig::default());
         let lower: Vec<&str> = lints.iter().filter(|l| l.code == "lowercase-global").map(|l| &text[l.range]).collect();
         assert_eq!(lower, ["alone"]);
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn classes_of_other_files() {
+        let root = std::env::temp_dir().join(format!("cfx-wscls-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        write(&root, "lib/fxmanifest.lua", "shared_script 'types.lua'\n");
+        write(&root, "lib/types.lua", "---@class Theme\n---@field color string\n---@class Opts\n---@field other number\n");
+        write(&root, "app/fxmanifest.lua", "dependency 'lib'\nshared_scripts { 'shared/type.lua', 'shared/more.lua' }\nclient_script 'client.lua'\n");
+        write(
+            &root,
+            "app/shared/type.lua",
+            "---@class Opts\n---@field id integer\n---@field inner Inner\n---@class Inner\n---@field on boolean\n---@class (partial) Part: Opts\n---@field extra? string\n",
+        );
+        // A class declared in two files of the resource is one class.
+        write(&root, "app/shared/more.lua", "---@class Opts\n---@field name string\n");
+        let text = "---@type Opts\nlocal a = { id = 1, name = 'x', inner = { on = true } }\n---@type Opts\nlocal b = { id = 1 }\n---@type Opts\nlocal c = { id = 'x', name = 'n', inner = { on = true } }\n---@type Part\nlocal d = { extra = 'e' }\n---@type Opts\nlocal e = { id = 1, name = 'n', inner = { on = 5 } }\n---@type Theme\nlocal f = {}\na.later = 1\nprint(a, b, c, d, e, f, a.method)\n";
+        write(&root, "app/client.lua", text);
+        let ws = Workspace::scan(std::slice::from_ref(&root));
+        let path = root.join("app/client.lua");
+        let p = crate::parse(text);
+        let n = crate::names(&p, text);
+        let all = lint_file(&ws, &path, &p, text, &n, &LintConfig::default());
+        let line = |l: &crate::lint::Lint| text[..usize::from(l.range.start())].matches('\n').count() + 1;
+        let found: Vec<(usize, &str)> = all.iter().filter(|l| !matches!(l.code, "unused-local" | "lowercase-global")).map(|l| (line(l), l.code)).collect();
+        // The resource's own `Opts` wins over lib's; lib's `Theme` is known too;
+        // `a.later` and `a.method` are not called undefined or injected.
+        assert_eq!(found, [(4, "missing-fields"), (6, "assign-type-mismatch"), (10, "assign-type-mismatch"), (12, "missing-fields")], "{found:?}");
+        let b = all.iter().find(|l| line(l) == 4).map(|l| l.message.as_str()).unwrap_or_default();
+        assert!(b.contains("`name`") && b.contains("`inner`") && !b.contains("`other`"), "{b}");
         std::fs::remove_dir_all(&root).unwrap();
     }
 }

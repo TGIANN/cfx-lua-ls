@@ -484,3 +484,38 @@ fn codestyle_check_first_per_start() {
     // the quote and ")" findings on the same string; the space before it stays.
     assert_eq!(got, ["expected (", "unnecessary whitespace "]);
 }
+
+#[test]
+fn missing_fields_child_overrides_parent() {
+    // The child's own optional `image` hides the parent's required one.
+    let f = codes("---@class Base
+---@field id string
+---@field image string
+---@class Item: Base
+---@field image? string
+---@type Item
+local a = { id = 'x' }
+---@type Base
+local b = { id = 'y' }
+print(a, b)
+");
+    assert_eq!(only(&f, "missing-fields"), ["{ id = 'y' }"], "{f:?}");
+}
+
+#[test]
+fn or_false_then_or_default() {
+    // `c and v or false` is `v|false`; `s or d()` then drops the `false` (LuaLS gives no warning).
+    let f = codes("---@class St
+---@field a integer
+---@return St
+local function def() return { a = 1 } end
+---@param s St
+local function use(s) print(s) end
+local function h(v)
+    local s = type(v) == 'table' and v or false
+    use(s or def())
+end
+h({})
+");
+    assert!(only(&f, "param-type-mismatch").is_empty(), "{f:?}");
+}

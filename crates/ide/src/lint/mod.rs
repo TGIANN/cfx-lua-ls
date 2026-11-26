@@ -336,6 +336,8 @@ pub struct Context<'a> {
     /// `---@alias` / `---@enum` types the other files of the resource, and the
     /// resources its manifest names, declare.
     pub aliases: &'a [(String, crate::luacats::DocType)],
+    /// `---@class`es the same files declare.
+    pub classes: &'a [crate::api::ClassDef],
     pub config: &'a LintConfig,
 }
 
@@ -352,6 +354,7 @@ impl Default for Context<'_> {
             used_elsewhere: &NO,
             globals_unknown: false,
             aliases: &[],
+            classes: &[],
             config: CONFIG.get_or_init(LintConfig::default),
         }
     }
@@ -422,7 +425,7 @@ impl<'a> Linter<'a> {
 
     pub(crate) fn types(&self) -> &crate::types::FileTypes<'a> {
         self.types.get_or_init(|| {
-            crate::types::FileTypes::from_root(self.root.clone(), self.names, self.text).with_config(self.ctx.config).with_aliases(self.ctx.aliases)
+            crate::types::FileTypes::from_root(self.root.clone(), self.names, self.text).with_config(self.ctx.config).with_aliases(self.ctx.aliases).with_classes(self.ctx.classes)
         })
     }
 

@@ -108,6 +108,8 @@ pub struct ClassDef {
     pub generics: Vec<String>,
     /// `---@class (exact) Name`: no field beyond the declared ones.
     pub exact: bool,
+    /// `---@class (partial) Name: Parent`: the parent's fields are not required.
+    pub partial: bool,
     pub offset: u32,
 }
 
@@ -214,6 +216,8 @@ impl FileApi {
                 && a.operators == b.operators
                 && a.indexes == b.indexes
                 && a.generics == b.generics
+                && a.exact == b.exact
+                && a.partial == b.partial
         }) && self.class_binds == other.class_binds && self.doc_names == other.doc_names && self.aliases == other.aliases && all(&self.exports, &other.exports, |a, b| {
             a.name == b.name && a.value == b.value && deprecated(&a.doc) == deprecated(&b.doc)
         }) && all(&self.export_calls, &other.export_calls, |a, b| {
@@ -290,7 +294,7 @@ pub fn doc_classes(text: &str) -> Vec<ClassDef> {
             for t in tags {
                 let offset = u32::from(t.name.map_or(t.range.start(), |r| r.start()));
                 match t.tag {
-                    Tag::Class { name, parents: parent_types, generics, exact } => {
+                    Tag::Class { name, parents: parent_types, generics, exact, partial } => {
                         let parents = parent_types
                             .iter()
                             .filter_map(|p| match p {
@@ -298,7 +302,7 @@ pub fn doc_classes(text: &str) -> Vec<ClassDef> {
                                 _ => None,
                             })
                             .collect();
-                        out.push(ClassDef { name, parents, parent_types, fields: Vec::new(), operators: Vec::new(), indexes: Vec::new(), generics, exact, offset });
+                        out.push(ClassDef { name, parents, parent_types, fields: Vec::new(), operators: Vec::new(), indexes: Vec::new(), generics, exact, partial, offset });
                         cur = Some(out.len() - 1);
                     }
                     Tag::Operator { op, param, ret: Some(ret) } => {

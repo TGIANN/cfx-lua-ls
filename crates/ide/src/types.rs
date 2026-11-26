@@ -182,6 +182,12 @@ struct Infer<'a> {
     names: &'a Names,
     root: SyntaxNode,
     classes: HashMap<String, crate::api::ClassDef>,
+    /// `---@class`es of the resource's other files and the resources its
+    /// manifest names (none the file declares itself): known as types, so a
+    /// table or value given where one is expected is checked against its
+    /// `---@field`s, but never a reason to call a field undefined or injected
+    /// (methods and fields set in code are not in a `ClassDef`).
+    ext_classes: HashMap<String, crate::api::ClassDef>,
     aliases: HashMap<String, T>,
     /// `---@alias Callback<T> ...`: `T`.
     alias_generics: HashMap<String, Vec<String>>,
@@ -584,6 +590,17 @@ impl<'a> FileTypes<'a> {
     pub(crate) fn with_aliases(mut self, ext: &[(String, T)]) -> FileTypes<'a> {
         for (n, t) in ext {
             self.inf.aliases.entry(n.clone()).or_insert_with(|| t.clone());
+        }
+        self
+    }
+
+    /// Classes declared in other files (see `Infer::ext_classes`); the file's
+    /// own declaration of a name wins.
+    pub(crate) fn with_classes(mut self, ext: &[crate::api::ClassDef]) -> FileTypes<'a> {
+        for c in ext {
+            if !self.inf.classes.contains_key(&c.name) && !self.inf.aliases.contains_key(&c.name) {
+                self.inf.ext_classes.entry(c.name.clone()).or_insert_with(|| c.clone());
+            }
         }
         self
     }
@@ -1288,23 +1305,25 @@ impl<'a> FileTypes<'a> {
     fn class_missing(&self, class: &str, given: &[String]) -> Option<Vec<String>> {
         let inf = &self.inf;
         let class = class.to_string();
-        inf.classes.get(&class)?;
+        let own = inf.declared_class(&class)?;
         let mut required: Vec<String> = Vec::new();
         // `---@class (partial) B: A`: A's fields are not required.
-        let partial = inf.text.lines().any(|l| {
+        let partial = own.partial || inf.text.lines().any(|l| {
             let t = l.trim_start().trim_start_matches('-').trim_start();
             t.starts_with("@class") && t.contains("partial") && t.split(|c: char| !(c.is_alphanumeric() || c == '_' || c == '.')).any(|w| w == class)
         });
         let mut stack = vec![class.clone()];
         let mut seen = std::collections::HashSet::new();
+        let mut declared = std::collections::HashSet::new();
         while let Some(c) = stack.pop() {
             if !seen.insert(c.clone()) || seen.len() > 16 {
                 continue;
             }
-            // A parent declared in another file may add fields: not told.
-            let def = inf.classes.get(&c)?;
+            // A parent declared outside the resource may add fields: not told.
+            let def = inf.declared_class(&c)?;
             for f in &def.fields {
-                if !nil_able(&f.ty) && !required.contains(&f.name) {
+                // A class's own `---@field x? T` hides a parent's required `x`.
+                if declared.insert(f.name.clone()) && !nil_able(&f.ty) {
                     required.push(f.name.clone());
                 }
             }
@@ -1333,7 +1352,7 @@ impl<'a> FileTypes<'a> {
             return None;
         }
         let T::Name(class) = non_nil(want.clone()) else { return None };
-        inf.classes.get(&class)?;
+        inf.declared_class(&class)?;
         let Target::Decl(d) = inf.ref_at(e.first_token()?.text_range())?.target else { return None };
         let stat = inf.decl_stat(d)?;
         if stat_tags(inf.text, &stat).iter().any(|t| matches!(t, Tag::Type { .. } | Tag::Class { .. })) {
@@ -1364,7 +1383,7 @@ impl<'a> FileTypes<'a> {
             let Some(ty) = self.class_field_type(class, &name) else { continue };
             if v.kind() == TABLE_EXPR
                 && let T::Name(inner) = non_nil(ty.clone())
-                && inf.classes.contains_key(&inner)
+                && inf.declared_class(&inner).is_some()
             {
                 if self.table_misfits(&v, &inner, depth + 1) {
                     return true;
@@ -1388,7 +1407,7 @@ impl<'a> FileTypes<'a> {
             if !seen.insert(c.clone()) || seen.len() > 16 {
                 continue;
             }
-            let def = inf.classes.get(&c)?;
+            let def = inf.declared_class(&c)?;
             if let Some(f) = def.fields.iter().find(|f| f.name == field) {
                 return Some(f.ty.clone());
             }
@@ -3076,6 +3095,7 @@ impl<'a> Infer<'a> {
                     have.operators.extend(c.operators);
                     have.indexes.extend(c.indexes);
                     have.exact |= c.exact;
+                    have.partial |= c.partial;
                 }
                 None => {
                     classes.insert(c.name.clone(), c);
@@ -3084,7 +3104,7 @@ impl<'a> Infer<'a> {
         }
         let (mut aliases, alias_generics) = doc_aliases(text);
         aliases.extend(enum_aliases(&root, text));
-        Infer { text, names, root, classes, aliases, alias_generics, depth: Cell::new(0), flow_budget: Cell::new(FLOW_BUDGET),
+        Infer { text, names, root, classes, ext_classes: HashMap::new(), aliases, alias_generics, depth: Cell::new(0), flow_budget: Cell::new(FLOW_BUDGET),
             exhausted: Cell::new(false),
             functions: std::cell::OnceCell::new(),
             class_members: std::cell::OnceCell::new(),
@@ -4855,7 +4875,7 @@ impl<'a> Infer<'a> {
             }
             T::Name(n) if matches!(n.as_str(), "nil" | "any" | "unknown") => Some(true),
             T::Name(n) if let Some(a) = self.aliases.get(n) => self.takes_nil(a, depth + 1),
-            T::Name(n) if BASIC.contains(&n.as_str()) || self.classes.contains_key(n) => Some(false),
+            T::Name(n) if BASIC.contains(&n.as_str()) || self.declared_class(n).is_some() => Some(false),
             T::Table(_) | T::Array(_) | T::Tuple(_) | T::Fun(_) | T::Str(..) | T::Int(_) | T::Bool(_) => Some(false),
             T::Generic(n, _) if n == "table" => Some(false),
             _ => None,
@@ -4868,7 +4888,7 @@ impl<'a> Infer<'a> {
         if depth > 8 {
             return None;
         }
-        let def = self.classes.get(class)?;
+        let def = self.declared_class(class)?;
         let mut unsure = false;
         for parent in &def.parents {
             if want(parent) {
@@ -4890,7 +4910,7 @@ impl<'a> Infer<'a> {
         match t {
             T::Name(n) => match BASIC.iter().find(|b| **b == n) {
                 Some(b) => Kind::Basic(b),
-                None if self.classes.contains_key(n) && !self.aliases.contains_key(n) => Kind::Class(n.clone()),
+                None if self.declared_class(n).is_some() && !self.aliases.contains_key(n) => Kind::Class(n.clone()),
                 None => Kind::Unknown,
             },
             T::Str(..) => Kind::Basic("string"),
@@ -5171,7 +5191,13 @@ impl<'a> Infer<'a> {
 
     /// The class (or one of its parents) declaring `---@operator op`.
     fn class_def(&self, c: &str) -> Option<&crate::api::ClassDef> {
-        self.classes.get(c).or_else(|| crate::library::classes().get(c).and_then(|v| v.first()))
+        self.declared_class(c).or_else(|| crate::library::classes().get(c).and_then(|v| v.first()))
+    }
+
+    /// A `---@class` of this file, else one of the resource's other files or
+    /// the resources it names (`ext_classes`).
+    fn declared_class(&self, c: &str) -> Option<&crate::api::ClassDef> {
+        self.classes.get(c).or_else(|| self.ext_classes.get(c))
     }
 
     /// `---@operator` of the operand's class: its result.
@@ -5285,7 +5311,10 @@ impl<'a> Infer<'a> {
             // `a or b`: what of `a` is truthy, and `b` when `a` may be falsy.
             OR_KW => {
                 let lt = self.bool_const(&l).map_or_else(|| self.expr_type(&l), T::Bool);
-                let rt = self.expr_type(&r);
+                // `x or false` is `x` when truthy, else `false` (not `true`): a later
+                // `y or d` drops it, as in LuaLS.
+                let literal_false = r.kind() == LITERAL_EXPR && r.first_token().is_some_and(|t| t.kind() == FALSE_KW);
+                let rt = if literal_false { T::Bool(false) } else { self.expr_type(&r) };
                 if lt == T::Bool(false) {
                     return rt;
                 }
@@ -5636,7 +5665,7 @@ impl<'a> Infer<'a> {
                     }
                     chain.push(c.clone());
                     let lib;
-                    let def = match self.classes.get(&c) {
+                    let def = match self.declared_class(&c) {
                         Some(d) => d,
                         None => {
                             lib = crate::library::classes().get(&c).and_then(|v| v.first());

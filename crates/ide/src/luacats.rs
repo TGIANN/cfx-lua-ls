@@ -96,7 +96,7 @@ pub enum Visibility {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Tag {
-    Class { name: String, generics: Vec<String>, parents: Vec<DocType>, exact: bool },
+    Class { name: String, generics: Vec<String>, parents: Vec<DocType>, exact: bool, partial: bool },
     Field { visibility: Option<Visibility>, key: Key, optional: bool, ty: DocType, desc: String },
     Param { name: String, optional: bool, ty: Option<DocType>, desc: String },
     Return { rets: Vec<FunRet>, desc: String },
@@ -622,10 +622,11 @@ fn parse_line(text: &str, at: TextSize, errors: &mut Vec<DocError>) -> Option<Do
     let mut name_range = None;
     let tag = match tag {
         "class" => {
-            let mut exact = false;
+            let (mut exact, mut partial) = (false, false);
             if p.eat("(") {
                 while let Some(a) = p.name() {
                     exact |= a == "exact";
+                    partial |= a == "partial";
                     if !p.eat(",") {
                         break;
                     }
@@ -662,7 +663,7 @@ fn parse_line(text: &str, at: TextSize, errors: &mut Vec<DocError>) -> Option<Do
                     }
                 }
             }
-            Tag::Class { name, generics, parents, exact }
+            Tag::Class { name, generics, parents, exact, partial }
         }
         "field" => {
             let mut visibility = None;

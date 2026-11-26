@@ -576,6 +576,44 @@ fn class_fields_and_names_across_files() {
 }
 
 #[test]
+fn class_of_another_file_checks_tables_and_follows_its_edits() {
+    let root = std::env::temp_dir().join(format!("cfx-lua-ls-extcls-{}", std::process::id()));
+    let res = root.join("app");
+    std::fs::create_dir_all(res.join("shared")).unwrap();
+    std::fs::write(res.join("fxmanifest.lua"), "shared_script 'shared/type.lua'\nclient_script 'client.lua'\n").unwrap();
+    let types = "---@class Opts\n---@field id integer\n---@field name string\n";
+    std::fs::write(res.join("shared/type.lua"), types).unwrap();
+    std::fs::write(res.join("client.lua"), "").unwrap();
+    let to_uri = |p: &std::path::Path| {
+        let s = p.to_string_lossy().replace('\\', "/").replace(' ', "%20");
+        if s.starts_with('/') { format!("file://{s}") } else { format!("file:///{s}") }
+    };
+    let file = to_uri(&res.join("client.lua"));
+    let types_uri = to_uri(&res.join("shared/type.lua"));
+    let (c, handle) = Client::start_with(json!({ "capabilities": {}, "workspaceFolders": [{ "uri": to_uri(&root), "name": "w" }] }));
+    let codes_of = |c: &Client, uri: &str| -> Vec<String> {
+        loop {
+            let d = c.diagnostics();
+            if d["uri"] == uri {
+                return d["diagnostics"].as_array().unwrap().iter().map(|x| x["code"].as_str().unwrap().to_string()).collect();
+            }
+        }
+    };
+    let text = "---@type Opts\nlocal o = { id = 1 }\nprint(o)\n";
+    c.notify("textDocument/didOpen", json!({ "textDocument": { "uri": file, "languageId": "lua", "version": 1, "text": text } }));
+    assert_eq!(codes_of(&c, &file), ["missing-fields"]);
+    c.notify("textDocument/didOpen", json!({ "textDocument": { "uri": types_uri, "languageId": "lua", "version": 1, "text": types } }));
+    // `name` becomes optional in the other file: the client is checked again.
+    c.notify(
+        "textDocument/didChange",
+        json!({ "textDocument": { "uri": types_uri, "version": 2 }, "contentChanges": [{ "text": "---@class Opts\n---@field id integer\n---@field name? string\n" }] }),
+    );
+    assert!(codes_of(&c, &file).is_empty());
+    c.shutdown(handle);
+    std::fs::remove_dir_all(&root).unwrap();
+}
+
+#[test]
 fn style_and_spell_checks_from_client_settings() {
     let root = std::env::temp_dir().join(format!("cfx-lua-ls-style-{}", std::process::id()));
     std::fs::create_dir_all(&root).unwrap();
