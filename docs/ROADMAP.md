@@ -555,7 +555,11 @@ error ("invalid UTF-8 code").
     this repository and `release.yml`; the release workflow's `publish` job
     sends each platform's `.vsix` with `vsce publish --oidc` (vsce 4.1.1), so
     no token is stored (first upload: v1.1.0). Azure DevOps global PATs, the
-    earlier `VSCE_PAT` route, are being retired.
+    earlier `VSCE_PAT` route, are being retired. The same job sends them to
+    Open VSX (Cursor, VSCodium, Windsurf) with `ovsx publish
+    --trusted-publishing`; Open VSX trusts a publisher only for an extension
+    that already exists, so its first version is uploaded once by hand with a
+    token.
 
 ## Design decisions
 
