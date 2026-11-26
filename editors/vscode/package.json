@@ -93,7 +93,7 @@
     "vscode:prepublish": "npm run typecheck && esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --target=node18 --minify"
   },
   "dependencies": {
-    "vscode-languageclient": "9.0.1"
+    "vscode-languageclient": "11.0.1"
   },
   "devDependencies": {
     "@types/node": "18.19.64",
