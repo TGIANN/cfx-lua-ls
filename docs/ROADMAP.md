@@ -545,15 +545,17 @@ error ("invalid UTF-8 code").
     `.github/workflows/release.yml` (release-please; on a release, the server
     for Windows x64, Linux x64 and macOS arm64 / x64 attached to the GitHub
     release, a VS Code extension per platform with the server inside, and the
-    Marketplace upload when the `VSCE_PAT` secret is set); `action.yml`, the
+    Marketplace upload through Trusted Publishing); `action.yml`, the
     repository as an action (downloads a release, runs `check`, uploads SARIF
     to code scanning, fails at `fail-on`).
   - Done: the repository is pushed (private, a fresh history without local
     paths) and v1.0.0 is released: the server for the four targets and a
     `.vsix` per platform on the GitHub release; CI runs on every push.
-  - Not done: the Marketplace upload. It needs the owner's `VSCE_PAT` secret
-    for the `tgiann` publisher; once the secret is set, the release workflow
-    uploads on the next release.
+  - Marketplace: the `tgiann` publisher has a Trusted Publishing policy for
+    this repository and `release.yml`; the release workflow's `publish` job
+    sends each platform's `.vsix` with `vsce publish --oidc` (vsce 4.1.1), so
+    no token is stored. Azure DevOps global PATs, the earlier `VSCE_PAT` route,
+    are being retired.
 
 ## Design decisions
 
