@@ -1,7 +1,7 @@
 {
   "name": "cfx-lua-ls",
   "displayName": "CfxLua Language Server",
-  "description": "Fast language server for FiveM Lua (CfxLua), written in Rust.",
+  "description": "Lua language server and linter for FiveM: fxmanifest sides, natives, exports, events, ox_lib, QBCore, Qbox and ESX. Fast and light, written in Rust.",
   "version": "1.4.0",
   "publisher": "tgiann",
   "license": "MIT",
@@ -29,7 +29,16 @@
   "keywords": [
     "lua",
     "fivem",
-    "cfxlua"
+    "cfxlua",
+    "cfx",
+    "redm",
+    "fxmanifest",
+    "ox_lib",
+    "qbcore",
+    "qbox",
+    "esx",
+    "linter",
+    "language server"
   ],
   "activationEvents": [
     "onLanguage:lua"
